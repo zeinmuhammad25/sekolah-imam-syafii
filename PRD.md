@@ -26,17 +26,18 @@ Membangun platform informasi sekolah yang **Serverless**, **Ultra-Fast**, dan **
 - **Full-Screen Gallery Modal**: Jendela dokumentasi lengkap dengan transisi halus untuk melihat seluruh aktivitas siswa.
 
 ## 3. Spesifikasi Teknis
-- **Framework**: React.js 18+ (Vite)
+- **Framework**: React.js 18+ (Vite 6)
 - **Styling**: Tailwind CSS 3.x
 - **Animation**: Framer Motion 10+
 - **Icons**: Lucide React
-- **Hosting**: Netlify (CI/CD Integrated)
+- **Hosting**: Cloudflare Pages (Unlimited Bandwidth)
 - **CMS**: Google Apps Script & Google Sheets
 
 ## 4. Keamanan & Deployment
-- **SSL Encryption**: Sertifikat Let's Encrypt melalui Netlify.
+- **SSL Encryption**: Global SSL melalui Cloudflare.
 - **Direct Domain**: https://sekolahislamimamsyafii.web.id
+- **Open Graph**: Metadata SEO untuk preview WhatsApp/Social Media.
 
 ---
-**Status Dokumen**: Rev 1.2 (Final Stable)
+**Status Dokumen**: Rev 1.3 (Final Stable)
 **Terakhir Diperbarui**: 21 April 2026

@@ -1,16 +1,14 @@
 # 🏫 Website SD Modern (SD MIAS) - Official Repository
 
-Website resmi SD MIAS yang dibangun dengan standar teknologi modern: **React (Vite)**, **Tailwind CSS**, dan **Google Sheets CMS**. Website ini dirancang untuk kecepatan muat yang kencang, desain premium, dan kemudahan pengelolaan data.
+Website resmi SD MIAS yang dibangun dengan standar teknologi modern: **React (Vite 6)**, **Tailwind CSS**, dan **Google Sheets CMS**. Website ini dirancang untuk kecepatan muat yang kencang, desain premium, dan ketangguhan infrastruktur tinggi.
 
-## 🚀 Fitur Unggulan (Update April 2026)
-1. **Ultra-Speed Local Assets**: Logo (`logo.png`) dan Hero Image (`hero.jpeg`) disimpan di lokal (`/public/avatars/`) untuk loading instan tanpa latensi cloud.
-2. **Minimalist Mobile Menu**: Burger menu modern dengan *smooth slide animation* dan desain yang bersih.
-3. **Smart Gallery Modal**:
-   - Tampilan Beranda: Terbatas 5 foto terbaik (Bento Grid).
-   - Galleri Lengkap: Popup interaktif untuk melihat seluruh dokumentasi dari Google Sheets.
-4. **Adaptive Optimized Image**: Komponen gambar cerdas dengan auto-fallback ke warna abu-abu premium jika link rusak/kosong.
-5. **Gender-Based Avatar**: Otomatis mendeteksi ustadz (Ikhwan) atau ustadzah (Akhwat) dan menampilkan ikon yang sesuai jika foto tidak tersedia.
-6. **Deploy Ready**: Terintegrasi penuh dengan Netlify untuk deployment otomatis (CI/CD).
+## 🚀 Fitur Unggulan (Updated)
+1.  **Cloudflare Pages Hosting**: Migrasi dari Netlify untuk **Bandwidth Tanpa Batas (Unlimited)**. Website tidak akan pernah mati lagi karena limit trafik.
+2.  **Social Sharing Optimized**: Integrasi **Open Graph Tags**. Saat link dibagikan ke WhatsApp, akan muncul judul "Official Website..." lengkap dengan deskripsi dan logo sekolah.
+3.  **Ultra-Speed Vite 6 Engine**: Menggunakan versi terbaru Vite untuk proses build yang lebih efisien dan kompatibilitas modern.
+4.  **Ultra-Speed Local Assets**: Logo (`logo.png`) dan Hero Image (`hero.jpeg`) disimpan lokasl di `/public/avatars/` untuk loading instan.
+5.  **Smart Gallery & Modal**: Tampilan Bento Grid di beranda dan Full Gallery Popup yang interaktif.
+6.  **Gender-Based Avatar**: Otomatis menampilkan ikon Ikhwan/Akhwat untuk staf yang belum memiliki foto foto.
 
 ---
 
@@ -23,15 +21,14 @@ Website ini dikontrol melalui satu Spreadsheet dengan tab berikut:
 | `Staff` | Tim Pengajar | Nama, Jabatan, Foto, Gender (`ikhwan`/`akhwat`) |
 | `Gallery` | Dokumentasi Siswa | Judul, Kategori, Link Gambar |
 | `Announcements` | Running Info | Teks, Active (`Yes`/`No`) |
-| `News` | Berita Terbaru | Judul, Isi, Gambar |
 | `PPDB` | Database Pendaftar | Data Calon Siswa Baru |
 
 ---
 
 ## 📂 Struktur Folder
 - `/public/avatars/`: Tempat menyimpan `logo.png`, `hero.jpeg`, `ikhwan.png`, dan `akhwat.png`.
-- `/src/services/gsheet.js`: Script koneksi ke Google Apps Script.
-- `/src/App.jsx`: Logika utama dan desain antarmuka.
+- `/src/services/gsheet.js`: Script koneksi ke API Google Sheets.
+- `/src/App.jsx`: Komponen UI utama.
 
 ## 🛠️ Pengembangan
 ```bash
@@ -47,5 +44,6 @@ npm run build
 
 ---
 **Domain Resmi**: [sekolahislamimamsyafii.web.id](https://sekolahislamimamsyafii.web.id)  
-**Status**: ✅ Produksi Stabil | **Rev**: 1.2
-**Developer**: Zein
+**Infrastructure**: 🌐 Cloudflare Pages (Production)  
+**Status**: ✅ Produksi Aktif | **Rev**: 1.3  
+**Developer**: Zein | **Last Update**: 21 April 2026
