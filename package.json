@@ -9,11 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "clsx": "^2.0.0",
+    "docx": "^9.6.1",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^10.16.4",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^0.284.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "framer-motion": "^10.16.4",
-    "lucide-react": "^0.284.0",
-    "clsx": "^2.0.0",
+    "react-router-dom": "^7.14.2",
     "tailwind-merge": "^1.14.0"
   },
   "devDependencies": {

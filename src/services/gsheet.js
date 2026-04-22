@@ -24,15 +24,35 @@ export const submitPPDBForm = async (formData) => {
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
-      mode: 'no-cors', // Apps Script requires no-cors if not handling preflight
+      mode: 'no-cors',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(formData),
+      body: JSON.stringify({
+        type: 'PPDB',
+        ...formData
+      }),
     });
     return { success: true };
   } catch (error) {
     console.error('Error submitting form:', error);
+    return { success: false, error };
+  }
+};
+
+export const saveQuestions = async (questionsData) => {
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(questionsData),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving questions:', error);
     return { success: false, error };
   }
 };
