@@ -387,47 +387,47 @@ export default function TeacherSoal() {
 
       {/* Folder Section */}
       <section>
-        <div className="flex items-center justify-between mb-4 px-2">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Daftar Folder Ujian - {activeGrade}</h3>
+        <div className="flex items-center justify-between mb-3 px-2">
+          <h3 className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest">Daftar Folder Ujian - {activeGrade}</h3>
           <button 
             onClick={() => setIsAddFolderModalOpen(true)}
-            className="text-xs font-black text-secondary flex items-center gap-2 hover:translate-x-1 transition-all"
+            className="text-[10px] md:text-xs font-black text-secondary flex items-center gap-2 hover:translate-x-1 transition-all"
           >
-            <FolderPlus size={14} /> TAMBAH TIPE UJIAN
+            <FolderPlus size={14} className="hidden md:block" /> TAMBAH TIPE UJIAN
           </button>
         </div>
         
-        <div className="flex gap-4 overflow-x-auto pb-6 pt-2 px-2 -mx-2 hide-scrollbar">
+        <div className="flex gap-3 overflow-x-auto pb-4 pt-1 px-2 -mx-2 hide-scrollbar">
           {examTypes[activeGrade].map(folder => (
             <div
               key={folder.id}
               onClick={() => setActiveExamFolder(folder.id)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 shrink-0 transition-all cursor-pointer ${
+              className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl border-2 shrink-0 transition-all cursor-pointer ${
                 activeExamFolder === folder.id 
                 ? 'bg-white border-secondary shadow-xl shadow-secondary/10 -translate-y-1' 
                 : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300'
               }`}
             >
-              <div className={`p-2.5 rounded-xl ${activeExamFolder === folder.id ? 'bg-secondary/10 text-secondary' : 'bg-slate-50 text-slate-400'}`}>
-                <FileText size={20} />
+              <div className={`p-2 md:p-2.5 rounded-lg md:rounded-xl ${activeExamFolder === folder.id ? 'bg-secondary/10 text-secondary' : 'bg-slate-50 text-slate-400'}`}>
+                <FileText size={16} className="md:w-5 md:h-5" />
               </div>
               <div className="text-left flex-grow">
-                <p className={`text-sm font-black ${activeExamFolder === folder.id ? 'text-slate-900' : 'text-slate-500'}`}>{folder.name}</p>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">{(questions[folder.id] || []).length} Soal</p>
+                <p className={`text-xs md:text-sm font-black ${activeExamFolder === folder.id ? 'text-slate-900' : 'text-slate-500'}`}>{folder.name}</p>
+                <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">{(questions[folder.id] || []).length} Soal</p>
               </div>
               <button 
                 onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }}
-                className="ml-3 p-1.5 text-slate-200 hover:text-rose-500 transition-colors"
+                className="ml-2 md:ml-3 p-1 text-slate-200 hover:text-rose-500 transition-colors"
                 title="Hapus Folder"
               >
-                <Trash2 size={14} />
+                <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
               </button>
             </div>
           ))}
           {examTypes[activeGrade].length === 0 && (
-            <div className="py-8 border-2 border-dashed border-slate-200 rounded-3xl w-full text-center flex flex-col items-center gap-2">
-              <AlertCircle size={24} className="text-slate-300" />
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Belum ada folder</p>
+            <div className="py-6 md:py-8 border-2 border-dashed border-slate-200 rounded-2xl md:rounded-3xl w-full text-center flex flex-col items-center gap-2">
+              <AlertCircle size={20} className="text-slate-300 md:w-6 md:h-6" />
+              <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Belum ada folder</p>
             </div>
           )}
         </div>
@@ -435,72 +435,72 @@ export default function TeacherSoal() {
 
       {/* Questions Area */}
       {activeExamFolder ? (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-20">
+          <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm border border-slate-100 p-4 md:p-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
               <div className="relative flex-grow max-w-md">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input 
                   type="text" 
                   placeholder="Cari pertanyaan..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:ring-2 focus:ring-secondary/20 transition-all placeholder:text-slate-300"
+                  className="w-full bg-slate-50 border-none rounded-xl md:rounded-2xl py-2.5 md:py-4 pl-11 md:pl-14 pr-4 md:pr-6 text-xs md:text-sm font-bold focus:ring-2 focus:ring-secondary/20 transition-all placeholder:text-slate-300"
                 />
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
                 <button 
                   onClick={handleExportPDF}
-                  className="p-4 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-100 transition-all border border-rose-100 flex items-center gap-2 font-black text-xs"
+                  className="flex-grow md:flex-none p-2.5 md:p-4 bg-rose-50 text-rose-600 rounded-xl md:rounded-2xl hover:bg-rose-100 transition-all border border-rose-100 flex items-center justify-center gap-2 font-black text-[10px] md:text-xs"
                 >
-                  <FileDown size={18} /> EXPORT PDF
+                  <FileDown size={16} /> EXPORT PDF
                 </button>
                 <button 
                   onClick={() => { setEditingQuestion(null); setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a', weight: 1 }); setIsQuestionModalOpen(true); }}
-                  className="bg-secondary text-white px-8 py-4 rounded-2xl font-black text-xs flex items-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20"
+                  className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20"
                 >
-                  <Plus size={18} /> TAMBAH SOAL
+                  <Plus size={16} /> TAMBAH SOAL
                 </button>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+            <div className="overflow-x-auto -mx-4 md:mx-0">
+              <table className="w-full text-left min-w-[600px] md:min-w-0">
                 <thead>
-                  <tr className="text-[10px] uppercase font-black text-slate-400 tracking-[0.2em] border-b border-slate-50">
-                    <th className="pb-6 px-4">#</th>
-                    <th className="pb-6">Detail Soal</th>
-                    <th className="pb-6 text-center">Kunci</th>
-                    <th className="pb-6 text-center">Bobot</th>
-                    <th className="pb-6 text-right">Aksi</th>
+                  <tr className="text-[9px] md:text-[10px] uppercase font-black text-slate-400 tracking-[0.2em] border-b border-slate-50">
+                    <th className="pb-4 md:pb-6 px-4">#</th>
+                    <th className="pb-4 md:pb-6">Detail Soal</th>
+                    <th className="pb-4 md:pb-6 text-center">Kunci</th>
+                    <th className="pb-4 md:pb-6 text-center">Bobot</th>
+                    <th className="pb-4 md:pb-6 text-right px-4">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {filteredQuestions.map((q, i) => (
                     <tr key={q.id} className="group hover:bg-slate-50/40 transition-colors">
-                      <td className="py-6 px-4 text-sm font-black text-slate-300">{i + 1}</td>
-                      <td className="py-6 pr-6">
-                        <p className="text-sm font-bold text-slate-700 leading-relaxed mb-3 line-clamp-2">{q.text}</p>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                      <td className="py-4 md:py-6 px-4 text-xs md:text-sm font-black text-slate-300">{i + 1}</td>
+                      <td className="py-4 md:py-6 pr-4 md:pr-6">
+                        <p className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed mb-2 md:mb-3 line-clamp-2">{q.text}</p>
+                        <div className="grid grid-cols-2 gap-x-4 md:gap-x-6 gap-y-1">
                           {['a', 'b', 'c', 'd'].map(opt => (
-                            <span key={opt} className={`text-[10px] font-bold uppercase tracking-wide flex items-center gap-2 ${q.correctAnswer === opt ? 'text-secondary' : 'text-slate-400'}`}>
-                              <span className={`w-4 h-4 rounded flex items-center justify-center text-[8px] ${q.correctAnswer === opt ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400'}`}>{opt}</span>
+                            <span key={opt} className={`text-[8px] md:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 md:gap-2 ${q.correctAnswer === opt ? 'text-secondary' : 'text-slate-400'}`}>
+                              <span className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded flex items-center justify-center text-[7px] md:text-[8px] ${q.correctAnswer === opt ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400'}`}>{opt}</span>
                               {q.options[opt]}
                             </span>
                           ))}
                         </div>
                       </td>
-                      <td className="py-6 text-center">
-                        <span className="inline-flex w-8 h-8 bg-secondary/10 text-secondary rounded-xl items-center justify-center font-black text-xs uppercase">{q.correctAnswer}</span>
+                      <td className="py-4 md:py-6 text-center">
+                        <span className="inline-flex w-7 h-7 md:w-8 md:h-8 bg-secondary/10 text-secondary rounded-lg md:rounded-xl items-center justify-center font-black text-xs uppercase">{q.correctAnswer}</span>
                       </td>
-                      <td className="py-6 text-center">
-                        <span className="text-xs font-black text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg">{q.weight}</span>
+                      <td className="py-4 md:py-6 text-center">
+                        <span className="text-[10px] md:text-xs font-black text-slate-400 bg-slate-50 px-2 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg">{q.weight}</span>
                       </td>
-                      <td className="py-6 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEditQuestion(q)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-secondary rounded-xl transition-all"><FileEdit size={16} /></button>
-                          <button onClick={() => handleDeleteQuestion(q.id)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-xl transition-all"><Trash2 size={16} /></button>
+                      <td className="py-4 md:py-6 text-right px-4">
+                        <div className="flex items-center justify-end gap-1.5 md:gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEditQuestion(q)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-secondary rounded-lg md:rounded-xl transition-all"><FileEdit size={14} className="md:w-4 md:h-4" /></button>
+                          <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-lg md:rounded-xl transition-all"><Trash2 size={14} className="md:w-4 md:h-4" /></button>
                         </div>
                       </td>
                     </tr>
