@@ -25,19 +25,22 @@ Membangun platform informasi sekolah yang **Serverless**, **Ultra-Fast**, dan **
 - **Limited Bento Grid**: Menampilkan 5 foto terbaik di halaman utama untuk menjaga kerapian.
 - **Full-Screen Gallery Modal**: Jendela dokumentasi lengkap dengan transisi halus untuk melihat seluruh aktivitas siswa.
 
-## 3. Spesifikasi Teknis
+### E. Modul Administrasi Guru (Bank Soal)
+- **Teacher Dashboard & Bank Soal (Hybrid)**: Panel lengkap bagi pengajar untuk menginput bank soal digital (Pilihan Ganda & Essai) yang terintegrasi langsung dengan Cloud.
+- **Grade-Isolated Cloud Sync**: Arsitektur sinkronisasi tingkat lanjut yang memisahkan data per jenjang (TK s/d SD 6) di baris Google Sheets yang berbeda untuk mencegah *data loss* dan konflik antar guru.
+- **Advanced PDF Sectioning**: Ekspor dokumen soal otomatis yang terbagi menjadi Section I (PG) dan Section II (Essai) dengan area isian tulisan tangan yang lega.
+- **5-Step Mobile Guard**: Proteksi navigasi tombol "Back" HP Xiaomi/Android agar popup tidak tertutup tanpa sengaja sebelum data disimpan.
+- **Smart Cloud Sync**: Logika sinkronisasi otomatis yang mendeteksi perubahan data dan melakukan polling background setiap 30 detik.
+- **Hybrid Question Architecture**: Mendukung tipe Pilihan Ganda dan Essai dengan area isian adaptif.
+- **5-Step Navigation Protection**: Mekanisme khusus untuk mencegah penutupan modal tak sengaja via tombol Hardware Back (Lock 1-3, Alert 4, Exit 5).
+
+## 3. Spesifikasi Teknis (Extended)
 - **Framework**: React.js 18+ (Vite 6)
 - **Styling**: Tailwind CSS 3.x
 - **Animation**: Framer Motion 10+
-- **Icons**: Lucide React
-- **Hosting**: Cloudflare Pages (Unlimited Bandwidth)
-- **CMS**: Google Apps Script & Google Sheets
-
-## 4. Keamanan & Deployment
-- **SSL Encryption**: Global SSL melalui Cloudflare.
-- **Direct Domain**: https://sekolahislamimamsyafii.web.id
-- **Open Graph**: Metadata SEO untuk preview WhatsApp/Social Media.
+- **PDF Engine**: jsPDF & AutoTable (Advanced Sectioning v2.0)
+- **CMS**: Google Apps Script (v1.8) & Multi-Row JSON Storage
 
 ---
-**Status Dokumen**: Rev 1.3 (Final Stable)
-**Terakhir Diperbarui**: 21 April 2026
+**Status**: ✅ Produksi Aktif | **Rev**: 1.8  
+**Developer**: Antigravity AI | **Last Update**: 23 April 2026

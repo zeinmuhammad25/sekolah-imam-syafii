@@ -67,6 +67,7 @@ export default function TeacherSoal() {
   });
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [backPressCounter, setBackPressCounter] = useState(0);
 
   // Persist data
   useEffect(() => {
@@ -79,14 +80,33 @@ export default function TeacherSoal() {
 
   // Protection for Mobile Back Button: "Trap" the user in the modal
   useEffect(() => {
-    if (isQuestionModalOpen || isAddFolderModalOpen) {
+    if (isQuestionModalOpen) {
+      setBackPressCounter(0);
       window.history.pushState({ modalOpen: true }, '');
       const handlePopState = () => {
-        if (isQuestionModalOpen || isAddFolderModalOpen) {
-          // Re-push the state to prevent exiting the page
-          window.history.pushState({ modalOpen: true }, '');
-          // Note: keyboard will close automatically by OS on first back press
+        if (isQuestionModalOpen) {
+          setBackPressCounter(prev => {
+            const next = prev + 1;
+            if (next <= 3) {
+              window.history.pushState({ modalOpen: true }, '');
+              return next;
+            } else if (next === 4) {
+              alert("Silahkan selesaikan soal dan simpan");
+              window.history.pushState({ modalOpen: true }, '');
+              return next;
+            } else {
+              setIsQuestionModalOpen(false);
+              return 0;
+            }
+          });
         }
+      };
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    } else if (isAddFolderModalOpen) {
+      window.history.pushState({ modalOpen: true }, '');
+      const handlePopState = () => {
+        if (isAddFolderModalOpen) window.history.pushState({ modalOpen: true }, '');
       };
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);

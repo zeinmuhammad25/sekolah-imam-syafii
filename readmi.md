@@ -8,7 +8,11 @@ Website resmi SD MIAS yang dibangun dengan standar teknologi modern: **React (Vi
 3.  **Ultra-Speed Vite 6 Engine**: Menggunakan versi terbaru Vite untuk proses build yang lebih efisien dan kompatibilitas modern.
 4.  **Ultra-Speed Local Assets**: Logo (`logo.png`) dan Hero Image (`hero.jpeg`) disimpan lokasl di `/public/avatars/` untuk loading instan.
 5.  **Smart Gallery & Modal**: Tampilan Bento Grid di beranda dan Full Gallery Popup yang interaktif.
-6.  **Gender-Based Avatar**: Otomatis menampilkan ikon Ikhwan/Akhwat untuk staf yang belum memiliki foto foto.
+6.  **Gender-Based Avatar**: Otomatis menampilkan ikon Ikhwan/Akhwat untuk staf yang belum memiliki foto.
+7.  **Dashboard Guru & Bank Soal (Hybrid)**: Panel lengkap bagi pengajar untuk menginput bank soal digital (Pilihan Ganda & Essai) yang terintegrasi langsung dengan Cloud.
+8.  **Grade-Isolated Cloud Sync**: Arsitektur sinkronisasi tingkat lanjut yang memisahkan data per jenjang (TK s/d SD 6) di baris Google Sheets yang berbeda untuk mencegah *data loss* dan konflik antar guru.
+9.  **Advanced PDF Sectioning**: Ekspor dokumen soal otomatis yang terbagi menjadi Section I (PG) dan Section II (Essai) dengan area isian tulisan tangan yang lega.
+10. **5-Step Mobile Guard**: Proteksi navigasi tombol "Back" HP Xiaomi/Android agar popup tidak tertutup tanpa sengaja sebelum data disimpan.
 
 ---
 
@@ -22,13 +26,15 @@ Website ini dikontrol melalui satu Spreadsheet dengan tab berikut:
 | `Gallery` | Dokumentasi Siswa | Judul, Kategori, Link Gambar |
 | `Announcements` | Running Info | Teks, Active (`Yes`/`No`) |
 | `PPDB` | Database Pendaftar | Data Calon Siswa Baru |
+| `TeacherQuestions` | **Bank Soal Digital** | JSON per Baris (Isolasi Jenjang TK - SD 6) |
 
 ---
 
 ## 📂 Struktur Folder
 - `/public/avatars/`: Tempat menyimpan `logo.png`, `hero.jpeg`, `ikhwan.png`, dan `akhwat.png`.
-- `/src/services/gsheet.js`: Script koneksi ke API Google Sheets.
-- `/src/App.jsx`: Komponen UI utama.
+- `/src/services/gsheet.js`: Service API (GET & POST) ke Google Apps Script Engine.
+- `/src/components/teacher/`: Modul Dashboard Guru (Dashboard Utama, Bank Soal, Layout).
+- `/src/App.jsx`: Routing utama aplikasi.
 
 ## 🛠️ Pengembangan
 ```bash
@@ -45,5 +51,5 @@ npm run build
 ---
 **Domain Resmi**: [sekolahislamimamsyafii.web.id](https://sekolahislamimamsyafii.web.id)  
 **Infrastructure**: 🌐 Cloudflare Pages (Production)  
-**Status**: ✅ Produksi Aktif | **Rev**: 1.3  
-**Developer**: Zein | **Last Update**: 21 April 2026
+**Status**: ✅ Produksi Aktif | **Rev**: 1.8  
+**Developer**: Antigravity AI | **Last Update**: 23 April 2026
