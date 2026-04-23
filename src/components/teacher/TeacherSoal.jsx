@@ -62,8 +62,7 @@ export default function TeacherSoal() {
   const [questionForm, setQuestionForm] = useState({
     text: '',
     options: { a: '', b: '', c: '', d: '' },
-    correctAnswer: 'a',
-    weight: 1
+    correctAnswer: 'a'
   });
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -116,36 +115,25 @@ export default function TeacherSoal() {
   const [isSyncing, setIsSyncing] = useState(false);
   const GRADE_INDEX = { "TK": 0, "SD 1": 1, "SD 2": 2, "SD 3": 3, "SD 4": 4, "SD 5": 5, "SD 6": 6 };
 
-  // 1. Sync Logic: Simpan PER KELAS ke GSheet
-  const syncGradeToCloud = async (targetGrade = activeGrade, currentExamTypes = examTypes, currentQuestions = questions) => {
+  // 1. Sync Logic v1.9: Simpan PER FOLDER (Atomic Column)
+  const syncFolderToCloud = async (targetGrade, folderId, currentExamTypes = examTypes, currentQuestions = questions) => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
-      // Data yang dikirim hanya untuk satu kelas spesifik agar tidak menindih kelas lain
-      const timestamp = Date.now();
-      const gradeData = {
-        updatedAt: timestamp,
-        examTypes: { [targetGrade]: currentExamTypes[targetGrade] },
-        questions: {}
-      };
-      
-      // Ambil hanya soal-soal milik folder di kelas tsb
-      (currentExamTypes[targetGrade] || []).forEach(folder => {
-        if (currentQuestions[folder.id]) {
-          gradeData.questions[folder.id] = currentQuestions[folder.id];
-        }
-      });
+      const folder = currentExamTypes[targetGrade].find(f => f.id === folderId);
+      if (!folder) throw new Error("Folder not found locally");
 
-      const result = await saveQuestions({
-        type: 'QUESTIONS',
+      // Kirim hanya 1 folder spesifik untuk di-upsert di Google Sheets (Isolation)
+      const payload = {
+        type: 'SAVE_FOLDER',
         grade: targetGrade,
-        data: gradeData
-      });
+        folderId: folder.id,
+        folderName: folder.name,
+        questions: currentQuestions[folder.id] || []
+      };
 
-      if (result.success) {
-        localStorage.setItem(`last_sync_${targetGrade}`, timestamp.toString());
-        console.log(`Sync Grade ${targetGrade} Success at ${timestamp}`);
-      }
+      await saveQuestions(payload);
+      console.log(`Atomic Sync Success: Grade ${targetGrade}, Folder ${folder.name}`);
     } catch (err) {
       console.error("Sync Error:", err);
     } finally {
@@ -153,7 +141,7 @@ export default function TeacherSoal() {
     }
   };
 
-  // 2. Load Logic: Ambil data dari Cloud (Force Refresh)
+  // 2. Load Logic: Ambil data dari Cloud (v1.9 Horizontal Load)
   const loadAllData = async (showSilently = false) => {
     if (!showSilently) setIsSyncing(true);
     try {
@@ -169,32 +157,21 @@ export default function TeacherSoal() {
           const index = GRADE_INDEX[grade];
           const gradeCloudData = cloudRows[index];
           
-          if (gradeCloudData) {
-            // Cek apakah data ada di root atau di dalam properti .data (untuk kompatibilitas)
-            const actualData = gradeCloudData.data || gradeCloudData;
-            
+          if (gradeCloudData && gradeCloudData.data) {
+            const actualData = gradeCloudData.data;
             if (actualData.examTypes && actualData.examTypes[grade]) {
               hasDataInCloud = true;
               newExamTypes[grade] = actualData.examTypes[grade];
-              
               if (actualData.questions) {
                 Object.assign(newQuestions, actualData.questions);
-              }
-              
-              if (actualData.updatedAt) {
-                localStorage.setItem(`last_sync_${grade}`, actualData.updatedAt.toString());
               }
             }
           }
         });
 
-        // Selalu update state jika ini adalah load pertama (bukan background polling)
-        // atau jika memang ada data di cloud
         if (!showSilently || hasDataInCloud) {
           setExamTypes(newExamTypes);
           setQuestions(newQuestions);
-          localStorage.setItem('mias_exam_types', JSON.stringify(newExamTypes));
-          localStorage.setItem('mias_questions', JSON.stringify(newQuestions));
         }
       }
     } catch (e) {
@@ -214,14 +191,19 @@ export default function TeacherSoal() {
   const handleAddFolder = async () => {
     if (!newFolderName.trim()) return;
     const folderId = Date.now().toString();
+    const newFolder = { id: folderId, name: newFolderName };
+    
     const updatedExamTypes = {
       ...examTypes,
-      [activeGrade]: [...examTypes[activeGrade], { id: folderId, name: newFolderName }]
+      [activeGrade]: [...examTypes[activeGrade], newFolder]
     };
+    
     setExamTypes(updatedExamTypes);
     setNewFolderName('');
     setIsAddFolderModalOpen(false);
-    await syncGradeToCloud(activeGrade, updatedExamTypes, questions);
+    
+    // Sync hanya folder baru ini ke Cell baru
+    await syncFolderToCloud(activeGrade, folderId, updatedExamTypes, questions);
   };
 
   const handleDeleteFolder = async (id) => {
@@ -231,14 +213,15 @@ export default function TeacherSoal() {
         [activeGrade]: examTypes[activeGrade].filter(f => f.id !== id)
       };
       
-      const newQuestions = { ...questions };
-      delete newQuestions[id];
-      
       setExamTypes(updatedExamTypes);
-      setQuestions(newQuestions);
-      
       if (activeExamFolder === id) setActiveExamFolder(null);
-      await syncGradeToCloud(activeGrade, updatedExamTypes, newQuestions);
+
+      // Kirim perintah hapus spesifik ke Apps Script
+      await saveQuestions({
+        type: 'DELETE_FOLDER',
+        grade: activeGrade,
+        folderId: id
+      });
     }
   };
 
@@ -262,8 +245,10 @@ export default function TeacherSoal() {
     setQuestions(updatedQuestions);
     setIsQuestionModalOpen(false);
     setEditingQuestion(null);
-    setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a', weight: 1 });
-    await syncGradeToCloud(activeGrade, examTypes, updatedQuestions);
+    setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' });
+    
+    // Sync hanya folder aktif ke kolom spesifik
+    await syncFolderToCloud(activeGrade, activeExamFolder, examTypes, updatedQuestions);
   };
 
   const handleDeleteQuestion = async (id) => {
@@ -273,7 +258,7 @@ export default function TeacherSoal() {
         [activeExamFolder]: questions[activeExamFolder].filter(q => q.id !== id)
       };
       setQuestions(updatedQuestions);
-      await syncGradeToCloud(activeGrade, examTypes, updatedQuestions);
+      await syncFolderToCloud(activeGrade, activeExamFolder, examTypes, updatedQuestions);
     }
   };
 
@@ -536,7 +521,7 @@ export default function TeacherSoal() {
                   <FileDown size={16} /> EXPORT PDF
                 </button>
                 <button 
-                  onClick={() => { setEditingQuestion(null); setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a', weight: 1 }); setIsQuestionModalOpen(true); }}
+                  onClick={() => { setEditingQuestion(null); setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' }); setIsQuestionModalOpen(true); }}
                   className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20"
                 >
                   <Plus size={16} /> TAMBAH SOAL
@@ -551,7 +536,6 @@ export default function TeacherSoal() {
                     <th className="pb-4 md:pb-6 px-4">#</th>
                     <th className="pb-4 md:pb-6">Detail Soal</th>
                     <th className="pb-4 md:pb-6 text-center">Kunci</th>
-                    <th className="pb-4 md:pb-6 text-center">Bobot</th>
                     <th className="pb-4 md:pb-6 text-right px-4">Aksi</th>
                   </tr>
                 </thead>
@@ -587,9 +571,6 @@ export default function TeacherSoal() {
                         <span className={`inline-flex w-7 h-7 md:w-8 md:h-8 ${q.type === 'essay' ? 'bg-slate-100 text-slate-400' : 'bg-secondary/10 text-secondary'} rounded-lg md:rounded-xl items-center justify-center font-black text-xs uppercase`}>
                           {q.type === 'essay' ? '-' : q.correctAnswer}
                         </span>
-                      </td>
-                      <td className="py-4 md:py-6 text-center">
-                        <span className="text-[10px] md:text-xs font-black text-slate-400 bg-slate-50 px-2 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg">{q.weight}</span>
                       </td>
                       <td className="py-4 md:py-6 text-right px-4">
                         <div className="flex items-center justify-end gap-1.5 md:gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
@@ -705,25 +686,17 @@ export default function TeacherSoal() {
                         </div>
                       ))}
                     </div>
-                    <div className="grid md:grid-cols-2 gap-8 pt-4">
-                      <div>
-                        <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Kunci Jawaban</label>
-                        <div className="flex gap-3">
-                          {['a', 'b', 'c', 'd'].map(opt => (
-                            <button key={opt} onClick={() => setQuestionForm({...questionForm, correctAnswer: opt})} className={`w-12 h-12 rounded-xl font-black text-xs transition-all ${questionForm.correctAnswer === opt ? 'bg-secondary text-white shadow-lg shadow-secondary/20 scale-110' : 'bg-slate-50 text-slate-400'}`}>{opt.toUpperCase()}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Bobot Nilai</label>
-                        <input type="number" value={questionForm.weight} onChange={(e) => setQuestionForm({...questionForm, weight: parseInt(e.target.value) || 1})} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all" />
+                    <div className="pt-4">
+                      <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Kunci Jawaban</label>
+                      <div className="flex gap-3">
+                        {['a', 'b', 'c', 'd'].map(opt => (
+                          <button key={opt} onClick={() => setQuestionForm({...questionForm, correctAnswer: opt})} className={`w-12 h-12 rounded-xl font-black text-xs transition-all ${questionForm.correctAnswer === opt ? 'bg-secondary text-white shadow-lg shadow-secondary/20 scale-110' : 'bg-slate-50 text-slate-400'}`}>{opt.toUpperCase()}</button>
+                        ))}
                       </div>
                     </div>
                   </>
                 ) : (
                   <div>
-                    <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Bobot Nilai Essai</label>
-                    <input type="number" value={questionForm.weight} onChange={(e) => setQuestionForm({...questionForm, weight: parseInt(e.target.value) || 1})} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all" />
                     <p className="mt-4 text-[11px] text-slate-400 italic">* Soal tipe essai tidak memerlukan pilihan jawaban. Siswa akan menjawab langsung pada dokumen cetak.</p>
                   </div>
                 )}

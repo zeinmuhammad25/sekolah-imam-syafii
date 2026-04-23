@@ -40,19 +40,19 @@ export const submitPPDBForm = async (formData) => {
   }
 };
 
-export const saveQuestions = async (questionsData) => {
+export const saveQuestions = async (payload) => {
   try {
     const response = await fetch(API_URL, {
-      method: 'POST',
-      mode: 'no-cors',
+      method: "POST",
+      mode: "no-cors", // Keeping no-cors for simple Google Script compatibility
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(questionsData),
+      body: JSON.stringify(payload),
     });
     return { success: true };
   } catch (error) {
-    console.error('Error saving questions:', error);
+    console.error("Error saving to GSheet:", error);
     return { success: false, error };
   }
 };

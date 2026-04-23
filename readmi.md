@@ -10,7 +10,7 @@ Website resmi SD MIAS yang dibangun dengan standar teknologi modern: **React (Vi
 5.  **Smart Gallery & Modal**: Tampilan Bento Grid di beranda dan Full Gallery Popup yang interaktif.
 6.  **Gender-Based Avatar**: Otomatis menampilkan ikon Ikhwan/Akhwat untuk staf yang belum memiliki foto.
 7.  **Dashboard Guru & Bank Soal (Hybrid)**: Panel lengkap bagi pengajar untuk menginput bank soal digital (Pilihan Ganda & Essai) yang terintegrasi langsung dengan Cloud.
-8.  **Grade-Isolated Cloud Sync**: Arsitektur sinkronisasi tingkat lanjut yang memisahkan data per jenjang (TK s/d SD 6) di baris Google Sheets yang berbeda untuk mencegah *data loss* dan konflik antar guru.
+8.  **Atomic Column Sync (v1.9)**: Arsitektur sinkronisasi tingkat sel (cell-level) yang memisahkan data per folder ujian. Menghilangkan resiko data terhapus antar guru dalam satu kelas.
 9.  **Advanced PDF Sectioning**: Ekspor dokumen soal otomatis yang terbagi menjadi Section I (PG) dan Section II (Essai) dengan area isian tulisan tangan yang lega.
 10. **5-Step Mobile Guard**: Proteksi navigasi tombol "Back" HP Xiaomi/Android agar popup tidak tertutup tanpa sengaja sebelum data disimpan.
 
@@ -26,7 +26,7 @@ Website ini dikontrol melalui satu Spreadsheet dengan tab berikut:
 | `Gallery` | Dokumentasi Siswa | Judul, Kategori, Link Gambar |
 | `Announcements` | Running Info | Teks, Active (`Yes`/`No`) |
 | `PPDB` | Database Pendaftar | Data Calon Siswa Baru |
-| `TeacherQuestions` | **Bank Soal Digital** | JSON per Baris (Isolasi Jenjang TK - SD 6) |
+| `TeacherQuestions` | **Bank Soal Digital** | Atomic JSON per Cell (Isolasi Folder per Kolom) |
 
 ---
 
