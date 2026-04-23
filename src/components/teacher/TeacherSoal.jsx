@@ -12,7 +12,8 @@ import {
   AlertCircle,
   FileText,
   CheckCircle2,
-  FileDown
+  FileDown,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { saveQuestions, fetchSchoolData } from '../../services/gsheet';
@@ -75,6 +76,22 @@ export default function TeacherSoal() {
   useEffect(() => {
     localStorage.setItem('mias_questions', JSON.stringify(questions));
   }, [questions]);
+
+  // Protection for Mobile Back Button: "Trap" the user in the modal
+  useEffect(() => {
+    if (isQuestionModalOpen || isAddFolderModalOpen) {
+      window.history.pushState({ modalOpen: true }, '');
+      const handlePopState = () => {
+        if (isQuestionModalOpen || isAddFolderModalOpen) {
+          // Re-push the state to prevent exiting the page
+          window.history.pushState({ modalOpen: true }, '');
+          // Note: keyboard will close automatically by OS on first back press
+        }
+      };
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [isQuestionModalOpen, isAddFolderModalOpen]);
 
   const [isSyncing, setIsSyncing] = useState(false);
   const GRADE_INDEX = { "TK": 0, "SD 1": 1, "SD 2": 2, "SD 3": 3, "SD 4": 4, "SD 5": 5, "SD 6": 6 };
@@ -306,39 +323,81 @@ export default function TeacherSoal() {
     
     currentY += 15;
 
-    // 3. Questions
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    // 3. Render Questions by Section
+    const pgQuestions = folderQuestions.filter(q => (q.type || 'pg') === 'pg');
+    const essayQuestions = folderQuestions.filter(q => q.type === 'essay');
 
-    folderQuestions.forEach((q, index) => {
-      // Check for page break
-      if (currentY > 260) {
-        doc.addPage();
-        currentY = 20;
-      }
-
-      // Question Text (Multi-line)
-      const questionLines = doc.splitTextToSize(`${index + 1}. ${q.text}`, 170);
-      doc.text(questionLines, margin, currentY);
-      currentY += (questionLines.length * 6);
-
-      // Options
-      const options = [
-        `a. ${q.options.a}`, 
-        `b. ${q.options.b}`, 
-        `c. ${q.options.c}`, 
-        `d. ${q.options.d}`
-      ];
-
-      // Simple 2x2 layout for options
-      doc.text(options[0], margin + 5, currentY);
-      doc.text(options[1], margin + 90, currentY);
-      currentY += 6;
-      doc.text(options[2], margin + 5, currentY);
-      doc.text(options[3], margin + 90, currentY);
+    // --- SECTION I: PILIHAN GANDA ---
+    if (pgQuestions.length > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("I. Soal Pilihan Ganda", margin, currentY);
+      currentY += 10;
       
-      currentY += 10; // Extra spacing between questions
-    });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+
+      pgQuestions.forEach((q, index) => {
+        if (currentY > 260) { doc.addPage(); currentY = 20; }
+        
+        const questionLines = doc.splitTextToSize(`${index + 1}. ${q.text}`, 170);
+        doc.text(questionLines, margin, currentY);
+        currentY += (questionLines.length * 6);
+
+        const options = [
+          `a. ${q.options.a}`, 
+          `b. ${q.options.b}`, 
+          `c. ${q.options.c}`, 
+          `d. ${q.options.d}`
+        ];
+
+        doc.text(options[0], margin + 5, currentY);
+        doc.text(options[1], margin + 90, currentY);
+        currentY += 6;
+        doc.text(options[2], margin + 5, currentY);
+        doc.text(options[3], margin + 90, currentY);
+        currentY += 10;
+      });
+    }
+
+    // --- SECTION II: ESSAI ---
+    if (essayQuestions.length > 0) {
+      if (currentY > 240) { doc.addPage(); currentY = 20; }
+      else { currentY += 10; }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("II. Soal Essai", margin, currentY);
+      currentY += 10;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+
+      essayQuestions.forEach((q, index) => {
+        if (currentY > 260) { doc.addPage(); currentY = 20; }
+        
+        const fullDottedLine = "..........................................................................................................................................................................";
+        
+        // Step 1: Calculate how many lines the question text occupies without dots
+        const originalTextWrapped = doc.splitTextToSize(`${index + 1}. ${q.text}`, 170);
+        const textLineCount = originalTextWrapped.length;
+
+        // Step 2: Create a combined version with long dots appended
+        const combinedText = `${index + 1}. ${q.text} ${fullDottedLine}`;
+        const combinedWrapped = doc.splitTextToSize(combinedText, 170);
+        
+        // Step 3: Take only the lines required to show all text + fill the last line with dots
+        const questionWithFill = combinedWrapped.slice(0, textLineCount);
+        doc.text(questionWithFill, margin, currentY);
+        currentY += (questionWithFill.length * 6) + 4; // Add 4 units gap after text
+
+        // Step 4: Add EXACTLY 2 full dotted lines with extra padding for writing
+        doc.text(fullDottedLine, margin, currentY);
+        currentY += 10; // Increased spacing for handwriting
+        doc.text(fullDottedLine, margin, currentY);
+        currentY += 15; // final spacing before next question
+      });
+    }
 
     doc.save(`Soal_${activeGrade}_${folder.name}.pdf`);
   };
@@ -481,18 +540,33 @@ export default function TeacherSoal() {
                     <tr key={q.id} className="group hover:bg-slate-50/40 transition-colors">
                       <td className="py-4 md:py-6 px-4 text-xs md:text-sm font-black text-slate-300">{i + 1}</td>
                       <td className="py-4 md:py-6 pr-4 md:pr-6">
-                        <p className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed mb-2 md:mb-3 line-clamp-2">{q.text}</p>
-                        <div className="grid grid-cols-2 gap-x-4 md:gap-x-6 gap-y-1">
-                          {['a', 'b', 'c', 'd'].map(opt => (
-                            <span key={opt} className={`text-[8px] md:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 md:gap-2 ${q.correctAnswer === opt ? 'text-secondary' : 'text-slate-400'}`}>
-                              <span className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded flex items-center justify-center text-[7px] md:text-[8px] ${q.correctAnswer === opt ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400'}`}>{opt}</span>
-                              {q.options[opt]}
+                        <div className="flex items-center gap-2 mb-2 md:mb-3">
+                          {q.type === 'essay' && (
+                            <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[8px] font-black rounded uppercase tracking-wider border border-amber-100 flex-shrink-0">
+                              ESSAI
                             </span>
-                          ))}
+                          )}
+                          <p className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed line-clamp-2">{q.text}</p>
                         </div>
+                        
+                        {q.type !== 'essay' && (
+                          <div className="grid grid-cols-2 gap-x-4 md:gap-x-6 gap-y-1">
+                            {['a', 'b', 'c', 'd'].map(opt => (
+                              <span key={opt} className={`text-[8px] md:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 md:gap-2 ${q.correctAnswer === opt ? 'text-secondary' : 'text-slate-400'}`}>
+                                <span className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded flex items-center justify-center text-[7px] md:text-[8px] ${q.correctAnswer === opt ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400'}`}>{opt}</span>
+                                {q.options[opt]}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {q.type === 'essay' && (
+                          <p className="text-[10px] text-slate-400 italic">Jawaban Essay Mandiri</p>
+                        )}
                       </td>
                       <td className="py-4 md:py-6 text-center">
-                        <span className="inline-flex w-7 h-7 md:w-8 md:h-8 bg-secondary/10 text-secondary rounded-lg md:rounded-xl items-center justify-center font-black text-xs uppercase">{q.correctAnswer}</span>
+                        <span className={`inline-flex w-7 h-7 md:w-8 md:h-8 ${q.type === 'essay' ? 'bg-slate-100 text-slate-400' : 'bg-secondary/10 text-secondary'} rounded-lg md:rounded-xl items-center justify-center font-black text-xs uppercase`}>
+                          {q.type === 'essay' ? '-' : q.correctAnswer}
+                        </span>
                       </td>
                       <td className="py-4 md:py-6 text-center">
                         <span className="text-[10px] md:text-xs font-black text-slate-400 bg-slate-50 px-2 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg">{q.weight}</span>
@@ -520,11 +594,26 @@ export default function TeacherSoal() {
         </div>
       )}
 
-      {/* Modals remains same logic but with refined UI */}
+      {/* Modals with Back-Button Protection & Scroll Fixes */}
       <AnimatePresence>
         {isAddFolderModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-6">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-3xl">
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[200] bg-slate-950/40 backdrop-blur-sm flex items-start md:items-center justify-center p-6 overflow-y-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-3xl my-auto relative"
+            >
+              <button 
+                onClick={() => setIsAddFolderModalOpen(false)}
+                className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-900 transition-colors"
+              >
+                <X size={24} />
+              </button>
               <h3 className="text-2xl font-black text-slate-900 mb-2">Buat Tipe Ujian</h3>
               <p className="text-slate-500 text-sm font-medium mb-8">Tipe ujian akan menjadi folder di kelas {activeGrade}.</p>
               <div className="space-y-6">
@@ -542,37 +631,83 @@ export default function TeacherSoal() {
         )}
 
         {isQuestionModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-3xl rounded-[3rem] p-8 md:p-12 shadow-3xl relative my-8">
-              <h3 className="text-3xl font-black text-slate-900 mb-2">{editingQuestion ? 'Edit Soal' : 'Soal Baru'}</h3>
-              <p className="text-slate-500 text-sm font-medium mb-10">Lengkapi detail pertanyaan dan pilihan jawaban di bawah ini.</p>
-              <div className="space-y-8">
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-start md:items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              className="bg-white w-full max-w-3xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-3xl relative my-10 md:my-8"
+            >
+              {/* Close Button X */}
+              <button 
+                onClick={() => setIsQuestionModalOpen(false)}
+                className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-900 transition-colors"
+              >
+                <X size={24} />
+              </button>
+
+              {/* Toggle Tipe Soal */}
+              <div className="flex bg-slate-50 p-1.5 rounded-2xl mb-8 w-fit">
+                {['pg', 'essay'].map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setQuestionForm({...questionForm, type: type})}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      (questionForm.type || 'pg') === type 
+                      ? 'bg-white text-secondary shadow-sm ring-1 ring-slate-100' 
+                      : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {type === 'pg' ? 'Pilihan Ganda' : 'Soal Essai'}
+                  </button>
+                ))}
+              </div>
+
+              <h3 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{editingQuestion ? 'Edit Soal' : 'Soal Baru'}</h3>
+              
+              <div className="space-y-8 mt-10">
                 <div>
-                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Isi Pertanyaan</label>
-                  <textarea rows="4" value={questionForm.text} onChange={(e) => setQuestionForm({...questionForm, text: e.target.value})} placeholder="Tuliskan pertanyaan ujian..." className="w-full bg-slate-50 border-2 border-slate-50 rounded-[2rem] p-6 text-sm font-bold focus:border-secondary transition-all outline-none resize-none" />
+                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Isi Pertanyaan {(questionForm.type || 'pg') === 'essay' && '(Essai)'}</label>
+                  <textarea rows="4" value={questionForm.text} onChange={(e) => setQuestionForm({...questionForm, text: e.target.value})} placeholder="Tuliskan pertanyaan ujian..." className="w-full bg-slate-50 border-2 border-slate-50 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 text-sm font-bold focus:border-secondary transition-all outline-none resize-none" />
                 </div>
-                <div className="grid md:grid-cols-2 gap-6">
-                  {['a', 'b', 'c', 'd'].map(opt => (
-                    <div key={opt}>
-                      <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-2">Pilihan {opt.toUpperCase()}</label>
-                      <input type="text" value={questionForm.options[opt]} onChange={(e) => setQuestionForm({...questionForm, options: { ...questionForm.options, [opt]: e.target.value }})} placeholder={`Jawaban ${opt}`} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all outline-none" />
-                    </div>
-                  ))}
-                </div>
-                <div className="grid md:grid-cols-2 gap-8 pt-4">
-                  <div>
-                    <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Kunci Jawaban</label>
-                    <div className="flex gap-3">
+
+                {(questionForm.type || 'pg') === 'pg' ? (
+                  <>
+                    <div className="grid md:grid-cols-2 gap-6">
                       {['a', 'b', 'c', 'd'].map(opt => (
-                        <button key={opt} onClick={() => setQuestionForm({...questionForm, correctAnswer: opt})} className={`w-12 h-12 rounded-xl font-black text-xs transition-all ${questionForm.correctAnswer === opt ? 'bg-secondary text-white shadow-lg shadow-secondary/20 scale-110' : 'bg-slate-50 text-slate-400'}`}>{opt.toUpperCase()}</button>
+                        <div key={opt}>
+                          <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-2">Pilihan {opt.toUpperCase()}</label>
+                          <input type="text" value={questionForm.options[opt]} onChange={(e) => setQuestionForm({...questionForm, options: { ...questionForm.options, [opt]: e.target.value }})} placeholder={`Jawaban ${opt}`} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all outline-none" />
+                        </div>
                       ))}
                     </div>
-                  </div>
+                    <div className="grid md:grid-cols-2 gap-8 pt-4">
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Kunci Jawaban</label>
+                        <div className="flex gap-3">
+                          {['a', 'b', 'c', 'd'].map(opt => (
+                            <button key={opt} onClick={() => setQuestionForm({...questionForm, correctAnswer: opt})} className={`w-12 h-12 rounded-xl font-black text-xs transition-all ${questionForm.correctAnswer === opt ? 'bg-secondary text-white shadow-lg shadow-secondary/20 scale-110' : 'bg-slate-50 text-slate-400'}`}>{opt.toUpperCase()}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Bobot Nilai</label>
+                        <input type="number" value={questionForm.weight} onChange={(e) => setQuestionForm({...questionForm, weight: parseInt(e.target.value) || 1})} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all" />
+                      </div>
+                    </div>
+                  </>
+                ) : (
                   <div>
-                    <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Bobot Nilai</label>
+                    <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Bobot Nilai Essai</label>
                     <input type="number" value={questionForm.weight} onChange={(e) => setQuestionForm({...questionForm, weight: parseInt(e.target.value) || 1})} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all" />
+                    <p className="mt-4 text-[11px] text-slate-400 italic">* Soal tipe essai tidak memerlukan pilihan jawaban. Siswa akan menjawab langsung pada dokumen cetak.</p>
                   </div>
-                </div>
+                )}
+
                 <div className="flex gap-4 pt-10 border-t border-slate-50">
                   <button onClick={() => setIsQuestionModalOpen(false)} className="flex-grow py-5 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50">BATAL</button>
                   <button onClick={handleSaveQuestion} className="flex-grow py-5 bg-primary text-white rounded-2xl font-black text-xs shadow-xl shadow-primary/20 hover:bg-slate-800 transition-all">SIMPAN DATA SOAL</button>
