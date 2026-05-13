@@ -311,7 +311,7 @@ export default function Home() {
           <div className="container mx-auto px-5 md:px-6 grid lg:grid-cols-2 gap-10 md:gap-16 items-center">
             <motion.div initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-primary/5 text-primary text-[9px] md:text-[10px] font-black rounded-full mb-6 uppercase tracking-widest border border-primary/10 leading-none">
-                Penerimaan Murid Baru 2026/2027
+                Penerimaan Murid Baru 2027/2028
               </div>
               <h2 className="text-3xl md:text-7xl font-black text-primary leading-[1.1] mb-6 md:mb-8">
                 Cerdas, Religius <br className="hidden md:block" />& <span className="text-secondary italic">Berkarakter</span>
