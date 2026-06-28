@@ -86,12 +86,20 @@ const OptimizedImage = ({ src, alt, className, priority = false }) => {
   );
 };
 
+// Video sekolah — ganti `id` dengan ID video YouTube (bagian setelah "v=" atau "youtu.be/")
+const VIDEOS = [
+  { id: 'ilXBHt1-4HQ', title: 'Khitanan Massal Gratis - Sekolah Imam Syafii Percut Sei Tuan' },
+  { id: 'JzakBMHatnY', title: 'Pelepasan Siswa Siswi TK Quran Imam Syafii tahun ajaran 25/26' },
+  { id: 'qjYM5ILKAKw', title: ' Mengintip Keseruan Kelas 2 SD Islam Imam Syafii Menuju Masa Depan Gemilang' },
+];
+
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPPDBOpen, setIsPPDBOpen] = useState(false);
   const [isTeachersModalOpen, setIsTeachersModalOpen] = useState(false);
   const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
   const [isTeacherLoginOpen, setIsTeacherLoginOpen] = useState(false);
+  const [expandedVideo, setExpandedVideo] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [sheetData, setSheetData] = useState(null)
 
@@ -458,7 +466,7 @@ export default function Home() {
               {/* 6. Galeri (Ekspresi Hari Ini) */}
               <div id="galeri" className="pt-8 md:pt-12">
                 <div className="text-left mb-8 md:mb-12">
-                  <span className="text-secondary font-black uppercase tracking-widest text-[10px] mb-3 block">Ekspresi Hari Ini</span>
+                  <span className="text-secondary font-black uppercase tracking-widest text-xs md:text-sm mb-3 block">Ekspresi Hari Ini</span>
                   <h2 className="text-3xl md:text-4xl font-black text-primary leading-tight">Melihat kreativitas kami di <span className="text-secondary italic underline underline-offset-8">galeri siswa</span></h2>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 auto-rows-[180px] md:auto-rows-[350px]">
@@ -509,6 +517,35 @@ export default function Home() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Video Sekolah */}
+        <section className="pt-6 md:pt-8 pb-6 md:pb-8">
+          <div className="container mx-auto px-5 md:px-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
+              {VIDEOS.map((video, i) => (
+                <div key={i} className="group">
+                  <button
+                    onClick={() => setExpandedVideo(video)}
+                    className="relative aspect-video w-full rounded-2xl md:rounded-3xl overflow-hidden shadow-xl bg-black"
+                    aria-label={`Putar video ${video.title}`}
+                  >
+                    <OptimizedImage
+                      src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`}
+                      alt={video.title}
+                      className="w-full h-full"
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+                      <span className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-red-600 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                        <svg viewBox="0 0 24 24" fill="white" className="w-6 h-6 md:w-7 md:h-7 ml-0.5"><path d="M8 5v14l11-7z" /></svg>
+                      </span>
+                    </span>
+                  </button>
+                  <h3 className="mt-4 text-center text-sm md:text-base font-black text-primary leading-tight">{video.title}</h3>
+                </div>
+              ))}
             </div>
           </div>
         </section>
@@ -584,7 +621,7 @@ export default function Home() {
               </div>
               <div className="grid lg:grid-cols-2 gap-8 md:gap-16">
                 <div>
-                  <div className="text-[10px] md:text-xs font-black text-secondary uppercase mb-4">Identitas Yayasan</div>
+                  <div className="text-xs md:text-sm font-black text-secondary uppercase mb-4">Identitas Yayasan</div>
                   <div className="p-5 md:p-6 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-100">
                     <div className="font-black text-base md:text-xl mb-1 md:mb-2">{flyerContent.foundation}</div>
                     <div className="text-xs md:text-sm font-medium text-slate-500 italic">No. AHU: {flyerContent.legal.foundationAHU}</div>
@@ -754,6 +791,42 @@ export default function Home() {
                   KEMBALI KE BERANDA
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Expanded Video Modal */}
+      <AnimatePresence>
+        {expandedVideo && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] bg-black/90 backdrop-blur-sm p-4 md:p-10 flex items-center justify-center"
+            onClick={() => setExpandedVideo(null)}
+          >
+            <button
+              onClick={() => setExpandedVideo(null)}
+              className="absolute top-5 right-5 md:top-8 md:right-8 p-3 bg-white/10 rounded-full hover:bg-white/20 text-white transition-all z-10"
+              aria-label="Tutup video"
+            >
+              <X size={24} />
+            </button>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-5xl aspect-video rounded-2xl overflow-hidden shadow-2xl bg-black"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <iframe
+                className="w-full h-full"
+                src={`https://www.youtube.com/embed/${expandedVideo.id}?autoplay=1&rel=0`}
+                title={expandedVideo.title}
+                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
             </motion.div>
           </motion.div>
         )}
