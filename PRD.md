@@ -24,6 +24,7 @@ Membangun platform informasi sekolah yang **Serverless**, **Ultra-Fast**, dan **
 ### D. Galeri Dokumentasi
 - **Limited Bento Grid**: Menampilkan 5 foto terbaik di halaman utama untuk menjaga kerapian.
 - **Full-Screen Gallery Modal**: Jendela dokumentasi lengkap dengan transisi halus untuk melihat seluruh aktivitas siswa.
+- **Video Showcase (v2.0)**: Tiga video YouTube tersusun sejajar (3 kolom) di antara Galeri dan profil Pengajar. Menggunakan teknik *thumbnail facade* (memuat gambar dulu, hemat bandwidth, tanpa autoplay) — saat diklik, video membuka di modal layar besar dengan autoplay dan tombol X untuk menutup.
 
 ### E. Modul Administrasi Guru (Bank Soal)
 - **Teacher Dashboard & Bank Soal (Hybrid)**: Panel lengkap bagi pengajar untuk menginput bank soal digital (Pilihan Ganda & Essai) yang terintegrasi langsung dengan Cloud.
@@ -40,5 +41,5 @@ Membangun platform informasi sekolah yang **Serverless**, **Ultra-Fast**, dan **
 - **CMS**: Google Apps Script (v1.9 - Atomic) & Horizontal Cell Storage
 
 ---
-**Status**: ✅ Produksi Aktif | **Rev**: 1.9  
-**Developer**: Antigravity AI | **Last Update**: 23 April 2026
+**Status**: ✅ Produksi Aktif | **Rev**: 2.0  
+**Developer**: Antigravity AI | **Last Update**: 29 Juni 2026

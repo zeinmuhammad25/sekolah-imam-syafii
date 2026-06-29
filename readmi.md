@@ -13,6 +13,7 @@ Website resmi SD MIAS yang dibangun dengan standar teknologi modern: **React (Vi
 8.  **Atomic Column Sync (v1.9)**: Arsitektur sinkronisasi tingkat sel (cell-level) yang memisahkan data per folder ujian. Menghilangkan resiko data terhapus antar guru dalam satu kelas.
 9.  **Advanced PDF Sectioning**: Ekspor dokumen soal otomatis yang terbagi menjadi Section I (PG) dan Section II (Essai) dengan area isian tulisan tangan yang lega.
 10. **5-Step Mobile Guard**: Proteksi navigasi tombol "Back" HP Xiaomi/Android agar popup tidak tertutup tanpa sengaja sebelum data disimpan.
+11. **Video Showcase (v2.0)**: Tiga video YouTube sejajar di antara Galeri dan profil Pengajar. Tampil sebagai thumbnail (tanpa autoplay, hemat data) dan membuka modal layar besar dengan autoplay saat diklik. Sumber video diatur via array `VIDEOS` di `src/Home.jsx`.
 
 ---
 
@@ -51,5 +52,5 @@ npm run build
 ---
 **Domain Resmi**: [sekolahislamimamsyafii.web.id](https://sekolahislamimamsyafii.web.id)  
 **Infrastructure**: 🌐 Cloudflare Pages (Production)  
-**Status**: ✅ Produksi Aktif | **Rev**: 1.8  
-**Developer**: Antigravity AI | **Last Update**: 23 April 2026
+**Status**: ✅ Produksi Aktif | **Rev**: 2.0  
+**Developer**: Antigravity AI | **Last Update**: 29 Juni 2026
