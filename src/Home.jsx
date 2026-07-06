@@ -158,9 +158,9 @@ export default function Home() {
               <Phone size={10} />
               <span>+62 831-2575-5134</span>
             </a>
-            <a href="mailto:admin@mias.sch.id" className="flex items-center gap-2 hover:text-secondary-light transition-all group">
+            <a href="mailto:admin@sekolahislamimamsyafii.web.id" className="flex items-center gap-2 hover:text-secondary-light transition-all group">
               <Mail size={10} />
-              <span className="lowercase font-medium tracking-normal">admin@mias.sch.id</span>
+              <span className="lowercase font-medium tracking-normal">admin@sekolahislamimamsyafii.web.id</span>
             </a>
           </div>
           <div className="flex items-center gap-6">
@@ -720,12 +720,7 @@ export default function Home() {
                 </p>
                 <div className="space-y-2">
                   <span className="text-slate-500 block text-[10px] uppercase font-black mb-1">Email Resmi</span>
-                  <div className="text-[12px]">
-                    <span className="text-secondary font-black">SD:</span> sdislamimamsyafiipst@gmail.com
-                  </div>
-                  <div className="text-[12px]">
-                    <span className="text-accent font-black">TK:</span> tkquranimamsyafiipst@gmail.com
-                  </div>
+                  admin@sekolahislamimamsyafii.web.id
                 </div>
               </div>
             </div>
