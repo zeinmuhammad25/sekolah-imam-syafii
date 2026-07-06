@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Phone, Mail, Instagram, Facebook, Youtube, Menu, X, ArrowRight, MessageCircle, Calendar, Users, Award, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import PPDBForm from './components/PPDBForm'
 import TeacherLoginModal from './components/TeacherLoginModal'
-import { fetchSchoolData } from './services/gsheet'
+import { fetchSchoolData, formatSheetDate } from './services/gsheet'
 
 // Mock Data
 const navigation = [
@@ -86,6 +87,27 @@ const OptimizedImage = ({ src, alt, className, priority = false }) => {
   );
 };
 
+// Kartu warta — dipakai di grid home & modal "semua warta"
+const NewsCard = ({ item }) => {
+  const Wrapper = item.id ? Link : 'div';
+  return (
+    <Wrapper {...(item.id ? { to: `/berita/${item.id}`, state: { item } } : {})} className="group flex flex-col h-full text-center items-center">
+      <div className="w-full aspect-video bg-slate-100 rounded-2xl md:rounded-[2rem] mb-4 md:mb-6 overflow-hidden">
+        <OptimizedImage
+          src={item.image_url || "/avatars/hero.jpeg"}
+          className="w-full h-full group-hover:scale-110 transition-transform duration-700"
+          alt={item.title || "News"}
+        />
+      </div>
+      <div className="flex items-center justify-center gap-2 text-[9px] md:text-[10px] font-black text-secondary mb-2 md:mb-3 uppercase tracking-widest">
+        <Calendar size={12} /> {formatSheetDate(item.date)}
+      </div>
+      <h3 className="text-lg md:text-xl font-black text-primary group-hover:text-secondary mb-2 md:mb-4 leading-tight line-clamp-2 min-h-[3rem] md:min-h-[3.5rem]">{item.title}</h3>
+      <p className="text-slate-500 text-xs md:text-sm leading-relaxed line-clamp-2">{item.summary}</p>
+    </Wrapper>
+  );
+};
+
 // Video sekolah — ganti `id` dengan ID video YouTube (bagian setelah "v=" atau "youtu.be/")
 const VIDEOS = [
   { id: 'ilXBHt1-4HQ', title: 'Khitanan Massal Gratis - Sekolah Imam Syafii Percut Sei Tuan' },
@@ -98,6 +120,7 @@ export default function Home() {
   const [isPPDBOpen, setIsPPDBOpen] = useState(false);
   const [isTeachersModalOpen, setIsTeachersModalOpen] = useState(false);
   const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
+  const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [isTeacherLoginOpen, setIsTeacherLoginOpen] = useState(false);
   const [expandedVideo, setExpandedVideo] = useState(null);
   const [scrolled, setScrolled] = useState(false);
@@ -147,6 +170,13 @@ export default function Home() {
 
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Scroll to Warta section when returning from a news detail page (/#berita)
+  useEffect(() => {
+    if (window.location.hash === '#berita') {
+      document.getElementById('berita')?.scrollIntoView();
+    }
+  }, [sheetData])
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -653,27 +683,29 @@ export default function Home() {
           <div className="container mx-auto px-5 md:px-6 font-bold">
             <h2 className="text-2xl md:text-3xl font-black text-primary mb-10 md:mb-12 text-center underline decoration-secondary decoration-4 underline-offset-8">Warta Terbaru</h2>
             <div className="grid md:grid-cols-3 gap-8 md:gap-10">
-              {[
+              {(sheetData?.News?.length ? sheetData.News : [
                 { title: 'Penerimaan Siswa Baru TA 2026/2027', date: '20 April 2024', summary: 'Segera daftarkan putra-putri Anda untuk jenjang TK & SD.' },
                 { title: 'Program Tahfidz', date: '15 April 2024', summary: 'Mewujudkan generasi penghafal Al-Qur\'an sejak dini.' },
                 { title: 'Fasilitas Kelas Nyaman', date: '10 April 2024', summary: 'Dukungan fasilitas belajar terbaik untuk Ananda.' },
-              ].map((item, i) => (
-                <article key={i} className="group">
-                  <div className="aspect-video bg-slate-100 rounded-2xl md:rounded-[2rem] mb-4 md:mb-6 overflow-hidden">
-                    <OptimizedImage
-                      src="/avatars/hero.jpeg"
-                      className="w-full h-full group-hover:scale-110 transition-transform duration-700"
-                      alt="News"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black text-secondary mb-2 md:mb-3 uppercase tracking-widest">
-                    <Calendar size={12} /> {item.date}
-                  </div>
-                  <h3 className="text-lg md:text-xl font-black text-primary group-hover:text-secondary mb-2 md:mb-4 leading-tight">{item.title}</h3>
-                  <p className="text-slate-500 text-xs md:text-sm leading-relaxed line-clamp-2">{item.summary}</p>
-                </article>
+              ]).slice(0, 3).map((item, i) => (
+                <NewsCard key={i} item={item} />
               ))}
             </div>
+
+            {/* See All News Button — hanya jika warta lebih dari 3 */}
+            {(sheetData?.News?.length > 3) && (
+              <div className="mt-12 text-center">
+                <button
+                  onClick={() => setIsNewsModalOpen(true)}
+                  className="group relative inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary-light text-white px-8 py-3.5 rounded-xl font-black text-[10px] md:text-sm uppercase tracking-[0.2em] shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:-translate-y-1 active:scale-95 transition-all duration-300"
+                >
+                  <span className="relative z-10 flex items-center gap-3">
+                    Eksplorasi Warta <ArrowRight size={16} className="group-hover:translate-x-2 transition-transform duration-500" />
+                  </span>
+                  <div className="absolute inset-0 bg-white/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </main>
@@ -887,6 +919,50 @@ export default function Home() {
                   className="bg-primary text-white px-10 py-4 rounded-2xl font-black text-xs hover:bg-slate-800 transition-all shadow-xl shadow-primary/20"
                 >
                   TUTUP GALERI
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* News Full List Modal */}
+      <AnimatePresence>
+        {isNewsModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-white/40 backdrop-blur-2xl p-5 md:p-8 flex items-center justify-center"
+            onClick={() => setIsNewsModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="bg-white w-full max-w-7xl rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-12 relative shadow-3xl max-h-[90vh] overflow-y-auto hide-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setIsNewsModalOpen(false)}
+                className="absolute top-6 right-6 md:top-10 md:right-10 p-3 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400 hover:text-primary transition-all z-10 shadow-sm"
+              >
+                <X size={24} />
+              </button>
+
+              <h3 className="mt-2 mb-8 md:mb-10 text-2xl md:text-3xl font-black text-primary text-center">Semua Warta</h3>
+
+              <div className="grid md:grid-cols-3 gap-8 md:gap-10 mb-12">
+                {(sheetData?.News || []).map((item, i) => (
+                  <NewsCard key={i} item={item} />
+                ))}
+              </div>
+
+              <div className="mt-12 text-center">
+                <button
+                  onClick={() => setIsNewsModalOpen(false)}
+                  className="bg-primary text-white px-10 py-4 rounded-2xl font-black text-xs hover:bg-slate-800 transition-all shadow-xl shadow-primary/20"
+                >
+                  TUTUP
                 </button>
               </div>
             </motion.div>

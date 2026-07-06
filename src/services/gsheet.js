@@ -5,6 +5,13 @@
 // Replace with your deployed Apps Script Web App URL
 const API_URL = 'https://script.google.com/macros/s/AKfycbxZeLyTT-hteg2Rv9VXI2RwC0QTcjX_PSyiDepd5s-cozdrW2V19m9OFaADc7PXrCZGPg/exec';
 
+// Google Sheets serializes date cells as ISO (e.g. 2026-07-05T17:00:00.000Z).
+// Format to plain YYYY-MM-DD in Jakarta time so the day matches what's typed in the sheet.
+export const formatSheetDate = (d) => {
+  if (typeof d !== 'string' || !d.includes('T')) return d;
+  return new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+};
+
 export const fetchSchoolData = async () => {
   try {
     if (API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {

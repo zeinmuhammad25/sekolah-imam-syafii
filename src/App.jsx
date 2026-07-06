@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './Home';
+import NewsDetail from './NewsDetail';
 import TeacherLayout from './components/teacher/TeacherLayout';
 import TeacherHome from './components/teacher/TeacherHome';
 import TeacherSoal from './components/teacher/TeacherSoal';
@@ -19,7 +20,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        
+        <Route path="/berita/:id" element={<NewsDetail />} />
+
         {/* Guru Panel with Layout */}
         <Route 
           path="/dashboard-guru" 
