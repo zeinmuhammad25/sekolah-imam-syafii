@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backup gambar asli (jangan di-commit)
+avatars-original/

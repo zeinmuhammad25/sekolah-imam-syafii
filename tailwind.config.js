@@ -8,21 +8,24 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#0f172a', // Navy
-          light: '#1e293b',
+          DEFAULT: '#0B3D2E', // Emerald deep
+          light: '#14513C',
         },
         secondary: {
-          DEFAULT: '#059669', // Emerald
-          light: '#10b981',
+          DEFAULT: '#9A7B1C', // Gold (deep — aman untuk teks di atas ivory)
+          light: '#C9A227',   // Gold (terang — untuk latar gelap / garis aksen)
         },
         accent: {
-          DEFAULT: '#d97706', // Amber/Gold
-          light: '#f59e0b',
-        }
+          DEFAULT: '#9A7B1C', // alias emas: menjaga pemakaian `accent` lama tetap selaras
+          light: '#C9A227',
+        },
+        ivory: '#FAF7F0',
+        forest: '#07271D',
+        ink: '#1A1A1A',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
-        display: ['Outfit', 'sans-serif'],
+        display: ['Fraunces', 'Georgia', 'serif'],
       },
       boxShadow: {
         '3xl': '0 35px 60px -15px rgba(0, 0, 0, 0.3)',
