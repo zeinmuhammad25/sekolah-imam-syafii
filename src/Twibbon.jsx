@@ -126,11 +126,10 @@ export default function Twibbon() {
           <section className="mb-6">
             <div className="grid grid-cols-2 gap-3">
               {[['tk', 'TK Qur’an'], ['sd', 'SD Islam']].map(([key, label]) => preview[key] && (
-                <button key={key} onClick={() => { setJenjang(key); setPhoto(null) }}
-                  className="rounded-xl overflow-hidden hover:opacity-90 transition">
+                <div key={key} className="rounded-xl overflow-hidden">
                   <img src={preview[key]} alt={`Twibbon MPLS ${label}`} loading="lazy"
                     className="w-full h-auto block" />
-                </button>
+                </div>
               ))}
             </div>
           </section>
