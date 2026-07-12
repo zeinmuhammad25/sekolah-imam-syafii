@@ -175,7 +175,7 @@ export default function Home() {
 
     // Set default local favicon
     const favicon = document.getElementById('favicon');
-    if (favicon) favicon.href = '/avatars/logo.png';
+    if (favicon) favicon.href = '/favicon.ico';
 
     // Jika versi lama (tidak ada gender), hapus cache agar ambil data baru
     if (cachedData && dataVersion !== '1.1') {

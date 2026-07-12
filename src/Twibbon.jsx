@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Upload, Download, RefreshCw, ZoomIn } from 'lucide-react'
+import { fetchSchoolData } from './services/gsheet'
 
 // Frame native size + hole geometry (normalized 0..1 of the canvas). Holes were
 // punched transparent into the PNGs by scripts/punch — photo drawn behind shows through.
@@ -16,11 +17,23 @@ export default function Twibbon() {
   const [zoom, setZoom] = useState(1)
   const [minZoom, setMinZoom] = useState(1) // "muat semua" (contain) scale, depends on photo aspect
   const [pan, setPan] = useState({ x: 0, y: 0 }) // in canvas px
+  const [preview, setPreview] = useState({ tk: '', sd: '' }) // MPLS design previews from Settings sheet
   const canvasRef = useRef(null)
   const frameImg = useRef(null)
   const drag = useRef(null)
 
   const cfg = jenjang ? FRAMES[jenjang] : null
+
+  // MPLS design previews from Settings sheet: cache first (instant), then refresh from server
+  useEffect(() => {
+    const apply = (data) => {
+      const rows = data?.Settings || []
+      const get = (k) => rows.find((r) => r.key === k)?.value || ''
+      setPreview({ tk: get('MPLS TK'), sd: get('MPLS SD') })
+    }
+    try { const c = JSON.parse(localStorage.getItem('mias_sheet_data')); if (c) apply(c) } catch { }
+    fetchSchoolData().then((d) => d && apply(d)).catch(() => { })
+  }, [])
 
   // load the frame PNG whenever jenjang changes
   useEffect(() => {
@@ -107,6 +120,21 @@ export default function Twibbon() {
             ))}
           </div>
         </section>
+
+        {/* MPLS design previews — shown until a jenjang is picked */}
+        {!jenjang && (preview.tk || preview.sd) && (
+          <section className="mb-6">
+            <div className="grid grid-cols-2 gap-3">
+              {[['tk', 'TK Qur’an'], ['sd', 'SD Islam']].map(([key, label]) => preview[key] && (
+                <button key={key} onClick={() => { setJenjang(key); setPhoto(null) }}
+                  className="rounded-xl overflow-hidden hover:opacity-90 transition">
+                  <img src={preview[key]} alt={`Twibbon MPLS ${label}`} loading="lazy"
+                    className="w-full h-auto block" />
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {cfg && (
           <>
