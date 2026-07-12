@@ -5,6 +5,7 @@ import Home from './Home'; // eager: landing page harus tampil instan
 // Lazy: berita & seluruh panel guru dipecah agar tidak membebani home publik.
 // TeacherSoal menarik jspdf/jspdf-autotable (~ratusan KB) — wajib on-demand.
 const NewsDetail = lazy(() => import('./NewsDetail'));
+const Twibbon = lazy(() => import('./Twibbon'));
 const TeacherLayout = lazy(() => import('./components/teacher/TeacherLayout'));
 const TeacherHome = lazy(() => import('./components/teacher/TeacherHome'));
 const TeacherSoal = lazy(() => import('./components/teacher/TeacherSoal'));
@@ -32,6 +33,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/berita/:id" element={<NewsDetail />} />
+          <Route path="/twibbon" element={<Twibbon />} />
 
           {/* Guru Panel with Layout */}
           <Route

@@ -6,9 +6,12 @@ import PPDBForm from './components/PPDBForm'
 import TeacherLoginModal from './components/TeacherLoginModal'
 import { fetchSchoolData, formatSheetDate } from './services/gsheet'
 
+// Link that also accepts framer-motion props (for the animated mobile menu)
+const MotionLink = motion(Link)
+
 // Mock Data
 const navigation = [
-  { name: 'Beranda', href: '#beranda' },
+  { name: 'Twibbon', href: '/twibbon' },
   { name: 'Profil', href: '#profil' },
   { name: 'Akademik', href: '#akademik' },
   { name: 'Karya Siswa', href: '#galeri' },
@@ -268,12 +271,13 @@ export default function Home() {
             </a>
 
             <nav className="hidden md:flex items-center gap-6 lg:gap-9">
-              {navigation.map((item) => (
-                <a key={item.name} href={item.href} className="text-[12px] font-semibold text-primary/60 hover:text-secondary transition-all relative group uppercase tracking-[0.15em]">
-                  {item.name}
-                  <span className="absolute -bottom-1 left-0 w-0 h-px bg-secondary transition-all group-hover:w-full" />
-                </a>
-              ))}
+              {navigation.map((item) => {
+                const cls = "text-[12px] font-semibold text-primary/60 hover:text-secondary transition-all relative group uppercase tracking-[0.15em]"
+                const inner = <>{item.name}<span className="absolute -bottom-1 left-0 w-0 h-px bg-secondary transition-all group-hover:w-full" /></>
+                return item.href.startsWith('/')
+                  ? <Link key={item.name} to={item.href} className={cls}>{inner}</Link>
+                  : <a key={item.name} href={item.href} className={cls}>{inner}</a>
+              })}
               <button
                 onClick={() => setIsTeacherLoginOpen(true)}
                 className="text-[11px] font-semibold text-primary/40 hover:text-primary transition-all flex items-center gap-1.5"
@@ -323,26 +327,31 @@ export default function Home() {
             </div>
 
             <nav className="flex-grow flex flex-col justify-center px-10 gap-2">
-              {navigation.map((item, i) => (
-                <motion.a
-                  key={item.name}
-                  href={item.href}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + (i * 0.05) }}
-                  className="group flex items-center justify-between py-4 border-b border-primary/10 last:border-0"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  <span className="font-display text-2xl font-semibold text-primary group-hover:text-secondary transition-colors flex items-center gap-4">
-                    {item.name === 'Beranda' && <Sparkles size={18} className="text-secondary/50" />}
-                    {item.name === 'Profil' && <Users size={18} className="text-secondary/50" />}
-                    {item.name === 'Akademik' && <GraduationCap size={18} className="text-secondary/50" />}
-                    {item.name === 'Karya Siswa' && <BookOpen size={18} className="text-secondary/50" />}
-                    {item.name}
-                  </span>
-                  <ArrowRight size={18} className="text-primary/20 group-hover:text-secondary transition-all" />
-                </motion.a>
-              ))}
+              {navigation.map((item, i) => {
+                const isRoute = item.href.startsWith('/')
+                const El = isRoute ? MotionLink : motion.a
+                const linkProps = isRoute ? { to: item.href } : { href: item.href }
+                return (
+                  <El
+                    key={item.name}
+                    {...linkProps}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + (i * 0.05) }}
+                    className="group flex items-center justify-between py-4 border-b border-primary/10 last:border-0"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <span className="font-display text-2xl font-semibold text-primary group-hover:text-secondary transition-colors flex items-center gap-4">
+                      {item.name === 'Twibbon' && <Sparkles size={18} className="text-secondary/50" />}
+                      {item.name === 'Profil' && <Users size={18} className="text-secondary/50" />}
+                      {item.name === 'Akademik' && <GraduationCap size={18} className="text-secondary/50" />}
+                      {item.name === 'Karya Siswa' && <BookOpen size={18} className="text-secondary/50" />}
+                      {item.name}
+                    </span>
+                    <ArrowRight size={18} className="text-primary/20 group-hover:text-secondary transition-all" />
+                  </El>
+                )
+              })}
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
