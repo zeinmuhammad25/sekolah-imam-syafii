@@ -11,13 +11,20 @@ const FRAMES = {
   sd: { label: 'SD Islam', src: '/twibbon/sd.png', cx: 0.5044, cy: 0.3860, r: 0.3305 },
 }
 
+// Default MPLS preview URLs so images render instantly — the ~5s Apps Script fetch
+// only overrides these if the sheet changes. Keep in sync with Settings > MPLS TK/SD.
+const DEFAULT_PREVIEW = {
+  tk: 'https://i.ibb.co.com/pjbMMbdk/mpls-tk.jpg',
+  sd: 'https://i.ibb.co.com/G4JstXHr/mpls-sd.jpg',
+}
+
 export default function Twibbon() {
   const [jenjang, setJenjang] = useState(null) // 'tk' | 'sd'
   const [photo, setPhoto] = useState(null)      // HTMLImageElement
   const [zoom, setZoom] = useState(1)
   const [minZoom, setMinZoom] = useState(1) // "muat semua" (contain) scale, depends on photo aspect
   const [pan, setPan] = useState({ x: 0, y: 0 }) // in canvas px
-  const [preview, setPreview] = useState({ tk: '', sd: '' }) // MPLS design previews from Settings sheet
+  const [preview, setPreview] = useState(DEFAULT_PREVIEW) // MPLS design previews (sheet overrides these)
   const canvasRef = useRef(null)
   const frameImg = useRef(null)
   const drag = useRef(null)
@@ -28,8 +35,8 @@ export default function Twibbon() {
   useEffect(() => {
     const apply = (data) => {
       const rows = data?.Settings || []
-      const get = (k) => rows.find((r) => r.key === k)?.value || ''
-      setPreview({ tk: get('MPLS TK'), sd: get('MPLS SD') })
+      const get = (k, fb) => rows.find((r) => r.key === k)?.value || fb
+      setPreview({ tk: get('MPLS TK', DEFAULT_PREVIEW.tk), sd: get('MPLS SD', DEFAULT_PREVIEW.sd) })
     }
     try { const c = JSON.parse(localStorage.getItem('mias_sheet_data')); if (c) apply(c) } catch { }
     fetchSchoolData().then((d) => d && apply(d)).catch(() => { })
@@ -127,7 +134,7 @@ export default function Twibbon() {
             <div className="grid grid-cols-2 gap-3">
               {[['tk', 'TK Qur’an'], ['sd', 'SD Islam']].map(([key, label]) => preview[key] && (
                 <div key={key} className="rounded-xl overflow-hidden">
-                  <img src={preview[key]} alt={`Twibbon MPLS ${label}`} loading="lazy"
+                  <img src={preview[key]} alt={`Twibbon MPLS ${label}`} loading="eager" fetchpriority="high"
                     className="w-full h-auto block" />
                 </div>
               ))}

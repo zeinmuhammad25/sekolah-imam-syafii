@@ -20,6 +20,7 @@ Tampilan halaman utama dirombak total menjadi bahasa desain elite: **palet emera
 12. **Atomic Column Sync (v1.9)**: Sinkronisasi tingkat sel per folder ujian — menghilangkan resiko data terhapus antar guru.
 13. **Advanced PDF Sectioning**: Ekspor soal terbagi Section I (PG) & Section II (Essai) dengan area isian lega.
 14. **5-Step Mobile Guard**: Proteksi tombol "Back" HP agar popup tidak tertutup sebelum data disimpan.
+15. **Twibbon MPLS (v3.1)**: Halaman `/twibbon` — pilih jenjang (TK/SD), upload foto (kamera/galeri HP & file laptop), atur zoom + geser, lalu download PNG. Foto berada **di belakang** dan frame **di depan** (lubang transparan hasil *flood-fill punch* dari desain asli via `sharp`). Preview desain jadwal MPLS diambil dari sheet `Settings` (`MPLS TK`/`MPLS SD`) dengan URL default agar **tampil instan** tanpa menunggu fetch.
 
 ---
 
@@ -28,7 +29,7 @@ Website ini dikontrol melalui satu Spreadsheet dengan tab berikut:
 
 | Tab Name | Fungsi Utama | Key Fields |
 | :--- | :--- | :--- |
-| `Settings` | Branding & Teks Utama | `school_logo`, `hero_image`, `vision`, `mission` |
+| `Settings` | Branding & Teks Utama | `school_logo`, `hero_image`, `vision`, `mission`, `MPLS TK`, `MPLS SD` |
 | `Staff` | Tim Pengajar | Nama, Jabatan, Foto, Gender (`ikhwan`/`akhwat`) |
 | `Gallery` | Dokumentasi Siswa | Judul, Kategori, Link Gambar |
 | `Announcements` | Running Info | Teks, Active (`Yes`/`No`) |
@@ -38,11 +39,14 @@ Website ini dikontrol melalui satu Spreadsheet dengan tab berikut:
 ---
 
 ## 📂 Struktur Folder
-- `/public/avatars/`: Aset lokal — `logo.png` (favicon), `hero.jpeg` (og:image), `hero.webp`, `ikhwan.webp`, `akhwat.webp`.
+- `/public/`: Favicon situs — `favicon.ico`, `apple-touch-icon.png`, `favicon-32.png` (dibuat dari logo untuk hasil pencarian Google).
+- `/public/avatars/`: Aset lokal — `logo.png`, `hero.jpeg` (og:image), `hero.webp`, `ikhwan.webp`, `akhwat.webp`.
+- `/public/twibbon/`: Frame twibbon dengan lubang transparan — `tk.png`, `sd.png`.
 - `/src/services/gsheet.js`: Service API (GET & POST) ke Google Apps Script Engine.
 - `/src/components/teacher/`: Modul Dashboard Guru (dimuat *lazy*).
 - `/src/App.jsx`: Routing utama + `React.lazy`/`Suspense`.
 - `/src/Home.jsx`: Halaman utama (redesign v3.0).
+- `/src/Twibbon.jsx`: Halaman generator twibbon MPLS (dimuat *lazy*).
 - `tailwind.config.js`: Token palet Emerald/Gold/Ivory & font Fraunces/Inter.
 
 > **Catatan optimasi gambar**: gambar lokal sudah ter-resize/kompres. Untuk mengganti, edit gambar sumber lalu kompres ke WebP (mis. via `sharp` atau [squoosh.app](https://squoosh.app)) — hindari resize berulang agar kualitas tidak menurun.
@@ -62,5 +66,5 @@ npm run build
 ---
 **Domain Resmi**: [sekolahislamimamsyafii.web.id](https://sekolahislamimamsyafii.web.id)  
 **Infrastructure**: 🌐 Cloudflare Pages (Production)  
-**Status**: ✅ Produksi Aktif | **Rev**: 3.0  
-**Developer**: Antigravity AI | **Last Update**: 7 Juli 2026
+**Status**: ✅ Produksi Aktif | **Rev**: 3.1  
+**Developer**: Antigravity AI | **Last Update**: 14 Juli 2026
