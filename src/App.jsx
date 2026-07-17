@@ -9,6 +9,7 @@ const Twibbon = lazy(() => import('./Twibbon'));
 const TeacherLayout = lazy(() => import('./components/teacher/TeacherLayout'));
 const TeacherHome = lazy(() => import('./components/teacher/TeacherHome'));
 const TeacherSoal = lazy(() => import('./components/teacher/TeacherSoal'));
+const AdminSection = lazy(() => import('./components/teacher/AdminSection'));
 
 // Simple Route Protection
 const ProtectedRoute = ({ children }) => {
@@ -55,6 +56,18 @@ export default function App() {
                 </TeacherLayout>
               </ProtectedRoute>
             }
+          />
+          <Route
+            path="/dashboard-guru/galeri"
+            element={<ProtectedRoute><TeacherLayout><AdminSection section="gallery" /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/pengajar"
+            element={<ProtectedRoute><TeacherLayout><AdminSection section="teachers" /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/warta"
+            element={<ProtectedRoute><TeacherLayout><AdminSection section="news" /></TeacherLayout></ProtectedRoute>}
           />
           <Route
             path="/dashboard-guru/settings"

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  BookOpen, 
-  LogOut, 
-  Menu, 
-  X, 
+import {
+  LayoutDashboard,
+  BookOpen,
+  LogOut,
+  Menu,
+  X,
   Settings,
   Bell,
   User,
-  ChevronRight
+  ChevronRight,
+  Image,
+  Users,
+  Newspaper
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -21,6 +24,9 @@ export default function TeacherLayout({ children }) {
   const menuItems = [
     { name: 'Dashboard Utama', icon: LayoutDashboard, path: '/dashboard-guru' },
     { name: 'Dashboard Soal', icon: BookOpen, path: '/dashboard-guru/soal' },
+    { name: 'Galeri Siswa', icon: Image, path: '/dashboard-guru/galeri' },
+    { name: 'Tim Pengajar', icon: Users, path: '/dashboard-guru/pengajar' },
+    { name: 'Warta Terbaru', icon: Newspaper, path: '/dashboard-guru/warta' },
     { name: 'Pengaturan', icon: Settings, path: '/dashboard-guru/settings' },
   ];
 

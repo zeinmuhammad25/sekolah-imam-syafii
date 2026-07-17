@@ -47,6 +47,43 @@ export const submitPPDBForm = async (formData) => {
   }
 };
 
+// Admin: tambah/edit/hapus baris (Gallery/Teachers/News).
+// text/plain = "simple request" -> tanpa preflight, respons Apps Script bisa dibaca.
+export const mutateRow = async ({ action, sheetName, row, id }) => {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'ROW', action, sheetName, row, id }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('mutateRow error:', error);
+    return { success: false, error: String(error) };
+  }
+};
+
+// Admin: upload foto -> Google Drive (via Apps Script) -> { success, url }.
+export const uploadImage = async (file) => {
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'UPLOAD', imageBase64: dataUrl, filename: file.name }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('uploadImage error:', error);
+    return { success: false, error: String(error) };
+  }
+};
+
 export const saveQuestions = async (payload) => {
   try {
     const response = await fetch(API_URL, {
