@@ -228,6 +228,28 @@ function handleRow(ss, params) {
       return jsonOut({ success: true, id: targetId });
     }
 
+    // move: geser baris naik/turun (urutan tampil = urutan baris)
+    if (action === 'move') {
+      var mId = String(params.id);
+      var mRow = -1;
+      for (var r = 1; r < values.length; r++) {
+        if (String(values[r][idCol]) === mId) { mRow = r + 1; break; }
+      }
+      if (mRow === -1) return jsonOut({ success: false, error: 'id tidak ditemukan: ' + mId });
+
+      var neighbor = params.direction === 'up' ? mRow - 1 : mRow + 1;
+      var lastDataRow = values.length; // header di baris 1; baris data terakhir = values.length
+      if (neighbor < 2 || neighbor > lastDataRow) {
+        return jsonOut({ success: true, moved: false }); // sudah di ujung
+      }
+      var lastCol = sheet.getLastColumn();
+      var aVals = sheet.getRange(mRow, 1, 1, lastCol).getValues();
+      var bVals = sheet.getRange(neighbor, 1, 1, lastCol).getValues();
+      sheet.getRange(mRow, 1, 1, lastCol).setValues(bVals);
+      sheet.getRange(neighbor, 1, 1, lastCol).setValues(aVals);
+      return jsonOut({ success: true, moved: true });
+    }
+
     return jsonOut({ success: false, error: 'action tidak dikenal: ' + action });
   } finally {
     lock.releaseLock();

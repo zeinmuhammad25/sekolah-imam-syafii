@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Loader2, ImageOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload, Loader2, ImageOff, ChevronUp, ChevronDown } from 'lucide-react';
 import { fetchSchoolData, mutateRow, uploadImage } from '../../services/gsheet';
 
 // Konfigurasi tiap section. Semua CRUD pakai komponen ini.
@@ -107,6 +107,17 @@ export default function AdminSection({ section }) {
     }
   };
 
+  const handleMove = async (index, direction) => {
+    const j = direction === 'up' ? index - 1 : index + 1;
+    if (j < 0 || j >= items.length) return;
+    const item = items[index];
+    const next = [...items];
+    [next[index], next[j]] = [next[j], next[index]];
+    setItems(next); // optimistic: langsung tampak tertukar
+    const res = await mutateRow({ action: 'move', sheetName: cfg.sheetName, id: item.id, direction });
+    if (!res.success) { setItems(null); await load(); window.alert('Gagal mengubah urutan: ' + (res.error || 'tidak diketahui')); }
+  };
+
   const handleDelete = async (item) => {
     if (!window.confirm(`Hapus "${item[cfg.primary] || item.id}"? Tindakan ini tidak bisa dibatalkan.`)) return;
     const res = await mutateRow({ action: 'delete', sheetName: cfg.sheetName, id: item.id });
@@ -138,8 +149,12 @@ export default function AdminSection({ section }) {
         <div className="text-center py-20 text-slate-400 font-bold">Belum ada data. Klik "Tambah".</div>
       ) : (
         <div className="grid gap-3">
-          {items.map((item) => (
-            <div key={item.id} className="flex items-center gap-4 bg-white rounded-2xl p-3 border border-slate-100 shadow-sm">
+          {items.map((item, index) => (
+            <div key={item.id} className="flex items-center gap-3 bg-white rounded-2xl p-3 border border-slate-100 shadow-sm">
+              <div className="flex flex-col shrink-0">
+                <button onClick={() => handleMove(index, 'up')} disabled={index === 0} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Naikkan"><ChevronUp size={16} /></button>
+                <button onClick={() => handleMove(index, 'down')} disabled={index === items.length - 1} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Turunkan"><ChevronDown size={16} /></button>
+              </div>
               <Thumb src={item[cfg.imageField]} />
               <div className="min-w-0 flex-grow">
                 <p className="font-black text-slate-900 truncate">{item[cfg.primary] || '(tanpa judul)'}</p>
