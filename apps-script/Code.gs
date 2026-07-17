@@ -270,8 +270,9 @@ function handleUpload(params) {
     var file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     var id = file.getId();
-    // Format thumbnail = paling andal untuk <img> hotlink dari Drive.
-    var url = 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1200';
+    // URL CDN langsung (tanpa redirect) -> paling andal untuk <img> & og:image crawler.
+    // drive.google.com/thumbnail me-redirect ke sini; pakai yang final biar crawler tak nyasar.
+    var url = 'https://lh3.googleusercontent.com/d/' + id + '=w1200';
     return jsonOut({ success: true, url: url, fileId: id });
   } catch (err) {
     return jsonOut({ success: false, error: String(err) });
