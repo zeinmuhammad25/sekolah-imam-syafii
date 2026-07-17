@@ -228,6 +228,25 @@ function handleRow(ss, params) {
       return jsonOut({ success: true, id: targetId });
     }
 
+    // reorder: tulis ulang seluruh baris data sesuai urutan id yang dikirim (sekali jalan)
+    if (action === 'reorder') {
+      var ids = params.ids || [];
+      var width = values[0].length;
+      var dataRows = values.slice(1);
+      var byId = {};
+      for (var r = 0; r < dataRows.length; r++) { byId[String(dataRows[r][idCol])] = dataRows[r]; }
+      var ordered = [];
+      for (var k = 0; k < ids.length; k++) {
+        var key = String(ids[k]);
+        if (byId[key]) { ordered.push(byId[key]); delete byId[key]; }
+      }
+      // id yang tak disebut (jaga-jaga) ditaruh di akhir
+      for (var leftover in byId) { if (byId.hasOwnProperty(leftover)) ordered.push(byId[leftover]); }
+      if (ordered.length !== dataRows.length) return jsonOut({ success: false, error: 'jumlah baris tidak cocok' });
+      if (ordered.length > 0) sheet.getRange(2, 1, ordered.length, width).setValues(ordered);
+      return jsonOut({ success: true });
+    }
+
     // move: geser baris naik/turun (urutan tampil = urutan baris)
     if (action === 'move') {
       var mId = String(params.id);

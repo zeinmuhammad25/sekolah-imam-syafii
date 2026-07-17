@@ -58,16 +58,31 @@ export default function AdminSection({ section }) {
   const [editing, setEditing] = useState(null); // {form, id|null} saat form terbuka
   const [confirming, setConfirming] = useState(null); // item yang mau dihapus
   const [deleting, setDeleting] = useState(false);
-  const [moving, setMoving] = useState(false);
+  const [dirty, setDirty] = useState(false);       // urutan berubah, belum disimpan
+  const [savingOrder, setSavingOrder] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
   const load = () => fetchSchoolData().then((d) => setItems((d && d[cfg.sheetName]) || []));
-  useEffect(() => { setItems(null); setEditMode(false); load(); }, [section]);
+  useEffect(() => { setItems(null); setEditMode(false); setDirty(false); load(); }, [section]);
 
-  const openAdd = () => { setError(''); setEditing({ id: null, form: emptyForm(cfg.fields) }); };
-  const openEdit = (item) => {
+  // Simpan urutan ke server sekali jalan. Return true kalau sukses / tak perlu.
+  const commitOrder = async () => {
+    if (!dirty) return true;
+    setSavingOrder(true);
+    const res = await mutateRow({ action: 'reorder', sheetName: cfg.sheetName, ids: items.map((i) => i.id) });
+    setSavingOrder(false);
+    if (res.success) { setDirty(false); return true; }
+    window.alert('Gagal menyimpan urutan: ' + (res.error || 'tidak diketahui'));
+    return false;
+  };
+
+  const exitEdit = async () => { if (await commitOrder()) setEditMode(false); };
+
+  const openAdd = async () => { if (!(await commitOrder())) return; setError(''); setEditing({ id: null, form: emptyForm(cfg.fields) }); };
+  const openEdit = async (item) => {
+    if (!(await commitOrder())) return;
     setError('');
     const form = {};
     cfg.fields.forEach((f) => { form[f.name] = item[f.name] != null ? String(item[f.name]) : ''; });
@@ -111,21 +126,17 @@ export default function AdminSection({ section }) {
     }
   };
 
-  const handleMove = async (index, direction) => {
-    if (moving) return; // hindari balapan request
+  const handleMove = (index, direction) => {
     const j = direction === 'up' ? index - 1 : index + 1;
     if (j < 0 || j >= items.length) return;
-    const item = items[index];
     const next = [...items];
     [next[index], next[j]] = [next[j], next[index]];
-    setItems(next); // optimistic: langsung tampak tertukar
-    setMoving(true);
-    const res = await mutateRow({ action: 'move', sheetName: cfg.sheetName, id: item.id, direction });
-    setMoving(false);
-    if (!res.success) { setItems(null); await load(); }
+    setItems(next);  // geser lokal, instan — bebas berkali-kali
+    setDirty(true);  // disimpan pas "Selesai"
   };
 
   const confirmDelete = async () => {
+    if (!(await commitOrder())) return;
     setDeleting(true);
     const res = await mutateRow({ action: 'delete', sheetName: cfg.sheetName, id: confirming.id });
     setDeleting(false);
@@ -145,14 +156,17 @@ export default function AdminSection({ section }) {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setEditMode((v) => !v)}
-            className={`inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all border-2 ${
+            onClick={() => (editMode ? exitEdit() : setEditMode(true))}
+            disabled={savingOrder}
+            className={`inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all border-2 disabled:opacity-60 ${
               editMode
                 ? 'bg-slate-900 text-white border-slate-900'
                 : 'bg-white text-slate-600 border-slate-200 hover:border-slate-900 hover:text-slate-900'
             }`}
           >
-            {editMode ? <><Check size={16} /> Selesai</> : <><SlidersHorizontal size={16} /> Edit</>}
+            {editMode
+              ? (savingOrder ? <><Loader2 className="animate-spin" size={16} /> Menyimpan…</> : <><Check size={16} /> Selesai</>)
+              : <><SlidersHorizontal size={16} /> Edit</>}
           </button>
           <button
             onClick={openAdd}
@@ -179,8 +193,8 @@ export default function AdminSection({ section }) {
             >
               {editMode && (
                 <div className="flex flex-col shrink-0">
-                  <button onClick={() => handleMove(index, 'up')} disabled={index === 0 || moving} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Naikkan"><ChevronUp size={16} /></button>
-                  <button onClick={() => handleMove(index, 'down')} disabled={index === items.length - 1 || moving} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Turunkan"><ChevronDown size={16} /></button>
+                  <button onClick={() => handleMove(index, 'up')} disabled={index === 0} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Naikkan"><ChevronUp size={16} /></button>
+                  <button onClick={() => handleMove(index, 'down')} disabled={index === items.length - 1} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Turunkan"><ChevronDown size={16} /></button>
                 </div>
               )}
               <Thumb src={item[cfg.imageField]} />
@@ -206,9 +220,11 @@ export default function AdminSection({ section }) {
             initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
             className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[120] flex items-center gap-4 bg-slate-900 text-white pl-5 pr-2 py-2 rounded-full shadow-2xl"
           >
-            <span className="text-xs font-bold text-slate-300 hidden sm:inline">Mode edit — atur urutan, ubah, atau hapus</span>
-            <button onClick={() => setEditMode(false)} className="bg-white text-slate-900 px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-wider hover:bg-slate-100 active:scale-95 transition-all flex items-center gap-2">
-              <Check size={16} /> Selesai
+            <span className="text-xs font-bold text-slate-300 hidden sm:inline">
+              {dirty ? 'Urutan belum disimpan' : 'Mode edit — atur urutan, ubah, atau hapus'}
+            </span>
+            <button onClick={exitEdit} disabled={savingOrder} className="bg-white text-slate-900 px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-wider hover:bg-slate-100 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-60">
+              {savingOrder ? <><Loader2 className="animate-spin" size={16} /> Menyimpan…</> : <><Check size={16} /> {dirty ? 'Simpan & Selesai' : 'Selesai'}</>}
             </button>
           </motion.div>
         )}
