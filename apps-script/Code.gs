@@ -278,8 +278,9 @@ function handleUpload(params) {
   }
 }
 
+// Folder Drive tujuan upload foto. Ganti ID di sini kalau mau pindah folder.
+var UPLOAD_FOLDER_ID = '1TRdZHE9mirLUU2jldUCpTXqNvxnzEA7E';
+
 function getUploadFolder() {
-  var name = 'MIAS Uploads';
-  var it = DriveApp.getFoldersByName(name);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  return DriveApp.getFolderById(UPLOAD_FOLDER_ID);
 }
