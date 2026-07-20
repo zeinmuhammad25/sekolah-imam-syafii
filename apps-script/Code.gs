@@ -16,7 +16,7 @@ function doGet(e) {
   // 1. Ambil data Standard dari tab lain (Settings, Staff, etc)
   ss.getSheets().forEach(s => {
     const name = s.getName();
-    if (name === "TeacherQuestions") return;
+    if (name === "TeacherQuestions" || name === "QuestionFolders" || name === "Questions") return;
     const vals = s.getDataRange().getValues();
     if (vals.length > 0) {
       const headers = vals[0].map(h => h.toString().trim());
@@ -28,46 +28,87 @@ function doGet(e) {
     } else { result[name] = []; }
   });
 
-  // 2. Ambil data Bank Soal (Atomic Column Extraction)
-  // Row 8 (TK) s/d Row 14 (SD 6)
-  const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
-  const teacherQuestionsData = [];
+  // 2. Bank Soal: baca dari sheet relasional (QuestionFolders + Questions).
+  //    Kalau sheet baru belum ada / kosong -> fallback ke sistem lama (baris 8-14).
+  result.TeacherQuestions = buildTeacherQuestions(ss);
+  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
 
-  GRADES.forEach((grade, i) => {
-    const rowIndex = 8 + i; // TK mulai di baris 8
-    const rowValues = sheet.getRange(rowIndex, 1, 1, 100).getValues()[0]; // Ambil 100 kolom
+// ---------- Bank Soal: reader relasional + fallback lama ----------
 
-    let gradeExamTypes = [];
-    let gradeQuestions = {};
-    let lastUpdate = 0;
+function readSheetObjects(sheet) {
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
+  var headers = values[0].map(function (h) { return h.toString().trim(); });
+  return values.slice(1).map(function (row) {
+    var o = {};
+    headers.forEach(function (h, i) { if (h) o[h] = row[i]; });
+    return o;
+  }).filter(function (o) { return String(o.id || '') !== ''; });
+}
 
-    rowValues.forEach(cell => {
-      if (cell && cell.toString().trim() !== "") {
-        try {
-          const folderData = JSON.parse(cell);
-          if (folderData.id && folderData.name) {
-            gradeExamTypes.push({ id: folderData.id, name: folderData.name });
-            gradeQuestions[folderData.id] = folderData.questions || [];
-            if (folderData.updatedAt > lastUpdate) lastUpdate = folderData.updatedAt;
-          }
-        } catch (e) {
-          // Bukan JSON yang valid, skip
-        }
-      }
-    });
+function buildTeacherQuestions(ss) {
+  var GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
+  var fSheet = ss.getSheetByName('QuestionFolders');
+  var qSheet = ss.getSheetByName('Questions');
 
-    teacherQuestionsData.push({
-      grade: grade,
-      data: {
-        updatedAt: lastUpdate || Date.now(),
-        examTypes: { [grade]: gradeExamTypes },
-        questions: gradeQuestions
-      }
+  // Belum migrasi -> pakai pembaca lama supaya tidak ada yang rusak.
+  if (!fSheet || fSheet.getLastRow() < 2) return buildTeacherQuestionsLegacy(ss);
+
+  var folders = readSheetObjects(fSheet);
+  var qs = (qSheet && qSheet.getLastRow() >= 2) ? readSheetObjects(qSheet) : [];
+
+  var byFolder = {};
+  qs.forEach(function (q) {
+    var fid = String(q.folderId);
+    if (!byFolder[fid]) byFolder[fid] = [];
+    byFolder[fid].push({
+      id: String(q.id),
+      text: q.text,
+      options: { a: q.optionA, b: q.optionB, c: q.optionC, d: q.optionD },
+      correctAnswer: q.correctAnswer,
+      type: q.type || 'pg',
+      updatedAt: q.updatedAt
     });
   });
 
-  result.TeacherQuestions = teacherQuestionsData;
-  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  return GRADES.map(function (grade) {
+    var gradeFolders = folders
+      .filter(function (f) { return String(f.grade) === grade; })
+      .map(function (f) { return { id: String(f.id), name: f.name }; });
+    var questionsObj = {};
+    gradeFolders.forEach(function (f) { questionsObj[f.id] = byFolder[f.id] || []; });
+    return { grade: grade, data: { updatedAt: Date.now(), examTypes: { [grade]: gradeFolders }, questions: questionsObj } };
+  });
+}
+
+// Pembaca lama (sel JSON di baris 8-14) - dipakai untuk fallback & sumber migrasi.
+function buildTeacherQuestionsLegacy(ss) {
+  var sheet = ss.getSheetByName("TeacherQuestions");
+  var GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
+  var out = [];
+  GRADES.forEach(function (grade, i) {
+    var gradeExamTypes = [];
+    var gradeQuestions = {};
+    var lastUpdate = 0;
+    if (sheet) {
+      var rowValues = sheet.getRange(8 + i, 1, 1, 100).getValues()[0];
+      rowValues.forEach(function (cell) {
+        if (cell && cell.toString().trim() !== "") {
+          try {
+            var d = JSON.parse(cell);
+            if (d.id && d.name) {
+              gradeExamTypes.push({ id: d.id, name: d.name });
+              gradeQuestions[d.id] = d.questions || [];
+              if (d.updatedAt > lastUpdate) lastUpdate = d.updatedAt;
+            }
+          } catch (e) {}
+        }
+      });
+    }
+    out.push({ grade: grade, data: { updatedAt: lastUpdate || Date.now(), examTypes: { [grade]: gradeExamTypes }, questions: gradeQuestions } });
+  });
+  return out;
 }
 
 function doPost(e) {
@@ -180,7 +221,7 @@ function nextId(sheetName, values, idCol) {
 }
 
 function handleRow(ss, params) {
-  var allowed = { Gallery: true, Teachers: true, News: true };
+  var allowed = { Gallery: true, Teachers: true, News: true, QuestionFolders: true, Questions: true };
   var sheetName = params.sheetName;
   if (!allowed[sheetName]) return jsonOut({ success: false, error: 'sheet tidak diizinkan' });
 
@@ -194,6 +235,7 @@ function handleRow(ss, params) {
     var headers = values[0].map(function (h) { return h.toString().trim(); });
     var idCol = headers.indexOf('id');
     if (idCol === -1) return jsonOut({ success: false, error: 'kolom id tidak ada' });
+    var updCol = headers.indexOf('updatedAt'); // -1 kalau sheet tak punya kolom versi
 
     var action = params.action;
     var row = params.row || {};
@@ -201,9 +243,31 @@ function handleRow(ss, params) {
     if (action === 'add') {
       var newId = nextId(sheetName, values, idCol);
       row.id = newId;
+      var addNow = Date.now();
+      if (updCol !== -1) row.updatedAt = addNow;
       var newRow = headers.map(function (h) { return (h in row) ? row[h] : ''; });
       sheet.appendRow(newRow);
-      return jsonOut({ success: true, id: newId });
+      return jsonOut({ success: true, id: newId, updatedAt: addNow });
+    }
+
+    // deleteFolder: hapus folder + semua soal di dalamnya (khusus QuestionFolders)
+    if (action === 'deleteFolder') {
+      var fid = String(params.id);
+      for (var rf = values.length - 1; rf >= 1; rf--) {
+        if (String(values[rf][idCol]) === fid) sheet.deleteRow(rf + 1);
+      }
+      var qSheet = ss.getSheetByName('Questions');
+      if (qSheet && qSheet.getLastRow() >= 2) {
+        var qVals = qSheet.getDataRange().getValues();
+        var qHead = qVals[0].map(function (h) { return h.toString().trim(); });
+        var fCol = qHead.indexOf('folderId');
+        if (fCol !== -1) {
+          for (var rq = qVals.length - 1; rq >= 1; rq--) {
+            if (String(qVals[rq][fCol]) === fid) qSheet.deleteRow(rq + 1);
+          }
+        }
+      }
+      return jsonOut({ success: true });
     }
 
     if (action === 'update' || action === 'delete') {
@@ -219,13 +283,24 @@ function handleRow(ss, params) {
         return jsonOut({ success: true });
       }
 
+      // Optimistic concurrency: kalau ada kolom updatedAt & klien kirim expectedUpdatedAt,
+      // tolak bila baris sudah berubah sejak klien memuatnya (cegah menimpa perubahan orang lain).
+      if (updCol !== -1 && params.expectedUpdatedAt != null) {
+        var currentUpd = values[rowNum - 1][updCol];
+        if (String(currentUpd) !== String(params.expectedUpdatedAt)) {
+          return jsonOut({ success: false, conflict: true, current: rowToObj(headers, values[rowNum - 1]) });
+        }
+      }
+
       // update: hanya tulis kolom yang dikirim, id tidak diubah
       for (var c = 0; c < headers.length; c++) {
         var h = headers[c];
-        if (h === 'id' || !h) continue;
+        if (h === 'id' || h === 'updatedAt' || !h) continue;
         if (h in row) sheet.getRange(rowNum, c + 1).setValue(row[h]);
       }
-      return jsonOut({ success: true, id: targetId });
+      var updNow = Date.now();
+      if (updCol !== -1) sheet.getRange(rowNum, updCol + 1).setValue(updNow);
+      return jsonOut({ success: true, id: targetId, updatedAt: updNow });
     }
 
     // reorder: tulis ulang seluruh baris data sesuai urutan id yang dikirim (sekali jalan)
@@ -303,4 +378,60 @@ var UPLOAD_FOLDER_ID = '1TRdZHE9mirLUU2jldUCpTXqNvxnzEA7E';
 
 function getUploadFolder() {
   return DriveApp.getFolderById(UPLOAD_FOLDER_ID);
+}
+
+// ---------- Helper & migrasi bank soal ----------
+
+function rowToObj(headers, rowArr) {
+  var o = {};
+  for (var i = 0; i < headers.length; i++) { if (headers[i]) o[headers[i]] = rowArr[i]; }
+  return o;
+}
+
+function ensureSheet(ss, name, headers) {
+  var s = ss.getSheetByName(name);
+  if (!s) s = ss.insertSheet(name);
+  if (s.getLastRow() === 0) s.getRange(1, 1, 1, headers.length).setValues([headers]);
+  return s;
+}
+
+// JALANKAN SEKALI dari editor Apps Script (pilih fungsi ini -> Run).
+// Baca bank soal lama (baris 8-14) -> tulis ke sheet QuestionFolders + Questions.
+// Aman: dibatalkan kalau QuestionFolders sudah berisi (cegah migrasi ganda).
+// Sheet lama TIDAK dihapus (biarkan sebagai backup).
+function migrateBankSoal() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var fSheet = ensureSheet(ss, 'QuestionFolders', ['id', 'grade', 'name', 'updatedAt']);
+  var qSheet = ensureSheet(ss, 'Questions', ['id', 'folderId', 'text', 'optionA', 'optionB', 'optionC', 'optionD', 'correctAnswer', 'type', 'updatedAt']);
+
+  if (fSheet.getLastRow() > 1) {
+    return 'DIBATALKAN: QuestionFolders sudah berisi. Kosongkan dulu (sisakan header) kalau mau migrasi ulang.';
+  }
+
+  var legacy = buildTeacherQuestionsLegacy(ss);
+  var now = Date.now();
+  var folderRows = [];
+  var questionRows = [];
+
+  legacy.forEach(function (gradeObj) {
+    var grade = gradeObj.grade;
+    var exam = gradeObj.data.examTypes[grade] || [];
+    var qmap = gradeObj.data.questions || {};
+    exam.forEach(function (folder) {
+      folderRows.push([folder.id, grade, folder.name, now]);
+      (qmap[folder.id] || []).forEach(function (q) {
+        var opt = q.options || {};
+        questionRows.push([
+          q.id, folder.id, q.text || '',
+          opt.a || '', opt.b || '', opt.c || '', opt.d || '',
+          q.correctAnswer || '', q.type || 'pg', now
+        ]);
+      });
+    });
+  });
+
+  if (folderRows.length) fSheet.getRange(2, 1, folderRows.length, 4).setValues(folderRows);
+  if (questionRows.length) qSheet.getRange(2, 1, questionRows.length, 10).setValues(questionRows);
+
+  return 'OK: ' + folderRows.length + ' folder, ' + questionRows.length + ' soal dimigrasi.';
 }

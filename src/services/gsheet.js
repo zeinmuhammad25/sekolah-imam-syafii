@@ -49,12 +49,12 @@ export const submitPPDBForm = async (formData) => {
 
 // Admin: tambah/edit/hapus baris (Gallery/Teachers/News).
 // text/plain = "simple request" -> tanpa preflight, respons Apps Script bisa dibaca.
-export const mutateRow = async ({ action, sheetName, row, id, direction, ids }) => {
+export const mutateRow = async ({ action, sheetName, row, id, direction, ids, expectedUpdatedAt }) => {
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'ROW', action, sheetName, row, id, direction, ids }),
+      body: JSON.stringify({ type: 'ROW', action, sheetName, row, id, direction, ids, expectedUpdatedAt }),
     });
     return await res.json();
   } catch (error) {

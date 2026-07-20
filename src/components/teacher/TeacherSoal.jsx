@@ -16,7 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { saveQuestions, fetchSchoolData } from '../../services/gsheet';
+import { mutateRow, fetchSchoolData } from '../../services/gsheet';
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 
@@ -115,33 +115,7 @@ export default function TeacherSoal() {
   const [isSyncing, setIsSyncing] = useState(false);
   const GRADE_INDEX = { "TK": 0, "SD 1": 1, "SD 2": 2, "SD 3": 3, "SD 4": 4, "SD 5": 5, "SD 6": 6 };
 
-  // 1. Sync Logic v1.9: Simpan PER FOLDER (Atomic Column)
-  const syncFolderToCloud = async (targetGrade, folderId, currentExamTypes = examTypes, currentQuestions = questions) => {
-    if (isSyncing) return;
-    setIsSyncing(true);
-    try {
-      const folder = currentExamTypes[targetGrade].find(f => f.id === folderId);
-      if (!folder) throw new Error("Folder not found locally");
-
-      // Kirim hanya 1 folder spesifik untuk di-upsert di Google Sheets (Isolation)
-      const payload = {
-        type: 'SAVE_FOLDER',
-        grade: targetGrade,
-        folderId: folder.id,
-        folderName: folder.name,
-        questions: currentQuestions[folder.id] || []
-      };
-
-      await saveQuestions(payload);
-      console.log(`Atomic Sync Success: Grade ${targetGrade}, Folder ${folder.name}`);
-    } catch (err) {
-      console.error("Sync Error:", err);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // 2. Load Logic: Ambil data dari Cloud (v1.9 Horizontal Load)
+  // Load Logic: Ambil data dari Cloud (kini dari sheet relasional via doGet)
   const loadAllData = async (showSilently = false) => {
     if (!showSilently) setIsSyncing(true);
     try {
@@ -190,76 +164,76 @@ export default function TeacherSoal() {
 
   const handleAddFolder = async () => {
     if (!newFolderName.trim()) return;
-    const folderId = Date.now().toString();
-    const newFolder = { id: folderId, name: newFolderName };
-    
-    const updatedExamTypes = {
-      ...examTypes,
-      [activeGrade]: [...examTypes[activeGrade], newFolder]
-    };
-    
-    setExamTypes(updatedExamTypes);
+    setIsSyncing(true);
+    const res = await mutateRow({ action: 'add', sheetName: 'QuestionFolders', row: { grade: activeGrade, name: newFolderName.trim() } });
+    setIsSyncing(false);
+    if (!res.success) { alert('Gagal membuat folder: ' + (res.error || 'coba lagi')); return; }
+    const newFolder = { id: String(res.id), name: newFolderName.trim() };
+    setExamTypes(prev => ({ ...prev, [activeGrade]: [...prev[activeGrade], newFolder] }));
+    setQuestions(prev => ({ ...prev, [res.id]: [] }));
     setNewFolderName('');
     setIsAddFolderModalOpen(false);
-    
-    // Sync hanya folder baru ini ke Cell baru
-    await syncFolderToCloud(activeGrade, folderId, updatedExamTypes, questions);
   };
 
   const handleDeleteFolder = async (id) => {
-    if (confirm('Hapus folder ini dan semua soal di dalamnya?')) {
-      const updatedExamTypes = {
-        ...examTypes,
-        [activeGrade]: examTypes[activeGrade].filter(f => f.id !== id)
-      };
-      
-      setExamTypes(updatedExamTypes);
-      if (activeExamFolder === id) setActiveExamFolder(null);
-
-      // Kirim perintah hapus spesifik ke Apps Script
-      await saveQuestions({
-        type: 'DELETE_FOLDER',
-        grade: activeGrade,
-        folderId: id
-      });
-    }
+    if (!confirm('Hapus folder ini dan semua soal di dalamnya?')) return;
+    setExamTypes(prev => ({ ...prev, [activeGrade]: prev[activeGrade].filter(f => f.id !== id) }));
+    if (activeExamFolder === id) setActiveExamFolder(null);
+    const res = await mutateRow({ action: 'deleteFolder', sheetName: 'QuestionFolders', id });
+    if (!res.success) { alert('Gagal menghapus folder: ' + (res.error || 'coba lagi')); loadAllData(); }
   };
 
   const handleSaveQuestion = async () => {
     if (!activeExamFolder) return;
-    const folderQuestions = questions[activeExamFolder] || [];
-    let updatedQuestions;
-    
-    if (editingQuestion) {
-      updatedQuestions = {
-        ...questions,
-        [activeExamFolder]: folderQuestions.map(q => q.id === editingQuestion.id ? { ...questionForm, id: q.id } : q)
-      };
-    } else {
-      updatedQuestions = {
-        ...questions,
-        [activeExamFolder]: [...folderQuestions, { ...questionForm, id: Date.now().toString() }]
-      };
+    const isEssay = (questionForm.type || 'pg') === 'essay';
+    if (!questionForm.text.trim()) { alert('Isi pertanyaan wajib diisi.'); return; }
+    const opts = questionForm.options || { a: '', b: '', c: '', d: '' };
+    const row = {
+      folderId: activeExamFolder,
+      text: questionForm.text,
+      optionA: isEssay ? '' : opts.a, optionB: isEssay ? '' : opts.b,
+      optionC: isEssay ? '' : opts.c, optionD: isEssay ? '' : opts.d,
+      correctAnswer: isEssay ? '' : (questionForm.correctAnswer || 'a'),
+      type: questionForm.type || 'pg',
+    };
+
+    setIsSyncing(true);
+    const res = editingQuestion
+      ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt, row })
+      : await mutateRow({ action: 'add', sheetName: 'Questions', row });
+    setIsSyncing(false);
+
+    if (res.conflict) {
+      alert('Soal ini baru saja diubah dari perangkat/guru lain. Memuat versi terbaru…');
+      setIsQuestionModalOpen(false); setEditingQuestion(null);
+      await loadAllData();
+      return;
     }
-    
-    setQuestions(updatedQuestions);
+    if (!res.success) { alert('Gagal menyimpan soal: ' + (res.error || 'coba lagi')); return; }
+
+    const saved = {
+      id: String(editingQuestion ? editingQuestion.id : res.id),
+      text: row.text,
+      options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
+      correctAnswer: row.correctAnswer,
+      type: row.type,
+      updatedAt: res.updatedAt,
+    };
+    setQuestions(prev => {
+      const list = prev[activeExamFolder] || [];
+      const nextList = editingQuestion ? list.map(q => q.id === editingQuestion.id ? saved : q) : [...list, saved];
+      return { ...prev, [activeExamFolder]: nextList };
+    });
     setIsQuestionModalOpen(false);
     setEditingQuestion(null);
     setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' });
-    
-    // Sync hanya folder aktif ke kolom spesifik
-    await syncFolderToCloud(activeGrade, activeExamFolder, examTypes, updatedQuestions);
   };
 
   const handleDeleteQuestion = async (id) => {
-    if (confirm('Hapus soal ini?')) {
-      const updatedQuestions = {
-        ...questions,
-        [activeExamFolder]: questions[activeExamFolder].filter(q => q.id !== id)
-      };
-      setQuestions(updatedQuestions);
-      await syncFolderToCloud(activeGrade, activeExamFolder, examTypes, updatedQuestions);
-    }
+    if (!confirm('Hapus soal ini?')) return;
+    setQuestions(prev => ({ ...prev, [activeExamFolder]: (prev[activeExamFolder] || []).filter(q => q.id !== id) }));
+    const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id });
+    if (!res.success) { alert('Gagal menghapus soal: ' + (res.error || 'coba lagi')); loadAllData(); }
   };
 
   const openEditQuestion = (q) => {
@@ -416,10 +390,10 @@ export default function TeacherSoal() {
           <div className="flex items-center gap-3">
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Soal</h2>
             {!isSyncing && (
-              <button 
-                onClick={() => syncGradeToCloud(activeGrade)}
+              <button
+                onClick={() => loadAllData()}
                 className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full hover:bg-emerald-100 transition-colors"
-                title="Klik untuk sinkronisasi manual sekarang"
+                title="Klik untuk memuat ulang data terbaru dari server"
               >
                 <CheckCircle2 size={12} />
                 <span className="text-[10px] font-black uppercase tracking-widest">Tersinkron</span>
