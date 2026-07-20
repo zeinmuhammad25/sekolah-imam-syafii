@@ -67,6 +67,7 @@ export default function TeacherSoal() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [backPressCounter, setBackPressCounter] = useState(0);
+  const [notify, setNotify] = useState(null); // { type: 'success' | 'error', title, message }
 
   // Persist data
   useEffect(() => {
@@ -76,6 +77,13 @@ export default function TeacherSoal() {
   useEffect(() => {
     localStorage.setItem('mias_questions', JSON.stringify(questions));
   }, [questions]);
+
+  // Toast otomatis hilang (sukses lebih cepat, error lebih lama biar sempat dibaca)
+  useEffect(() => {
+    if (!notify) return;
+    const t = setTimeout(() => setNotify(null), notify.type === 'error' ? 6000 : 3000);
+    return () => clearTimeout(t);
+  }, [notify]);
 
   // Protection for Mobile Back Button: "Trap" the user in the modal
   useEffect(() => {
@@ -162,17 +170,29 @@ export default function TeacherSoal() {
     return () => clearInterval(interval);
   }, []);
 
+  // Terjemahkan kegagalan dari server jadi pesan yang jelas untuk guru.
+  const describeError = (res) => {
+    const e = String((res && res.error) || '');
+    if (res && res.conflict) return 'Soal ini baru saja diubah dari perangkat/guru lain. Versi terbaru sudah dimuat — silakan buka lagi dan edit ulang.';
+    if (/id tidak ditemukan/i.test(e)) return 'Data sudah dihapus dari perangkat/guru lain. Halaman dimuat ulang.';
+    if (/sheet tidak ditemukan/i.test(e)) return 'Penyimpanan belum siap di server (sheet belum dibuat). Hubungi admin — migrasi Apps Script belum dijalankan.';
+    if (/sheet tidak diizinkan/i.test(e)) return 'Operasi tidak diizinkan untuk data ini.';
+    if (e) return e;
+    return 'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.';
+  };
+
   const handleAddFolder = async () => {
     if (!newFolderName.trim()) return;
     setIsSyncing(true);
     const res = await mutateRow({ action: 'add', sheetName: 'QuestionFolders', row: { grade: activeGrade, name: newFolderName.trim() } });
     setIsSyncing(false);
-    if (!res.success) { alert('Gagal membuat folder: ' + (res.error || 'coba lagi')); return; }
+    if (!res.success) { setNotify({ type: 'error', title: 'Gagal membuat folder', message: describeError(res) }); return; }
     const newFolder = { id: String(res.id), name: newFolderName.trim() };
     setExamTypes(prev => ({ ...prev, [activeGrade]: [...prev[activeGrade], newFolder] }));
     setQuestions(prev => ({ ...prev, [res.id]: [] }));
     setNewFolderName('');
     setIsAddFolderModalOpen(false);
+    setNotify({ type: 'success', title: 'Folder dibuat', message: `"${newFolder.name}" ditambahkan.` });
   };
 
   const handleDeleteFolder = async (id) => {
@@ -180,13 +200,15 @@ export default function TeacherSoal() {
     setExamTypes(prev => ({ ...prev, [activeGrade]: prev[activeGrade].filter(f => f.id !== id) }));
     if (activeExamFolder === id) setActiveExamFolder(null);
     const res = await mutateRow({ action: 'deleteFolder', sheetName: 'QuestionFolders', id });
-    if (!res.success) { alert('Gagal menghapus folder: ' + (res.error || 'coba lagi')); loadAllData(); }
+    if (!res.success) { setNotify({ type: 'error', title: 'Gagal menghapus folder', message: describeError(res) }); loadAllData(); return; }
+    setNotify({ type: 'success', title: 'Folder dihapus', message: 'Folder beserta soal di dalamnya dihapus.' });
   };
 
   const handleSaveQuestion = async () => {
     if (!activeExamFolder) return;
+    const wasEdit = !!editingQuestion;
     const isEssay = (questionForm.type || 'pg') === 'essay';
-    if (!questionForm.text.trim()) { alert('Isi pertanyaan wajib diisi.'); return; }
+    if (!questionForm.text.trim()) { setNotify({ type: 'error', title: 'Belum lengkap', message: 'Isi pertanyaan wajib diisi.' }); return; }
     const opts = questionForm.options || { a: '', b: '', c: '', d: '' };
     const row = {
       folderId: activeExamFolder,
@@ -198,21 +220,21 @@ export default function TeacherSoal() {
     };
 
     setIsSyncing(true);
-    const res = editingQuestion
+    const res = wasEdit
       ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt, row })
       : await mutateRow({ action: 'add', sheetName: 'Questions', row });
     setIsSyncing(false);
 
     if (res.conflict) {
-      alert('Soal ini baru saja diubah dari perangkat/guru lain. Memuat versi terbaru…');
       setIsQuestionModalOpen(false); setEditingQuestion(null);
       await loadAllData();
+      setNotify({ type: 'error', title: 'Gagal disimpan — bentrok', message: describeError(res) });
       return;
     }
-    if (!res.success) { alert('Gagal menyimpan soal: ' + (res.error || 'coba lagi')); return; }
+    if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan soal', message: describeError(res) }); return; }
 
     const saved = {
-      id: String(editingQuestion ? editingQuestion.id : res.id),
+      id: String(wasEdit ? editingQuestion.id : res.id),
       text: row.text,
       options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
       correctAnswer: row.correctAnswer,
@@ -221,19 +243,21 @@ export default function TeacherSoal() {
     };
     setQuestions(prev => {
       const list = prev[activeExamFolder] || [];
-      const nextList = editingQuestion ? list.map(q => q.id === editingQuestion.id ? saved : q) : [...list, saved];
+      const nextList = wasEdit ? list.map(q => q.id === editingQuestion.id ? saved : q) : [...list, saved];
       return { ...prev, [activeExamFolder]: nextList };
     });
     setIsQuestionModalOpen(false);
     setEditingQuestion(null);
     setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' });
+    setNotify({ type: 'success', title: wasEdit ? 'Soal diperbarui' : 'Soal ditambahkan', message: 'Perubahan tersimpan ke server.' });
   };
 
   const handleDeleteQuestion = async (id) => {
     if (!confirm('Hapus soal ini?')) return;
     setQuestions(prev => ({ ...prev, [activeExamFolder]: (prev[activeExamFolder] || []).filter(q => q.id !== id) }));
     const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id });
-    if (!res.success) { alert('Gagal menghapus soal: ' + (res.error || 'coba lagi')); loadAllData(); }
+    if (!res.success) { setNotify({ type: 'error', title: 'Gagal menghapus soal', message: describeError(res) }); loadAllData(); return; }
+    setNotify({ type: 'success', title: 'Soal dihapus', message: 'Soal berhasil dihapus.' });
   };
 
   const openEditQuestion = (q) => {
@@ -385,6 +409,27 @@ export default function TeacherSoal() {
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+      {/* Toast notifikasi sukses/gagal */}
+      <AnimatePresence>
+        {notify && (
+          <motion.div
+            initial={{ y: -24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -24, opacity: 0 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-[calc(100%-2rem)] max-w-md"
+          >
+            <div className={`flex items-start gap-3 rounded-2xl p-4 shadow-2xl border ${notify.type === 'success' ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+              <div className={`shrink-0 mt-0.5 ${notify.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {notify.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+              </div>
+              <div className="min-w-0 flex-grow">
+                <p className={`font-black text-sm ${notify.type === 'success' ? 'text-emerald-800' : 'text-rose-800'}`}>{notify.title}</p>
+                {notify.message && <p className={`text-xs font-medium mt-0.5 leading-relaxed ${notify.type === 'success' ? 'text-emerald-700' : 'text-rose-700'}`}>{notify.message}</p>}
+              </div>
+              <button onClick={() => setNotify(null)} className={`shrink-0 ${notify.type === 'success' ? 'text-emerald-400 hover:text-emerald-700' : 'text-rose-400 hover:text-rose-700'}`}><X size={16} /></button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3">
