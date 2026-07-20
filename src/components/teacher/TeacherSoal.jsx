@@ -271,72 +271,107 @@ export default function TeacherSoal() {
     if (!activeExamFolder) return;
     const folder = examTypes[activeGrade].find(f => f.id === activeExamFolder);
     const folderQuestions = questions[activeExamFolder] || [];
-    if (folderQuestions.length === 0) { alert('Tidak ada soal untuk diekspor.'); return; }
+    if (folderQuestions.length === 0) { setNotify({ type: 'error', title: 'Tidak ada soal', message: 'Folder ini belum punya soal untuk diekspor.' }); return; }
 
     const doc = new jsPDF();
     const margin = 20;
     let currentY = 20;
 
-    // 1. Logo & Header (Kop Surat) - Logic based on TK or SD
+    // ===== KOP SURAT =====
     const isTK = activeGrade === 'TK';
-    const schoolName = isTK ? "TK QURAN IMAM SYAFII PERCUT" : "SD ISLAM IMAM SYAFII PERCUT";
+    const schoolName = isTK ? "TK QUR'AN IMAM SYAFI'I PERCUT" : "SD ISLAM IMAM SYAFI'I PERCUT";
     const schoolEmail = isTK ? "tkquranimamsyafiipst@gmail.com" : "sdislamimamsyafiipst@gmail.com";
+    const PAGE_W = 210;
+    const contentW = PAGE_W - margin * 2;
 
-    if (!isTK) {
-      try {
-        const logoUrl = '/avatars/logo.png'; 
-        const response = await fetch(logoUrl);
-        const blob = await response.blob();
+    let logoData = null;
+    try {
+      const response = await fetch('/avatars/logo.png');
+      const blob = await response.blob();
+      logoData = await new Promise((resolve) => {
         const reader = new FileReader();
-        
-        const imgPromise = new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(blob);
-        });
-        
-        const logoData = await imgPromise;
-        doc.addImage(logoData, 'PNG', margin, 15, 25, 25);
-      } catch (e) {
-        console.warn("Logo failed to load for PDF:", e);
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) { /* logo opsional */ }
+
+    if (logoData) { try { doc.addImage(logoData, 'PNG', margin, 12, 22, 22); } catch (e) {} }
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(90);
+    doc.text("YAYASAN IMAM SYAFI'I PERCUT", PAGE_W / 2, 15, { align: "center" });
+    doc.setFontSize(15); doc.setTextColor(20);
+    doc.text(schoolName, PAGE_W / 2, 22, { align: "center" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90);
+    doc.text("Jl. Lembaga Dusun II, Desa Tanjung Rejo, Kec. Percut Sei Tuan", PAGE_W / 2, 27, { align: "center" });
+    doc.text(`Email: ${schoolEmail}  |  WA: 0831-2575-5134`, PAGE_W / 2, 31, { align: "center" });
+    doc.setDrawColor(20); doc.setLineWidth(0.8); doc.line(margin, 35, PAGE_W - margin, 35);
+    doc.setLineWidth(0.3); doc.line(margin, 36.3, PAGE_W - margin, 36.3);
+
+    // Judul lembar
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(20);
+    doc.text("LEMBAR SOAL UJIAN", PAGE_W / 2, 44, { align: "center" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(80);
+    doc.text(`${folder.name}  •  Kelas ${activeGrade}`, PAGE_W / 2, 50, { align: "center" });
+    doc.setTextColor(20);
+
+    // Helper: header seksi dengan bar abu
+    const drawSectionHeader = (title, subtitle) => {
+      if (currentY > 262) { doc.addPage(); currentY = 20; }
+      doc.setFillColor(232); doc.rect(margin, currentY - 4.5, contentW, 7, 'F');
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(20);
+      doc.text(title, margin + 2.5, currentY);
+      currentY += 6;
+      if (subtitle) {
+        doc.setFont("helvetica", "italic"); doc.setFontSize(8.5); doc.setTextColor(110);
+        doc.text(subtitle, margin + 2.5, currentY);
+        currentY += 5;
       }
-    }
+      doc.setFont("helvetica", "normal"); doc.setTextColor(20);
+    };
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text(schoolName, 110, 20, { align: "center" });
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("Jl. Lembaga Dusun II Desa Tanjung Rejo, Kec. Percut Sei Tuan", 110, 26, { align: "center" });
-    doc.text(`Email: ${schoolEmail} | WA: 0831-2575-5134`, 110, 31, { align: "center" });
-    
-    // Line Divider
-    doc.setLineWidth(0.5);
-    doc.line(margin, 42, 210 - margin, 42);
-    currentY = 55;
+    // ===== KOTAK IDENTITAS + NILAI =====
+    currentY = 56;
+    const nilaiW = 32;
+    const idBoxW = contentW - nilaiW - 3;
+    const idBoxH = 24;
+    doc.setDrawColor(150); doc.setLineWidth(0.3);
+    doc.rect(margin, currentY, idBoxW, idBoxH);
+    doc.rect(PAGE_W - margin - nilaiW, currentY, nilaiW, idBoxH);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(90);
+    doc.text("NILAI", PAGE_W - margin - nilaiW / 2, currentY + 5, { align: "center" });
 
-    // 2. Exam Identity
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(`Mata Pelajaran : ....................`, margin, currentY);
-    doc.text(`Kelas : ${activeGrade}`, 140, currentY);
-    currentY += 8;
-    doc.text(`Ujian : ${folder.name}`, margin, currentY);
-    doc.text(`Tanggal : ....................`, 140, currentY);
-    
-    currentY += 15;
+    const colL = margin + 4;
+    const colR = margin + idBoxW / 2 + 2;
+    const rEnd = margin + idBoxW - 4;
+    const field = (label, x, yy, endX, val) => {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(40);
+      doc.text(label + ":", x, yy);
+      const lw = doc.getTextWidth(label + ": ");
+      if (val) {
+        doc.setFont("helvetica", "normal"); doc.setTextColor(30);
+        doc.text(String(val), x + lw, yy);
+      } else {
+        doc.setDrawColor(175); doc.setLineWidth(0.2); doc.line(x + lw, yy + 0.8, endX, yy + 0.8);
+      }
+    };
+    let fy = currentY + 6.5;
+    field("Nama", colL, fy, colR - 4); field("Hari/Tgl", colR, fy, rEnd);
+    fy += 6;
+    field("Kelas", colL, fy, colR - 4, activeGrade); field("Mata Pelajaran", colR, fy, rEnd);
+    fy += 6;
+    field("No. Absen", colL, fy, colR - 4); field("Waktu", colR, fy, rEnd);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(20);
+    currentY += idBoxH + 8;
 
     // 3. Render Questions by Section
     const pgQuestions = folderQuestions.filter(q => (q.type || 'pg') === 'pg');
     const essayQuestions = folderQuestions.filter(q => q.type === 'essay');
 
-    // --- SECTION I: PILIHAN GANDA ---
+    // --- BAGIAN A: PILIHAN GANDA ---
     if (pgQuestions.length > 0) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text("I. Soal Pilihan Ganda", margin, currentY);
-      currentY += 10;
-      
+      drawSectionHeader("A. PILIHAN GANDA", "Berilah tanda silang (X) pada huruf jawaban yang paling tepat.");
+      currentY += 2;
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
 
@@ -363,15 +398,13 @@ export default function TeacherSoal() {
       });
     }
 
-    // --- SECTION II: ESSAI ---
+    // --- BAGIAN B: ESSAI / URAIAN ---
     if (essayQuestions.length > 0) {
-      if (currentY > 240) { doc.addPage(); currentY = 20; }
-      else { currentY += 10; }
+      if (currentY > 245) { doc.addPage(); currentY = 20; }
+      else { currentY += 6; }
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text("II. Soal Essai", margin, currentY);
-      currentY += 10;
+      drawSectionHeader("B. ESSAI / URAIAN", "Jawablah pertanyaan berikut dengan jelas dan tepat.");
+      currentY += 2;
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
@@ -400,6 +433,23 @@ export default function TeacherSoal() {
         doc.text(fullDottedLine, margin, currentY);
         currentY += 15; // final spacing before next question
       });
+    }
+
+    // Penutup
+    if (currentY > 265) { doc.addPage(); currentY = 20; }
+    currentY += 4;
+    doc.setFont("helvetica", "bolditalic"); doc.setFontSize(10); doc.setTextColor(60);
+    doc.text("— Selamat Mengerjakan —", PAGE_W / 2, currentY, { align: "center" });
+    doc.setTextColor(20);
+
+    // Footer nomor halaman (semua halaman)
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(210); doc.setLineWidth(0.2); doc.line(margin, 288, PAGE_W - margin, 288);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(150);
+      doc.text(schoolName, margin, 292);
+      doc.text(`Halaman ${p} dari ${totalPages}`, PAGE_W - margin, 292, { align: "right" });
     }
 
     doc.save(`Soal_${activeGrade}_${folder.name}.pdf`);
