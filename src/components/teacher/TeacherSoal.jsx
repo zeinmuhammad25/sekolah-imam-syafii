@@ -689,7 +689,7 @@ export default function TeacherSoal() {
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
-              className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-3xl my-auto relative"
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-3xl my-auto relative max-h-[90vh] overflow-y-auto"
             >
               <button 
                 onClick={() => setIsAddFolderModalOpen(false)}
@@ -723,7 +723,7 @@ export default function TeacherSoal() {
             <motion.div 
               initial={{ scale: 0.9, y: 20 }} 
               animate={{ scale: 1, y: 0 }} 
-              className="bg-white w-full max-w-3xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-3xl relative my-10 md:my-8"
+              className="bg-white w-full max-w-3xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-3xl relative my-6 md:my-8 max-h-[90vh] overflow-y-auto"
             >
               {/* Close Button X */}
               <button 
