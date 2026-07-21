@@ -13,7 +13,10 @@ import {
   FileText,
   CheckCircle2,
   FileDown,
-  X
+  X,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mutateRow, fetchSchoolData } from '../../services/gsheet';
@@ -69,6 +72,8 @@ export default function TeacherSoal() {
   const [backPressCounter, setBackPressCounter] = useState(0);
   const [notify, setNotify] = useState(null); // { type: 'success' | 'error', title, message }
   const savingRef = useRef(false); // kunci sinkron cegah klik-ganda saat simpan (jeda 2-4 dtk)
+  const [reorderMode, setReorderMode] = useState(false);
+  const [orderDraft, setOrderDraft] = useState([]); // salinan soal folder aktif saat atur urutan
 
   // Persist data
   useEffect(() => {
@@ -279,6 +284,31 @@ export default function TeacherSoal() {
     setIsQuestionModalOpen(true);
   };
 
+  // ---- Atur urutan soal (konsep sama seperti admin: geser lokal, simpan sekali) ----
+  const enterReorder = () => { setOrderDraft([...(questions[activeExamFolder] || [])]); setReorderMode(true); };
+  const cancelReorder = () => { setReorderMode(false); setOrderDraft([]); };
+  const moveQuestion = (index, dir) => {
+    const j = dir === 'up' ? index - 1 : index + 1;
+    if (j < 0 || j >= orderDraft.length) return;
+    const next = [...orderDraft];
+    [next[index], next[j]] = [next[j], next[index]];
+    setOrderDraft(next);
+  };
+  const saveOrder = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setIsSyncing(true);
+    try {
+      const ids = orderDraft.map(q => q.id);
+      const res = await mutateRow({ action: 'reorderQuestions', sheetName: 'Questions', ids });
+      if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan urutan', message: describeError(res) }); return; }
+      setQuestions(prev => ({ ...prev, [activeExamFolder]: orderDraft }));
+      setReorderMode(false); setOrderDraft([]);
+      setNotify({ type: 'success', title: 'Urutan disimpan', message: 'Urutan soal diperbarui.' });
+    } finally {
+      setIsSyncing(false); savingRef.current = false;
+    }
+  };
+
   // PDF Export Logic
   const handleExportPDF = async () => {
     if (!activeExamFolder) return;
@@ -297,16 +327,18 @@ export default function TeacherSoal() {
     const PAGE_W = 210;
     const contentW = PAGE_W - margin * 2;
 
-    let logoData = null;
-    try {
-      const response = await fetch('/avatars/logo.png');
-      const blob = await response.blob();
-      logoData = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(blob);
-      });
-    } catch (e) { /* logo opsional */ }
+    const loadImg = async (url) => {
+      try {
+        const r = await fetch(url);
+        if (!r.ok) return null;
+        const blob = await r.blob();
+        if (!/^image\//.test(blob.type)) return null;
+        return await new Promise((res) => { const fr = new FileReader(); fr.onloadend = () => res(fr.result); fr.readAsDataURL(blob); });
+      } catch (e) { return null; }
+    };
+    // TK pakai logo khusus; fallback ke logo umum bila belum ada.
+    let logoData = isTK ? await loadImg('/avatars/logo-tk.png') : null;
+    if (!logoData) logoData = await loadImg('/avatars/logo.png');
 
     if (logoData) { try { doc.addImage(logoData, 'PNG', margin, 12, 22, 22); } catch (e) {} }
 
@@ -520,7 +552,7 @@ export default function TeacherSoal() {
           {GRADES.map(grade => (
             <button
               key={grade}
-              onClick={() => { setActiveGrade(grade); setActiveExamFolder(null); }}
+              onClick={() => { setActiveGrade(grade); setActiveExamFolder(null); setReorderMode(false); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
                 activeGrade === grade ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
               }`}
@@ -547,7 +579,7 @@ export default function TeacherSoal() {
           {examTypes[activeGrade].map(folder => (
             <div
               key={folder.id}
-              onClick={() => setActiveExamFolder(folder.id)}
+              onClick={() => { setActiveExamFolder(folder.id); setReorderMode(false); }}
               className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl border-2 shrink-0 transition-all cursor-pointer ${
                 activeExamFolder === folder.id 
                 ? 'bg-white border-secondary shadow-xl shadow-secondary/10 -translate-y-1' 
@@ -596,18 +628,32 @@ export default function TeacherSoal() {
               </div>
               
               <div className="flex items-center gap-2 md:gap-3">
-                <button 
-                  onClick={handleExportPDF}
-                  className="flex-grow md:flex-none p-2.5 md:p-4 bg-rose-50 text-rose-600 rounded-xl md:rounded-2xl hover:bg-rose-100 transition-all border border-rose-100 flex items-center justify-center gap-2 font-black text-[10px] md:text-xs"
-                >
-                  <FileDown size={16} /> EXPORT PDF
-                </button>
-                <button 
-                  onClick={() => { setEditingQuestion(null); setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' }); setIsQuestionModalOpen(true); }}
-                  className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20"
-                >
-                  <Plus size={16} /> TAMBAH SOAL
-                </button>
+                {reorderMode ? (
+                  <>
+                    <button onClick={cancelReorder} disabled={isSyncing} className="flex-grow md:flex-none px-4 md:px-6 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs text-slate-400 hover:bg-slate-50 border border-slate-100 disabled:opacity-50">BATAL</button>
+                    <button onClick={saveOrder} disabled={isSyncing} className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20 disabled:opacity-60">
+                      {isSyncing ? 'MENYIMPAN…' : 'SIMPAN URUTAN'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={enterReorder} disabled={(questions[activeExamFolder] || []).length < 2} className="flex-grow md:flex-none p-2.5 md:p-4 bg-slate-50 text-slate-600 rounded-xl md:rounded-2xl hover:bg-slate-100 transition-all border border-slate-100 flex items-center justify-center gap-2 font-black text-[10px] md:text-xs disabled:opacity-40" title="Atur urutan soal">
+                      <ArrowUpDown size={16} /> ATUR URUTAN
+                    </button>
+                    <button
+                      onClick={handleExportPDF}
+                      className="flex-grow md:flex-none p-2.5 md:p-4 bg-rose-50 text-rose-600 rounded-xl md:rounded-2xl hover:bg-rose-100 transition-all border border-rose-100 flex items-center justify-center gap-2 font-black text-[10px] md:text-xs"
+                    >
+                      <FileDown size={16} /> EXPORT PDF
+                    </button>
+                    <button
+                      onClick={() => { setEditingQuestion(null); setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' }); setIsQuestionModalOpen(true); }}
+                      className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20"
+                    >
+                      <Plus size={16} /> TAMBAH SOAL
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -622,7 +668,7 @@ export default function TeacherSoal() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredQuestions.map((q, i) => (
+                  {(reorderMode ? orderDraft : filteredQuestions).map((q, i) => (
                     <tr key={q.id} className="group hover:bg-slate-50/40 transition-colors">
                       <td className="py-4 md:py-6 px-4 text-xs md:text-sm font-black text-slate-300">{i + 1}</td>
                       <td className="py-4 md:py-6 pr-4 md:pr-6">
@@ -655,10 +701,17 @@ export default function TeacherSoal() {
                         </span>
                       </td>
                       <td className="py-4 md:py-6 text-right px-4">
-                        <div className="flex items-center justify-end gap-1.5 md:gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEditQuestion(q)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-secondary rounded-lg md:rounded-xl transition-all"><FileEdit size={14} className="md:w-4 md:h-4" /></button>
-                          <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-lg md:rounded-xl transition-all"><Trash2 size={14} className="md:w-4 md:h-4" /></button>
-                        </div>
+                        {reorderMode ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button onClick={() => moveQuestion(i, 'up')} disabled={i === 0} className="p-2 bg-slate-50 text-slate-500 rounded-lg hover:bg-secondary hover:text-white transition-all disabled:opacity-30" title="Naikkan"><ChevronUp size={16} /></button>
+                            <button onClick={() => moveQuestion(i, 'down')} disabled={i === orderDraft.length - 1} className="p-2 bg-slate-50 text-slate-500 rounded-lg hover:bg-secondary hover:text-white transition-all disabled:opacity-30" title="Turunkan"><ChevronDown size={16} /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1.5 md:gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => openEditQuestion(q)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-secondary rounded-lg md:rounded-xl transition-all"><FileEdit size={14} className="md:w-4 md:h-4" /></button>
+                            <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-lg md:rounded-xl transition-all"><Trash2 size={14} className="md:w-4 md:h-4" /></button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

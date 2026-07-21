@@ -68,16 +68,25 @@ function buildTeacherQuestions(ss) {
       options: { a: q.optionA, b: q.optionB, c: q.optionC, d: q.optionD },
       correctAnswer: q.correctAnswer,
       type: q.type || 'pg',
-      updatedAt: q.updatedAt
+      updatedAt: q.updatedAt,
+      order: q.order
     });
   });
+
+  // Urutkan tiap folder pakai kolom 'order'. Kosong/tak ada -> ditaruh terakhir,
+  // dan urutan setara mengikuti urutan baris (sort V8 stabil) -> perilaku lama aman.
+  var orderNum = function (v) { return (v === '' || v == null || isNaN(Number(v))) ? Infinity : Number(v); };
 
   return GRADES.map(function (grade) {
     var gradeFolders = folders
       .filter(function (f) { return String(f.grade) === grade; })
       .map(function (f) { return { id: String(f.id), name: f.name }; });
     var questionsObj = {};
-    gradeFolders.forEach(function (f) { questionsObj[f.id] = byFolder[f.id] || []; });
+    gradeFolders.forEach(function (f) {
+      var arr = (byFolder[f.id] || []).slice();
+      arr.sort(function (a, b) { return orderNum(a.order) - orderNum(b.order); });
+      questionsObj[f.id] = arr;
+    });
     return { grade: grade, data: { updatedAt: Date.now(), examTypes: { [grade]: gradeFolders }, questions: questionsObj } };
   });
 }
@@ -301,6 +310,20 @@ function handleRow(ss, params) {
       var updNow = Date.now();
       if (updCol !== -1) sheet.getRange(rowNum, updCol + 1).setValue(updNow);
       return jsonOut({ success: true, id: targetId, updatedAt: updNow });
+    }
+
+    // reorderQuestions: set kolom 'order' per soal sesuai urutan id (folder-scoped, aman antar-folder)
+    if (action === 'reorderQuestions') {
+      var oCol = headers.indexOf('order');
+      if (oCol === -1) { oCol = headers.length; sheet.getRange(1, oCol + 1).setValue('order'); }
+      var qids = params.ids || [];
+      var posMap = {};
+      for (var rr = 1; rr < values.length; rr++) posMap[String(values[rr][idCol])] = rr + 1;
+      for (var kk = 0; kk < qids.length; kk++) {
+        var rn = posMap[String(qids[kk])];
+        if (rn) sheet.getRange(rn, oCol + 1).setValue(kk + 1);
+      }
+      return jsonOut({ success: true });
     }
 
     // reorder: tulis ulang seluruh baris data sesuai urutan id yang dikirim (sekali jalan)
