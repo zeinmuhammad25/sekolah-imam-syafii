@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, 
   Search, 
@@ -68,6 +68,7 @@ export default function TeacherSoal() {
   const [searchTerm, setSearchTerm] = useState('');
   const [backPressCounter, setBackPressCounter] = useState(0);
   const [notify, setNotify] = useState(null); // { type: 'success' | 'error', title, message }
+  const savingRef = useRef(false); // kunci sinkron cegah klik-ganda saat simpan (jeda 2-4 dtk)
 
   // Persist data
   useEffect(() => {
@@ -183,16 +184,22 @@ export default function TeacherSoal() {
 
   const handleAddFolder = async () => {
     if (!newFolderName.trim()) return;
+    if (savingRef.current) return; // cegah klik ganda
+    savingRef.current = true;
     setIsSyncing(true);
-    const res = await mutateRow({ action: 'add', sheetName: 'QuestionFolders', row: { grade: activeGrade, name: newFolderName.trim() } });
-    setIsSyncing(false);
-    if (!res.success) { setNotify({ type: 'error', title: 'Gagal membuat folder', message: describeError(res) }); return; }
-    const newFolder = { id: String(res.id), name: newFolderName.trim() };
-    setExamTypes(prev => ({ ...prev, [activeGrade]: [...prev[activeGrade], newFolder] }));
-    setQuestions(prev => ({ ...prev, [res.id]: [] }));
-    setNewFolderName('');
-    setIsAddFolderModalOpen(false);
-    setNotify({ type: 'success', title: 'Folder dibuat', message: `"${newFolder.name}" ditambahkan.` });
+    try {
+      const res = await mutateRow({ action: 'add', sheetName: 'QuestionFolders', row: { grade: activeGrade, name: newFolderName.trim() } });
+      if (!res.success) { setNotify({ type: 'error', title: 'Gagal membuat folder', message: describeError(res) }); return; }
+      const newFolder = { id: String(res.id), name: newFolderName.trim() };
+      setExamTypes(prev => ({ ...prev, [activeGrade]: [...prev[activeGrade], newFolder] }));
+      setQuestions(prev => ({ ...prev, [res.id]: [] }));
+      setNewFolderName('');
+      setIsAddFolderModalOpen(false);
+      setNotify({ type: 'success', title: 'Folder dibuat', message: `"${newFolder.name}" ditambahkan.` });
+    } finally {
+      setIsSyncing(false);
+      savingRef.current = false;
+    }
   };
 
   const handleDeleteFolder = async (id) => {
@@ -206,6 +213,7 @@ export default function TeacherSoal() {
 
   const handleSaveQuestion = async () => {
     if (!activeExamFolder) return;
+    if (savingRef.current) return; // cegah klik ganda selama proses simpan berlangsung
     const wasEdit = !!editingQuestion;
     const isEssay = (questionForm.type || 'pg') === 'essay';
     if (!questionForm.text.trim()) { setNotify({ type: 'error', title: 'Belum lengkap', message: 'Isi pertanyaan wajib diisi.' }); return; }
@@ -219,37 +227,42 @@ export default function TeacherSoal() {
       type: questionForm.type || 'pg',
     };
 
+    savingRef.current = true;
     setIsSyncing(true);
-    const res = wasEdit
-      ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt, row })
-      : await mutateRow({ action: 'add', sheetName: 'Questions', row });
-    setIsSyncing(false);
+    try {
+      const res = wasEdit
+        ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt, row })
+        : await mutateRow({ action: 'add', sheetName: 'Questions', row });
 
-    if (res.conflict) {
-      setIsQuestionModalOpen(false); setEditingQuestion(null);
-      await loadAllData();
-      setNotify({ type: 'error', title: 'Gagal disimpan — bentrok', message: describeError(res) });
-      return;
+      if (res.conflict) {
+        setIsQuestionModalOpen(false); setEditingQuestion(null);
+        await loadAllData();
+        setNotify({ type: 'error', title: 'Gagal disimpan — bentrok', message: describeError(res) });
+        return;
+      }
+      if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan soal', message: describeError(res) }); return; }
+
+      const saved = {
+        id: String(wasEdit ? editingQuestion.id : res.id),
+        text: row.text,
+        options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
+        correctAnswer: row.correctAnswer,
+        type: row.type,
+        updatedAt: res.updatedAt,
+      };
+      setQuestions(prev => {
+        const list = prev[activeExamFolder] || [];
+        const nextList = wasEdit ? list.map(q => q.id === editingQuestion.id ? saved : q) : [...list, saved];
+        return { ...prev, [activeExamFolder]: nextList };
+      });
+      setIsQuestionModalOpen(false);
+      setEditingQuestion(null);
+      setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' });
+      setNotify({ type: 'success', title: wasEdit ? 'Soal diperbarui' : 'Soal ditambahkan', message: 'Perubahan tersimpan ke server.' });
+    } finally {
+      setIsSyncing(false);
+      savingRef.current = false;
     }
-    if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan soal', message: describeError(res) }); return; }
-
-    const saved = {
-      id: String(wasEdit ? editingQuestion.id : res.id),
-      text: row.text,
-      options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
-      correctAnswer: row.correctAnswer,
-      type: row.type,
-      updatedAt: res.updatedAt,
-    };
-    setQuestions(prev => {
-      const list = prev[activeExamFolder] || [];
-      const nextList = wasEdit ? list.map(q => q.id === editingQuestion.id ? saved : q) : [...list, saved];
-      return { ...prev, [activeExamFolder]: nextList };
-    });
-    setIsQuestionModalOpen(false);
-    setEditingQuestion(null);
-    setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' });
-    setNotify({ type: 'success', title: wasEdit ? 'Soal diperbarui' : 'Soal ditambahkan', message: 'Perubahan tersimpan ke server.' });
   };
 
   const handleDeleteQuestion = async (id) => {
@@ -692,8 +705,8 @@ export default function TeacherSoal() {
                   <input autoFocus type="text" placeholder="Contoh: PTS Ganjil 2026" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all outline-none" />
                 </div>
                 <div className="flex gap-4 pt-2">
-                  <button onClick={() => setIsAddFolderModalOpen(false)} className="flex-grow py-4 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50">BATAL</button>
-                  <button onClick={handleAddFolder} className="flex-grow py-4 bg-secondary text-white rounded-2xl font-black text-xs shadow-xl shadow-secondary/20">SIMPAN FOLDER</button>
+                  <button onClick={() => setIsAddFolderModalOpen(false)} disabled={isSyncing} className="flex-grow py-4 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50 disabled:opacity-50">BATAL</button>
+                  <button onClick={handleAddFolder} disabled={isSyncing} className="flex-grow py-4 bg-secondary text-white rounded-2xl font-black text-xs shadow-xl shadow-secondary/20 disabled:opacity-60 disabled:cursor-not-allowed">{isSyncing ? 'MENYIMPAN…' : 'SIMPAN FOLDER'}</button>
                 </div>
               </div>
             </motion.div>
@@ -771,8 +784,8 @@ export default function TeacherSoal() {
                 )}
 
                 <div className="flex gap-4 pt-10 border-t border-slate-50">
-                  <button onClick={() => setIsQuestionModalOpen(false)} className="flex-grow py-5 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50">BATAL</button>
-                  <button onClick={handleSaveQuestion} className="flex-grow py-5 bg-primary text-white rounded-2xl font-black text-xs shadow-xl shadow-primary/20 hover:bg-slate-800 transition-all">SIMPAN DATA SOAL</button>
+                  <button onClick={() => setIsQuestionModalOpen(false)} disabled={isSyncing} className="flex-grow py-5 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50 disabled:opacity-50">BATAL</button>
+                  <button onClick={handleSaveQuestion} disabled={isSyncing} className="flex-grow py-5 bg-primary text-white rounded-2xl font-black text-xs shadow-xl shadow-primary/20 hover:bg-slate-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">{isSyncing ? 'MENYIMPAN…' : 'SIMPAN DATA SOAL'}</button>
                 </div>
               </div>
             </motion.div>
