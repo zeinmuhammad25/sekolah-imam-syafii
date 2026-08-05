@@ -70,6 +70,10 @@ export default function App() {
             element={<ProtectedRoute><TeacherLayout><AdminSection section="news" /></TeacherLayout></ProtectedRoute>}
           />
           <Route
+            path="/dashboard-guru/video"
+            element={<ProtectedRoute><TeacherLayout><AdminSection section="videos" /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
             path="/dashboard-guru/settings"
             element={
               <ProtectedRoute>

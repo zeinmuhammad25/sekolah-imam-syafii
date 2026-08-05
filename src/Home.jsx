@@ -4,7 +4,7 @@ import { Phone, Mail, Instagram, Facebook, Youtube, Menu, X, ArrowRight, Message
 import { motion, AnimatePresence } from 'framer-motion'
 import PPDBForm from './components/PPDBForm'
 import TeacherLoginModal from './components/TeacherLoginModal'
-import { fetchSchoolData, formatSheetDate } from './services/gsheet'
+import { fetchSchoolData, formatSheetDate, extractYoutubeId } from './services/gsheet'
 
 // Link that also accepts framer-motion props (for the animated mobile menu)
 const MotionLink = motion(Link)
@@ -148,8 +148,8 @@ const NewsCard = ({ item }) => {
   );
 };
 
-// Video sekolah — ganti `id` dengan ID video YouTube (bagian setelah "v=" atau "youtu.be/")
-const VIDEOS = [
+// Video sekolah — fallback dipakai sebelum data sheet (Videos) datang / kalau kosong
+const VIDEOS_FALLBACK = [
   { id: 'ilXBHt1-4HQ', title: 'Khitanan Massal Gratis - Sekolah Imam Syafii Percut Sei Tuan' },
   { id: 'JzakBMHatnY', title: 'Pelepasan Siswa Siswi TK Quran Imam Syafii tahun ajaran 25/26' },
   { id: 'qjYM5ILKAKw', title: ' Mengintip Keseruan Kelas 2 SD Islam Imam Syafii Menuju Masa Depan Gemilang' },
@@ -161,10 +161,17 @@ export default function Home() {
   const [isTeachersModalOpen, setIsTeachersModalOpen] = useState(false);
   const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
   const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isTeacherLoginOpen, setIsTeacherLoginOpen] = useState(false);
   const [expandedVideo, setExpandedVideo] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [sheetData, setSheetData] = useState(null)
+
+  // Video dari sheet (title, youtube_url) -> {id, title}; jatuh ke fallback kalau kosong/belum ada ID valid
+  const videos = (sheetData?.Videos || [])
+    .map((v) => ({ id: extractYoutubeId(v.youtube_url), title: v.title }))
+    .filter((v) => v.id);
+  const displayVideos = videos.length ? videos : VIDEOS_FALLBACK;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -611,7 +618,7 @@ export default function Home() {
           <div className="container mx-auto px-5 md:px-6 relative z-10">
             <SectionHeading eyebrow="Galeri Video" title="Momen di Sekolah Kami" center light />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
-              {VIDEOS.map((video, i) => (
+              {displayVideos.slice(0, 3).map((video, i) => (
                 <div key={i} className="group">
                   <button
                     onClick={() => setExpandedVideo(video)}
@@ -633,6 +640,18 @@ export default function Home() {
                 </div>
               ))}
             </div>
+
+            {/* See All Video Button — hanya jika video lebih dari 3 */}
+            {displayVideos.length > 3 && (
+              <div className="mt-12 text-center">
+                <button
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="group inline-flex items-center gap-3 bg-ivory text-forest hover:bg-secondary-light px-8 py-3.5 rounded-xl font-bold text-[11px] md:text-sm uppercase tracking-[0.2em] shadow-lg hover:-translate-y-0.5 active:scale-95 transition-all duration-300"
+                >
+                  Lihat Semua Video <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -1025,6 +1044,74 @@ export default function Home() {
               <div className="mt-12 text-center">
                 <button
                   onClick={() => setIsNewsModalOpen(false)}
+                  className="bg-primary text-ivory px-10 py-4 rounded-xl font-bold text-xs uppercase tracking-[0.15em] hover:bg-forest transition-all shadow-xl shadow-primary/20"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Video Full List Modal */}
+      <AnimatePresence>
+        {isVideoModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-forest/40 backdrop-blur-2xl p-5 md:p-8 flex items-center justify-center"
+            onClick={() => setIsVideoModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              className="bg-ivory w-full max-w-7xl rounded-3xl md:rounded-[3rem] p-6 md:p-12 relative shadow-3xl max-h-[90vh] overflow-y-auto hide-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setIsVideoModalOpen(false)}
+                className="absolute top-6 right-6 md:top-10 md:right-10 p-3 bg-primary/5 rounded-full hover:bg-primary/10 text-primary/50 hover:text-primary transition-all z-10 shadow-sm"
+              >
+                <X size={24} />
+              </button>
+
+              <h3 className="font-display mt-2 mb-10 text-3xl font-semibold text-primary text-center">Semua Video</h3>
+
+              <div className="grid md:grid-cols-3 gap-6 md:gap-8 mb-12">
+                {displayVideos.map((video, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="group"
+                  >
+                    <button
+                      onClick={() => { setIsVideoModalOpen(false); setExpandedVideo(video); }}
+                      className="relative aspect-video w-full rounded-2xl overflow-hidden shadow-md border border-primary/10"
+                      aria-label={`Putar video ${video.title}`}
+                    >
+                      <OptimizedImage
+                        src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`}
+                        alt={video.title}
+                        className="w-full h-full group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center bg-forest/10 group-hover:bg-forest/20 transition-colors">
+                        <span className="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                          <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 ml-0.5"><path d="M8 5v14l11-7z" /></svg>
+                        </span>
+                      </span>
+                    </button>
+                    <h4 className="font-display mt-3 text-center text-sm md:text-base font-semibold text-primary leading-tight line-clamp-2">{video.title}</h4>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="mt-12 text-center">
+                <button
+                  onClick={() => setIsVideoModalOpen(false)}
                   className="bg-primary text-ivory px-10 py-4 rounded-xl font-bold text-xs uppercase tracking-[0.15em] hover:bg-forest transition-all shadow-xl shadow-primary/20"
                 >
                   Tutup

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, X, Upload, Loader2, ImageOff, ChevronUp, ChevronDown, SlidersHorizontal, Check, AlertTriangle } from 'lucide-react';
-import { fetchSchoolData, mutateRow, uploadImage } from '../../services/gsheet';
+import { fetchSchoolData, mutateRow, uploadImage, extractYoutubeId } from '../../services/gsheet';
 
 // Konfigurasi tiap section. Semua CRUD pakai komponen ini.
 const CONFIGS = {
@@ -47,6 +47,23 @@ const CONFIGS = {
       { name: 'description', label: 'Isi berita lengkap', type: 'textarea', rows: 10, required: true },
     ],
   },
+  videos: {
+    title: 'Galeri Video',
+    sheetName: 'Videos',
+    imageField: null,
+    youtubeField: 'youtube_url', // thumbnail diambil otomatis dari YouTube, bukan upload foto
+    primary: 'title',
+    secondary: 'youtube_url',
+    fields: [
+      { name: 'title', label: 'Judul', type: 'text', required: true },
+      { name: 'youtube_url', label: 'Link YouTube', type: 'text', required: true, placeholder: 'https://youtube.com/watch?v=...' },
+    ],
+  },
+};
+
+const youtubeThumb = (url) => {
+  const id = extractYoutubeId(url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : '';
 };
 
 const emptyForm = (fields) => Object.fromEntries(fields.map((f) => [f.name, '']));
@@ -197,7 +214,7 @@ export default function AdminSection({ section }) {
                   <button onClick={() => handleMove(index, 'down')} disabled={index === items.length - 1} className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-secondary disabled:opacity-20 disabled:hover:bg-transparent transition-all" title="Turunkan"><ChevronDown size={16} /></button>
                 </div>
               )}
-              <Thumb src={item[cfg.imageField]} />
+              <Thumb src={cfg.youtubeField ? youtubeThumb(item[cfg.youtubeField]) : item[cfg.imageField]} />
               <div className="min-w-0 flex-grow">
                 <p className="font-black text-slate-900 truncate">{item[cfg.primary] || '(tanpa judul)'}</p>
                 <p className="text-slate-400 font-bold text-xs truncate">{item[cfg.secondary]}</p>
@@ -388,5 +405,5 @@ function Field({ field, value, uploading, onChange, onFile }) {
     );
   }
 
-  return <div>{label}<input type={field.type === 'date' ? 'date' : 'text'} value={value} onChange={(e) => onChange(e.target.value)} className={base} /></div>;
+  return <div>{label}<input type={field.type === 'date' ? 'date' : 'text'} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} /></div>;
 }

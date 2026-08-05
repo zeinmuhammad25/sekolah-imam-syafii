@@ -11,14 +11,14 @@ Tiga lompatan besar: **panel admin CMS** (kelola Galeri/Pengajar/Warta + upload 
 ## 🚀 Fitur Unggulan (Updated)
 1.  **Cloudflare Pages Hosting**: Bandwidth tanpa batas.
 2.  **Preview Sosial per-Artikel (v3.2)**: `functions/berita/[id].js` (Cloudflare Pages Function) menyisipkan `og:image` / `og:title` / `og:description` / `canonical` **sesuai berita** saat link `/berita/:id` dibagikan ke WhatsApp/FB — robot preview tak menjalankan JS, jadi tag diisi di sisi server. Data berita di-cache di edge (*stale-while-revalidate*, jendela 60 dtk) agar respons instan & tahan saat Apps Script lambat.
-3.  **Panel Admin CMS (v3.2)**: `/dashboard-guru/{galeri,pengajar,warta}` — tambah/edit/hapus **Galeri, Tim Pengajar, Warta** langsung dari web, plus **atur urutan** (naik/turun) & **upload foto otomatis ke Google Drive** (dikembalikan URL publik `lh3.googleusercontent.com`). Satu komponen *config-driven* `AdminSection.jsx`. Id Warta permanen → link share tak putus.
+3.  **Panel Admin CMS (v3.2)**: `/dashboard-guru/{galeri,pengajar,warta,video}` — tambah/edit/hapus **Galeri, Tim Pengajar, Warta, Galeri Video** langsung dari web, plus **atur urutan** (naik/turun) & **upload foto otomatis ke Google Drive** (dikembalikan URL publik `lh3.googleusercontent.com`). Satu komponen *config-driven* `AdminSection.jsx`. Id Warta permanen → link share tak putus. **Galeri Video**: guru cukup paste link YouTube biasa (watch/youtu.be/shorts) — ID & thumbnail diekstrak otomatis, tanpa upload file.
 4.  **Bank Soal Relasional + Anti-Konflik (v3.2)**: Penyimpanan pindah dari 1 blob JSON per sel ke **relasional** (`QuestionFolders` + `Questions`, 1 soal = 1 baris) → hilang batas 50k karakter/sel. **Optimistic concurrency** (kolom `updatedAt`): dua guru mengedit soal yang sama tak saling menimpa — yang telat diminta muat ulang. CRUD **per-soal** + **atur urutan soal** (kolom `order`, aman antar-folder & antar-user).
 5.  **Export PDF Ujian Modern (v3.2)**: Kop surat + **logo TK/SD otomatis**, **kotak identitas** (Nama, Kelas, No. Absen, Hari/Tgl, Mata Pelajaran, Waktu) + **kotak Nilai**, seksi **A. Pilihan Ganda** / **B. Essai** berlatar, footer nomor halaman + "Selamat Mengerjakan".
 6.  **Notifikasi & Pengaman (v3.2)**: Toast sukses/gagal dengan penjelas penyebab (bentrok, terhapus, koneksi, dll), **cegah klik-ganda** simpan (anti-duplikat saat jeda 2-4 dtk), modal input *scrollable* (fix responsive), 5-step mobile back guard.
 7.  **Redesign Emerald & Gold (v3.0)**: Palet ivory/emerald/emas + serif Fraunces via token Tailwind, konsisten seluruh app.
 8.  **Route Code-Splitting**: Berita & Dashboard Guru dimuat *on-demand*; jsPDF/html2canvas keluar dari bundle publik.
 9.  **WebP Image Pipeline + SEO**: Gambar lokal di-resize/kompres ke WebP via `sharp`; satu `<h1>` benar + alt text; `og:image` default = hero.
-10. **Smart Gallery, Video Showcase & Gender-Based Avatar**: Bento grid + modal galeri, tiga video YouTube (*thumbnail* → modal), ikon Ikhwan/Akhwat untuk staf tanpa foto.
+10. **Smart Gallery, Video Showcase & Gender-Based Avatar**: Bento grid + modal galeri, **Galeri Video CRUD dari sheet** (*thumbnail* YouTube otomatis → modal player), tampil 3 dulu + tombol "Lihat Semua Video" kalau lebih, ikon Ikhwan/Akhwat untuk staf tanpa foto.
 11. **Twibbon MPLS (v3.1)**: Halaman `/twibbon` — pilih jenjang (TK/SD), upload foto, atur zoom + geser, download PNG (frame di depan, lubang transparan via `sharp`). Preview jadwal MPLS dari sheet `Settings` (`MPLS TK`/`MPLS SD`).
 
 ---
@@ -32,6 +32,7 @@ Website ini dikontrol melalui satu Spreadsheet dengan tab berikut:
 | `Teachers` | Tim Pengajar | `name`, `role`, `photo_url`, `gender` (`ikhwan`/`akhwat`) |
 | `Gallery` | Dokumentasi Siswa | `title`, `category`, `image_url` |
 | `News` | Warta / Berita | `id`, `title`, `summary`, `image_url`, `date`, `description` |
+| `Videos` | Galeri Video | `id`, `title`, `youtube_url`, `order`, `updatedAt` |
 | `Announcements` | Running Info | Teks, Active |
 | `PPDB` | Database Pendaftar | Data calon siswa baru |
 | `QuestionFolders` | Folder/jenis ujian (relasional) | `id`, `grade`, `name`, `updatedAt` |

@@ -230,7 +230,7 @@ function nextId(sheetName, values, idCol) {
 }
 
 function handleRow(ss, params) {
-  var allowed = { Gallery: true, Teachers: true, News: true, QuestionFolders: true, Questions: true };
+  var allowed = { Gallery: true, Teachers: true, News: true, Videos: true, QuestionFolders: true, Questions: true };
   var sheetName = params.sheetName;
   if (!allowed[sheetName]) return jsonOut({ success: false, error: 'sheet tidak diizinkan' });
 

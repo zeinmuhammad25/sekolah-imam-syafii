@@ -12,6 +12,15 @@ export const formatSheetDate = (d) => {
   return new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 };
 
+// Terima link YouTube dalam format apapun (watch?v=, youtu.be/, embed/, shorts/) atau ID mentah -> ID 11 karakter.
+export const extractYoutubeId = (input) => {
+  const s = (input || '').trim();
+  if (!s) return '';
+  const m = s.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  if (m) return m[1];
+  return /^[a-zA-Z0-9_-]{11}$/.test(s) ? s : '';
+};
+
 export const fetchSchoolData = async () => {
   try {
     if (API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
