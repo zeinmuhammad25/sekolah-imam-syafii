@@ -169,10 +169,11 @@ export default function TeacherSoal() {
     }
   };
 
-  // Initial Load & Polling (Cek data setiap 30 detik agar 'Live')
+  // Initial Load & Polling (Cek data setiap 90 detik agar 'Live') — diperlonggar dari 30 dtk
+  // supaya tidak membebani Apps Script bersamaan dengan aksi guru (server ini dipakai bareng seluruh situs).
   useEffect(() => {
     loadAllData();
-    const interval = setInterval(() => loadAllData(true), 30000);
+    const interval = setInterval(() => loadAllData(true), 90000);
     return () => clearInterval(interval);
   }, []);
 

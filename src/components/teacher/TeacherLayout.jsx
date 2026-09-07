@@ -12,7 +12,9 @@ import {
   Image,
   Users,
   Newspaper,
-  Youtube
+  Youtube,
+  Contact,
+  FileBarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -25,6 +27,8 @@ export default function TeacherLayout({ children }) {
   const menuItems = [
     { name: 'Dashboard Utama', icon: LayoutDashboard, path: '/dashboard-guru' },
     { name: 'Dashboard Soal', icon: BookOpen, path: '/dashboard-guru/soal' },
+    { name: 'Data Siswa (KK)', icon: Contact, path: '/dashboard-guru/siswa' },
+    { name: 'E-Raport', icon: FileBarChart2, path: '/dashboard-guru/eraport' },
     { name: 'Galeri Siswa', icon: Image, path: '/dashboard-guru/galeri' },
     { name: 'Tim Pengajar', icon: Users, path: '/dashboard-guru/pengajar' },
     { name: 'Warta Terbaru', icon: Newspaper, path: '/dashboard-guru/warta' },

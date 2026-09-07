@@ -12,6 +12,13 @@ export const formatSheetDate = (d) => {
   return new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 };
 
+// Sama seperti formatSheetDate, tapi tampil DD/MM/YYYY (dipakai Data Siswa untuk tanggal_lahir).
+export const formatSheetDateDMY = (d) => {
+  const iso = formatSheetDate(d);
+  const m = typeof iso === 'string' && iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '');
+};
+
 // Terima link YouTube dalam format apapun (watch?v=, youtu.be/, embed/, shorts/) atau ID mentah -> ID 11 karakter.
 export const extractYoutubeId = (input) => {
   const s = (input || '').trim();
@@ -89,6 +96,21 @@ export const uploadImage = async (file) => {
     return await res.json();
   } catch (error) {
     console.error('uploadImage error:', error);
+    return { success: false, error: String(error) };
+  }
+};
+
+// Admin: pindahkan file foto KK ke folder jenjang lain di Drive (dipakai saat siswa naik kelas).
+export const moveKKFile = async ({ fotoKkUrl, targetKelas }) => {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'MOVE_KK_FILE', fotoKkUrl, targetKelas }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('moveKKFile error:', error);
     return { success: false, error: String(error) };
   }
 };

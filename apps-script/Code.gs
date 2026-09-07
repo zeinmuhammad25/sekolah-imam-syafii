@@ -207,6 +207,11 @@ function doPost(e) {
     return handleUpload(params);
   }
 
+  // Logic 5: Pindahkan file foto KK ke folder jenjang lain (dipakai saat siswa naik kelas)
+  if (params.type === 'MOVE_KK_FILE') {
+    return handleMoveKKFile(params);
+  }
+
   return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Unknown type'})).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -230,7 +235,7 @@ function nextId(sheetName, values, idCol) {
 }
 
 function handleRow(ss, params) {
-  var allowed = { Gallery: true, Teachers: true, News: true, Videos: true, QuestionFolders: true, Questions: true };
+  var allowed = { Gallery: true, Teachers: true, News: true, Videos: true, Students: true, QuestionFolders: true, Questions: true, ReportPeriods: true, ReportGrades: true, ReportAspects: true };
   var sheetName = params.sheetName;
   if (!allowed[sheetName]) return jsonOut({ success: false, error: 'sheet tidak diizinkan' });
 
@@ -401,6 +406,53 @@ var UPLOAD_FOLDER_ID = '1TRdZHE9mirLUU2jldUCpTXqNvxnzEA7E';
 
 function getUploadFolder() {
   return DriveApp.getFolderById(UPLOAD_FOLDER_ID);
+}
+
+// ---------- Naik kelas: pindah file foto KK antar folder jenjang ----------
+
+// Folder arsip foto/scan KK per jenjang. ID diambil dari link folder Drive masing-masing.
+var KK_FOLDER_IDS = {
+  'TK': '1DvDAdzVu_z_po-nnRJ0KD0UXZxTJ6m07',
+  'SD 1': '1-zv7JDHkppTKZZs0DCMiTD71-hgos7vf',
+  'SD 2': '1aigpGFKtmXSQavmE2dnbvqDDIqmAIsXN',
+  'SD 3': '1h6bIr52Flx2PoB9GzxYOaU644SgOj8tc',
+  'SD 4': '1vLfNDjEpTyDwwYeQS0jucrVyY00xweVW',
+  'SD 5': '1n2SL9wvBUvKjvb0KOiO71_Z-dfE6TQEz',
+  'SD 6': '1Ckcd77L37gOKUthGez0On1yEihCZMCii',
+  'Tamat': '1b_n7DGfxnO_nHfIY0elJjk8HL7m9g37r'
+};
+
+// Ambil ID file dari link Drive apa pun (file/d/ID/view, open?id=ID, atau lh3.googleusercontent.com/d/ID).
+function extractDriveFileId(url) {
+  var s = String(url || '');
+  var m = s.match(/[-\w]{25,}/);
+  return m ? m[0] : '';
+}
+
+// Pindah file (bukan copy) ke folder jenjang tujuan. ID & link file TIDAK berubah setelah dipindah,
+// jadi kolom foto_kk di sheet tidak perlu ditulis ulang.
+function handleMoveKKFile(params) {
+  try {
+    var fileId = extractDriveFileId(params.fotoKkUrl);
+    if (!fileId) return jsonOut({ success: false, error: 'Link foto KK tidak valid / kosong' });
+
+    var destFolderId = KK_FOLDER_IDS[params.targetKelas];
+    if (!destFolderId) return jsonOut({ success: false, error: 'Folder tujuan tidak dikenal: ' + params.targetKelas });
+
+    var file = DriveApp.getFileById(fileId);
+    var destFolder = DriveApp.getFolderById(destFolderId);
+
+    var oldParents = file.getParents();
+    while (oldParents.hasNext()) {
+      var folder = oldParents.next();
+      if (folder.getId() !== destFolderId) folder.removeFile(file);
+    }
+    destFolder.addFile(file);
+
+    return jsonOut({ success: true });
+  } catch (err) {
+    return jsonOut({ success: false, error: String(err) });
+  }
 }
 
 // ---------- Helper & migrasi bank soal ----------

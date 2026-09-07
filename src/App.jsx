@@ -10,6 +10,8 @@ const TeacherLayout = lazy(() => import('./components/teacher/TeacherLayout'));
 const TeacherHome = lazy(() => import('./components/teacher/TeacherHome'));
 const TeacherSoal = lazy(() => import('./components/teacher/TeacherSoal'));
 const AdminSection = lazy(() => import('./components/teacher/AdminSection'));
+const TeacherStudents = lazy(() => import('./components/teacher/TeacherStudents'));
+const TeacherEraport = lazy(() => import('./components/teacher/TeacherEraport'));
 
 // Simple Route Protection
 const ProtectedRoute = ({ children }) => {
@@ -72,6 +74,14 @@ export default function App() {
           <Route
             path="/dashboard-guru/video"
             element={<ProtectedRoute><TeacherLayout><AdminSection section="videos" /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/siswa"
+            element={<ProtectedRoute><TeacherLayout><TeacherStudents /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/eraport"
+            element={<ProtectedRoute><TeacherLayout><TeacherEraport /></TeacherLayout></ProtectedRoute>}
           />
           <Route
             path="/dashboard-guru/settings"
