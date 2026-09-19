@@ -71,6 +71,9 @@ const normalizeGender = (v) => {
   return null;
 };
 
+// Nama dibandingkan tanpa peduli huruf besar/kecil & spasi ganda ("Ahmad  Fauzi" = "ahmad fauzi").
+const normName = (v) => String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
 const normalizeEnum = (v, options) => {
   const s = String(v || '').trim();
   if (!s) return '';
@@ -99,8 +102,8 @@ const SECTIONS = [
     title: 'Identitas Siswa',
     fields: [
       { name: 'nama_siswa', label: 'Nama Lengkap Siswa', type: 'text', required: true },
-      { name: 'nik_siswa', label: 'NIK Siswa', type: 'text', required: true, numeric: true, maxLength: 16, placeholder: '16 digit angka' },
-      { name: 'nisn', label: 'NISN', type: 'text', required: true, numeric: true, maxLength: 10, placeholder: '10 digit angka' },
+      { name: 'nik_siswa', label: 'NIK Siswa', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
+      { name: 'nisn', label: 'NISN', type: 'text', numeric: true, maxLength: 10, placeholder: '10 digit angka (boleh kosong)' },
       { name: 'jenis_kelamin', label: 'Jenis Kelamin', type: 'select', required: true, options: ['Laki-laki', 'Perempuan'] },
       { name: 'tempat_lahir', label: 'Tempat Lahir', type: 'text', required: true },
       { name: 'tanggal_lahir', label: 'Tanggal Lahir', type: 'date', required: true },
@@ -111,7 +114,7 @@ const SECTIONS = [
   {
     title: 'Alamat (sesuai KK)',
     fields: [
-      { name: 'no_kk', label: 'No. Kartu Keluarga', type: 'text', required: true, numeric: true, maxLength: 16, placeholder: '16 digit angka' },
+      { name: 'no_kk', label: 'No. Kartu Keluarga', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
       { name: 'alamat', label: 'Alamat / Dusun', type: 'text' },
       { name: 'kelurahan', label: 'Desa/Kelurahan', type: 'text' },
       { name: 'kecamatan', label: 'Kecamatan', type: 'text' },
@@ -124,14 +127,17 @@ const SECTIONS = [
     title: 'Data Orang Tua / Wali',
     fields: [
       { name: 'nama_ayah', label: 'Nama Ayah', type: 'text' },
-      { name: 'nik_ayah', label: 'NIK Ayah', type: 'text' },
+      { name: 'nik_ayah', label: 'NIK Ayah', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
       { name: 'pekerjaan_ayah', label: 'Pekerjaan Ayah', type: 'text' },
       { name: 'pendidikan_ayah', label: 'Pendidikan Ayah', type: 'select', allowCustom: true, options: PENDIDIKAN_OPTIONS },
       { name: 'nama_ibu', label: 'Nama Ibu', type: 'text' },
-      { name: 'nik_ibu', label: 'NIK Ibu', type: 'text' },
+      { name: 'nik_ibu', label: 'NIK Ibu', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
       { name: 'pekerjaan_ibu', label: 'Pekerjaan Ibu', type: 'text' },
       { name: 'pendidikan_ibu', label: 'Pendidikan Ibu', type: 'select', allowCustom: true, options: PENDIDIKAN_OPTIONS },
       { name: 'no_hp_ortu', label: 'No. HP/WA Orang Tua', type: 'text', required: true },
+      { name: 'nama_wali', label: 'Nama Wali (opsional)', type: 'text' },
+      { name: 'pekerjaan_wali', label: 'Pekerjaan Wali (opsional)', type: 'text' },
+      { name: 'alamat_wali', label: 'Alamat Wali (opsional)', type: 'text' },
     ],
   },
   {
@@ -139,6 +145,7 @@ const SECTIONS = [
     fields: [
       { name: 'kelas', label: 'Kelas/Jenjang', type: 'select', required: true, allowCustom: true, options: GRADES },
       { name: 'tahun_ajaran_masuk', label: 'Tahun Ajaran Masuk', type: 'text', placeholder: 'mis. 2026/2027' },
+      { name: 'pendidikan_sebelumnya', label: 'Pendidikan Sebelumnya (opsional)', type: 'text', placeholder: 'mis. TK Qur\'an Imam Syafi\'i' },
       { name: 'status', label: 'Status', type: 'select', required: true, options: STATUS_OPTIONS },
     ],
   },
@@ -152,11 +159,14 @@ const SECTIONS = [
 const ALL_FIELDS = SECTIONS.flatMap((s) => s.fields);
 const emptyForm = () => ({ ...Object.fromEntries(ALL_FIELDS.map((f) => [f.name, ''])), agama: 'Islam' });
 
-// Validasi format nomor identitas: NIK/No. KK 16 digit, NISN 10 digit, cuma angka.
+// Validasi format nomor identitas — TIDAK wajib diisi, tapi kalau diisi harus sesuai (cuma angka):
+// NIK Siswa/Ayah/Ibu & No. KK = 16 digit, NISN = 10 digit. Kosong = lolos.
 const FORMAT_RULES = {
-  nik_siswa: { regex: /^\d{16}$/, message: 'NIK harus tepat 16 angka' },
-  nisn: { regex: /^\d{10}$/, message: 'NISN harus tepat 10 angka' },
-  no_kk: { regex: /^\d{16}$/, message: 'No. Kartu Keluarga harus tepat 16 angka' },
+  nik_siswa: { regex: /^\d{16}$/, message: 'NIK Siswa harus tepat 16 angka (atau kosongkan)' },
+  nisn: { regex: /^\d{10}$/, message: 'NISN harus tepat 10 angka (atau kosongkan)' },
+  no_kk: { regex: /^\d{16}$/, message: 'No. Kartu Keluarga harus tepat 16 angka (atau kosongkan)' },
+  nik_ayah: { regex: /^\d{16}$/, message: 'NIK Ayah harus tepat 16 angka (atau kosongkan)' },
+  nik_ibu: { regex: /^\d{16}$/, message: 'NIK Ibu harus tepat 16 angka (atau kosongkan)' },
 };
 const validateStudentForm = (form) => {
   for (const f of ALL_FIELDS) {
@@ -335,6 +345,8 @@ export default function TeacherStudents() {
     const formToSave = { ...editing.form, agama: 'Islam' }; // dikunci, apa pun yang terjadi di form
     // Tambah siswa baru: tetap langsung tersimpan (di luar sesi mode edit list).
     if (!editing.id) {
+      const dup = (items || []).find((s) => normName(s.nama_siswa) === normName(formToSave.nama_siswa));
+      if (dup) { setError(`Nama siswa sudah terdaftar di data siswa (kelas ${dup.kelas || '-'})`); return; }
       setSaving(true);
       const res = await mutateRow({ action: 'add', sheetName: 'Students', row: formToSave });
       setSaving(false);
@@ -483,7 +495,7 @@ export default function TeacherStudents() {
     setImportResults([]);
   };
 
-  const processImportRow = (rawRow, index, existingNiks, seenNiksInFile) => {
+  const processImportRow = (rawRow, index, existingNiks, seenNiksInFile, existingNames, seenNamesInFile) => {
     const errors = [];
     const mapped = {};
     IMPORT_FIELDS.forEach((f) => {
@@ -541,6 +553,13 @@ export default function TeacherStudents() {
       seenNiksInFile.add(nik);
     }
 
+    const name = normName(mapped.nama_siswa);
+    if (name) {
+      if (existingNames.has(name)) errors.push(`Nama siswa sudah terdaftar di data siswa (kelas ${existingNames.get(name) || '-'})`);
+      if (seenNamesInFile.has(name)) errors.push('Nama siswa sama muncul lebih dari sekali di dalam file ini');
+      seenNamesInFile.add(name);
+    }
+
     return { _key: `row-${index}`, rowNum: index + 2, mapped, errors };
   };
 
@@ -565,7 +584,9 @@ export default function TeacherStudents() {
 
         const existingNiks = new Set((items || []).map((s) => String(s.nik_siswa || '').trim()).filter(Boolean));
         const seenNiksInFile = new Set();
-        const processed = json.map((row, i) => processImportRow(row, i, existingNiks, seenNiksInFile));
+        const existingNames = new Map((items || []).filter((s) => normName(s.nama_siswa)).map((s) => [normName(s.nama_siswa), s.kelas]));
+        const seenNamesInFile = new Set();
+        const processed = json.map((row, i) => processImportRow(row, i, existingNiks, seenNiksInFile, existingNames, seenNamesInFile));
         setImportRows(processed);
         setImportStep('preview');
       } catch (err) {
@@ -1020,7 +1041,7 @@ export default function TeacherStudents() {
                       <br />Agama otomatis "Islam" untuk semua siswa, tidak perlu kolom terpisah.
                     </p>
                     <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-lg p-2 mt-2 leading-relaxed">
-                      Penting: di Excel, format dulu kolom <b>nik_siswa</b>, <b>nisn</b>, <b>no_kk</b> sebagai <b>Text</b> sebelum mengetik angkanya — kalau tidak, Excel bisa menghilangkan angka nol di depan atau mengubahnya jadi notasi ilmiah sebelum sempat diimpor.
+                      Penting: di Excel, format dulu kolom <b>nik_siswa</b>, <b>nisn</b>, <b>no_kk</b>, <b>nik_ayah</b>, <b>nik_ibu</b> sebagai <b>Text</b> sebelum mengetik angkanya — kalau tidak, Excel bisa menghilangkan angka nol di depan atau mengubahnya jadi notasi ilmiah sebelum sempat diimpor. Kolom-kolom ini boleh kosong, tapi kalau diisi harus 16 angka (NISN 10 angka).
                     </p>
                     <button onClick={downloadImportTemplate} className="mt-2 inline-flex items-center gap-1.5 text-xs font-black text-secondary hover:underline">
                       <FileDown size={14} /> Unduh contoh template
