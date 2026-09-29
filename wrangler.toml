@@ -22,10 +22,11 @@ binding = "DB"
 database_name = "sekolah-db"
 database_id = "281a63d7-059a-405e-8c3f-9abf8dc2e070"
 
-# NONAKTIF SEMENTARA -- bucket "sekolah-uploads" belum dibuat (R2 belum diaktifkan
-# di akun ini). Blok ini menunjuk resource yang belum ada, yang membuat SELURUH
-# publish Functions gagal diam-diam saat deploy. Aktifkan lagi (hapus komentar)
-# HANYA setelah `npx wrangler r2 bucket create sekolah-uploads` berhasil.
-# [[r2_buckets]]
-# binding = "BUCKET"
-# bucket_name = "sekolah-uploads"
+# Bucket sudah dibuat (`npx wrangler r2 bucket create sekolah-uploads`) dan binding
+# produksinya sudah dipasang lewat API dashboard (build git-integrated saat ini
+# men-skip file ini karena tak ada `pages_build_output_dir` -- lihat catatan di
+# atas -- jadi baris di bawah murni dokumentasi/dev lokal, bukan sumber kebenaran
+# untuk production).
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "sekolah-uploads"
