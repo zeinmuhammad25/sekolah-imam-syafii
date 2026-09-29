@@ -38,6 +38,7 @@ export default function TeacherLayout({ children }) {
 
   const handleLogout = () => {
     sessionStorage.removeItem('isTeacherAuthenticated');
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
     navigate('/');
   };
 

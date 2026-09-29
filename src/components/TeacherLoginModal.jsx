@@ -4,11 +4,13 @@ import { X, Lock, AlertCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function TeacherLoginModal({ isOpen, onClose }) {
+  const [username, setUsername] = useState('guru');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -17,12 +19,28 @@ export default function TeacherLoginModal({ isOpen, onClose }) {
       return;
     }
 
-    if (password === 'admin') {
-      sessionStorage.setItem('isTeacherAuthenticated', 'true');
-      onClose();
-      navigate('/dashboard-guru');
-    } else {
-      setError('Kata sandi salah. Silakan hubungi Admin Sekolah');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Cookie sesi (HttpOnly) yang benar-benar menjaga akses -- flag ini cuma dipakai
+        // ProtectedRoute (App.jsx) untuk gerbang UI, bukan sumber keamanan.
+        sessionStorage.setItem('isTeacherAuthenticated', 'true');
+        onClose();
+        navigate('/dashboard-guru');
+      } else {
+        setError(data.error || 'Username atau kata sandi salah');
+      }
+    } catch (err) {
+      setError('Gagal terhubung ke server. Coba lagi.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -83,9 +101,10 @@ export default function TeacherLoginModal({ isOpen, onClose }) {
 
               <button
                 type="submit"
-                className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black text-xs hover:bg-black transition-all flex items-center justify-center gap-3 shadow-xl mt-4"
+                disabled={loading}
+                className="w-full bg-slate-900 text-white p-5 rounded-2xl font-black text-xs hover:bg-black transition-all flex items-center justify-center gap-3 shadow-xl mt-4 disabled:opacity-50"
               >
-                MASUK DASHBOARD <ArrowRight size={18} />
+                {loading ? 'MEMERIKSA...' : <>MASUK DASHBOARD <ArrowRight size={18} /></>}
               </button>
             </form>
 

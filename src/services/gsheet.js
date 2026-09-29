@@ -1,12 +1,12 @@
 /**
- * Service to interact with Google Sheets via Apps Script Web App
+ * Service API ke backend Cloudflare Pages Functions -> D1/R2 (bekas: Apps Script + Google Sheets).
+ * Semua endpoint di bawah relatif (/api/*) karena Functions berjalan di domain yang sama
+ * dengan situs ini -- lihat d1/README.md untuk arsitektur & cara migrasi.
  */
-
-// Replace with your deployed Apps Script Web App URL
-const API_URL = 'https://script.google.com/macros/s/AKfycbxZeLyTT-hteg2Rv9VXI2RwC0QTcjX_PSyiDepd5s-cozdrW2V19m9OFaADc7PXrCZGPg/exec';
 
 // Google Sheets serializes date cells as ISO (e.g. 2026-07-05T17:00:00.000Z).
 // Format to plain YYYY-MM-DD in Jakarta time so the day matches what's typed in the sheet.
+// (Kolom tanggal di D1 dipertahankan format yang sama supaya fungsi ini tetap berlaku apa adanya.)
 export const formatSheetDate = (d) => {
   if (typeof d !== 'string' || !d.includes('T')) return d;
   return new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
@@ -28,13 +28,10 @@ export const extractYoutubeId = (input) => {
   return /^[a-zA-Z0-9_-]{11}$/.test(s) ? s : '';
 };
 
+// Snapshot seluruh data situs (publik, tanpa login) -- pengganti doGet Apps Script.
 export const fetchSchoolData = async () => {
   try {
-    if (API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
-      console.warn('API URL is not set. Using mock data.');
-      return null;
-    }
-    const response = await fetch(API_URL);
+    const response = await fetch('/api/data');
     if (!response.ok) throw new Error('Network response was not ok');
     return await response.json();
   } catch (error) {
@@ -43,34 +40,31 @@ export const fetchSchoolData = async () => {
   }
 };
 
+// Form PPDB publik (halaman utama) -- tanpa login.
 export const submitPPDBForm = async (formData) => {
   try {
-    const response = await fetch(API_URL, {
+    const res = await fetch('/api/ppdb', {
       method: 'POST',
-      mode: 'no-cors',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'PPDB',
-        ...formData
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
     });
-    return { success: true };
+    return await res.json();
   } catch (error) {
     console.error('Error submitting form:', error);
-    return { success: false, error };
+    return { success: false, error: String(error) };
   }
 };
 
-// Admin: tambah/edit/hapus baris (Gallery/Teachers/News).
-// text/plain = "simple request" -> tanpa preflight, respons Apps Script bisa dibaca.
+// Admin: tambah/edit/hapus/reorder baris (Gallery/Teachers/News/Videos/Students/
+// QuestionFolders/Questions/ReportPeriods/ReportGrades/ReportAspects/ReportExtras).
+// Wajib login (sesi lewat cookie HttpOnly) -- lihat functions/api/row.js.
 export const mutateRow = async ({ action, sheetName, row, id, direction, ids, expectedUpdatedAt }) => {
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch('/api/row', {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'ROW', action, sheetName, row, id, direction, ids, expectedUpdatedAt }),
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, sheetName, row, id, direction, ids, expectedUpdatedAt }),
     });
     return await res.json();
   } catch (error) {
@@ -79,7 +73,7 @@ export const mutateRow = async ({ action, sheetName, row, id, direction, ids, ex
   }
 };
 
-// Admin: upload foto -> Google Drive (via Apps Script) -> { success, url }.
+// Admin: upload foto -> Cloudflare R2 -> { success, url }. Wajib login.
 export const uploadImage = async (file) => {
   try {
     const dataUrl = await new Promise((resolve, reject) => {
@@ -88,10 +82,11 @@ export const uploadImage = async (file) => {
       fr.onerror = reject;
       fr.readAsDataURL(file);
     });
-    const res = await fetch(API_URL, {
+    const res = await fetch('/api/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'UPLOAD', imageBase64: dataUrl, filename: file.name }),
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: dataUrl, filename: file.name }),
     });
     return await res.json();
   } catch (error) {
@@ -101,9 +96,13 @@ export const uploadImage = async (file) => {
 };
 
 // Admin: pindahkan file foto KK ke folder jenjang lain di Drive (dipakai saat siswa naik kelas).
+// Foto KK masih ditempel manual sebagai link Drive oleh TU (bukan lewat upload aplikasi),
+// jadi di luar cakupan migrasi D1/R2 -- tetap lewat Apps Script lama.
+const LEGACY_APPS_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbxZeLyTT-hteg2Rv9VXI2RwC0QTcjX_PSyiDepd5s-cozdrW2V19m9OFaADc7PXrCZGPg/exec';
 export const moveKKFile = async ({ fotoKkUrl, targetKelas }) => {
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(LEGACY_APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ type: 'MOVE_KK_FILE', fotoKkUrl, targetKelas }),
@@ -112,22 +111,5 @@ export const moveKKFile = async ({ fotoKkUrl, targetKelas }) => {
   } catch (error) {
     console.error('moveKKFile error:', error);
     return { success: false, error: String(error) };
-  }
-};
-
-export const saveQuestions = async (payload) => {
-  try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      mode: "no-cors", // Keeping no-cors for simple Google Script compatibility
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-    return { success: true };
-  } catch (error) {
-    console.error("Error saving to GSheet:", error);
-    return { success: false, error };
   }
 };
