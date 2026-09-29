@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Rute eksplisit ke Pages Functions. Ditulis manual karena deteksi otomatis Cloudflare (dari isi folder functions/) ternyata tidak konsisten menyertakan /api/* di project ini -- /berita/:id ikut terdeteksi otomatis, tapi /api/* tidak. Path lain (aset statis, halaman SPA) dilayani langsung tanpa lewat Worker.",
+  "include": ["/api/*", "/uploads/*", "/berita/*"],
+  "exclude": []
+}
