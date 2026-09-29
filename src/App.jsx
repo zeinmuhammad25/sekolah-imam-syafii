@@ -12,6 +12,7 @@ const TeacherSoal = lazy(() => import('./components/teacher/TeacherSoal'));
 const AdminSection = lazy(() => import('./components/teacher/AdminSection'));
 const TeacherStudents = lazy(() => import('./components/teacher/TeacherStudents'));
 const TeacherEraport = lazy(() => import('./components/teacher/TeacherEraport'));
+const TeacherSettings = lazy(() => import('./components/teacher/TeacherSettings'));
 
 // Simple Route Protection
 const ProtectedRoute = ({ children }) => {
@@ -85,16 +86,7 @@ export default function App() {
           />
           <Route
             path="/dashboard-guru/settings"
-            element={
-              <ProtectedRoute>
-                <TeacherLayout>
-                  <div className="p-10 text-center">
-                    <h2 className="text-2xl font-black text-slate-900 mb-2">Pengaturan</h2>
-                    <p className="text-slate-400">Modul ini sedang dalam tahap pengembangan.</p>
-                  </div>
-                </TeacherLayout>
-              </ProtectedRoute>
-            }
+            element={<ProtectedRoute><TeacherLayout><TeacherSettings /></TeacherLayout></ProtectedRoute>}
           />
 
           {/* Fallback to Home */}
