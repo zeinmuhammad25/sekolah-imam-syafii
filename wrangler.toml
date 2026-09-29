@@ -1,0 +1,15 @@
+name = "official-imam-syafii"
+compatibility_date = "2026-09-29"
+pages_build_output_dir = "dist"
+
+# Setelah menjalankan `npx wrangler d1 create sekolah-db` (lihat d1/README.md),
+# tempel "database_id" dari output perintah itu ke bawah ini.
+[[d1_databases]]
+binding = "DB"
+database_name = "sekolah-db"
+database_id = "281a63d7-059a-405e-8c3f-9abf8dc2e070"
+
+# Aktif setelah R2 diaktifkan di dashboard Cloudflare + `npx wrangler r2 bucket create sekolah-uploads`.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "sekolah-uploads"

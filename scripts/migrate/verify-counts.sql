@@ -1,0 +1,14 @@
+SELECT 'gallery' t, COUNT(*) n FROM gallery;
+SELECT 'teachers', COUNT(*) FROM teachers;
+SELECT 'news', COUNT(*) FROM news;
+SELECT 'videos', COUNT(*) FROM videos;
+SELECT 'students', COUNT(*) FROM students;
+SELECT 'report_periods', COUNT(*) FROM report_periods;
+SELECT 'report_grades', COUNT(*) FROM report_grades;
+SELECT 'report_aspects', COUNT(*) FROM report_aspects;
+SELECT 'report_extras', COUNT(*) FROM report_extras;
+SELECT 'settings', COUNT(*) FROM settings;
+SELECT 'announcements', COUNT(*) FROM announcements;
+SELECT 'ppdb', COUNT(*) FROM ppdb;
+SELECT 'question_folders', COUNT(*) FROM question_folders;
+SELECT 'questions', COUNT(*) FROM questions;

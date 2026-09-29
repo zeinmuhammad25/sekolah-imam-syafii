@@ -24,3 +24,9 @@ dist-ssr
 *.sw?
 
 .wrangler/
+
+# Hasil skrip migrasi ke D1 — berisi data pribadi (PPDB dll.) & hash password,
+# tidak boleh ke git. Isinya dibangkitkan ulang lewat scripts/migrate/*.mjs.
+scripts/migrate/dump.json
+scripts/migrate/insert.sql
+scripts/migrate/seed-teacher.sql
