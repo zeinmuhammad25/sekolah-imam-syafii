@@ -1,6 +1,14 @@
 name = "official-imam-syafii"
 compatibility_date = "2026-09-29"
-pages_build_output_dir = "dist"
+
+# CATATAN PENTING: JANGAN tambahkan `pages_build_output_dir` di sini.
+# Kehadiran field itu membuat build git-integrated di dashboard Cloudflare
+# berpindah ke mode "Workers with assets" dan BERHENTI mendeteksi folder
+# functions/ sama sekali (termasuk functions/berita/[id].js yang sudah lama
+# ada) -> semua route Functions jatuh ke fallback SPA (index.html), 404 diam-diam.
+# File ini HANYA dipakai untuk resource CLI lokal (wrangler d1/r2 execute,
+# wrangler pages dev) -- binding produksi tetap diatur lewat dashboard
+# (Settings -> Bindings), bukan dari file ini.
 
 # Setelah menjalankan `npx wrangler d1 create sekolah-db` (lihat d1/README.md),
 # tempel "database_id" dari output perintah itu ke bawah ini.
