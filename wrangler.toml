@@ -1,14 +1,19 @@
 name = "official-imam-syafii"
 compatibility_date = "2026-09-29"
 
-# CATATAN PENTING: JANGAN tambahkan `pages_build_output_dir` di sini.
-# Kehadiran field itu membuat build git-integrated di dashboard Cloudflare
-# berpindah ke mode "Workers with assets" dan BERHENTI mendeteksi folder
-# functions/ sama sekali (termasuk functions/berita/[id].js yang sudah lama
-# ada) -> semua route Functions jatuh ke fallback SPA (index.html), 404 diam-diam.
-# File ini HANYA dipakai untuk resource CLI lokal (wrangler d1/r2 execute,
-# wrangler pages dev) -- binding produksi tetap diatur lewat dashboard
-# (Settings -> Bindings), bukan dari file ini.
+# CATATAN PENTING (dari pengalaman nyata, bukan dugaan):
+# Build git-integrated di dashboard Cloudflare TETAP MEMBACA file ini untuk
+# mencoba memasang binding [[d1_databases]] / [[r2_buckets]] / dst saat publish
+# Functions -- bukan cuma untuk CLI lokal seperti dugaan awal. Kalau salah SATU
+# binding di sini menunjuk resource yang belum ada (mis. bucket R2 yang belum
+# dibuat), SELURUH proses publish Functions gagal diam-diam (deployment tetap
+# tercatat "Active", tapi tanpa satu pun Functions berjalan -- termasuk
+# functions/berita/[id].js yang sudah lama live).
+#
+# ATURAN: setiap blok binding di bawah HANYA boleh ada di sini setelah resource
+# aslinya benar-benar dibuat di Cloudflare (wrangler d1 create / r2 bucket create).
+# Kalau belum, hapus/komentari bloknya dulu -- jangan biarkan menunjuk ke sesuatu
+# yang belum ada.
 
 # Setelah menjalankan `npx wrangler d1 create sekolah-db` (lihat d1/README.md),
 # tempel "database_id" dari output perintah itu ke bawah ini.
@@ -17,7 +22,10 @@ binding = "DB"
 database_name = "sekolah-db"
 database_id = "281a63d7-059a-405e-8c3f-9abf8dc2e070"
 
-# Aktif setelah R2 diaktifkan di dashboard Cloudflare + `npx wrangler r2 bucket create sekolah-uploads`.
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "sekolah-uploads"
+# NONAKTIF SEMENTARA -- bucket "sekolah-uploads" belum dibuat (R2 belum diaktifkan
+# di akun ini). Blok ini menunjuk resource yang belum ada, yang membuat SELURUH
+# publish Functions gagal diam-diam saat deploy. Aktifkan lagi (hapus komentar)
+# HANYA setelah `npx wrangler r2 bucket create sekolah-uploads` berhasil.
+# [[r2_buckets]]
+# binding = "BUCKET"
+# bucket_name = "sekolah-uploads"
