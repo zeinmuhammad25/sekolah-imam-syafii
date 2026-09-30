@@ -1,46 +1,18 @@
-// Uji langsung functions/api/*.js dengan mesin SQLite asli (node:sqlite), tanpa
-// lewat wrangler pages dev (yang penyimpanan lokalnya sering tidak konsisten
-// antara `wrangler d1 execute --local` dan `wrangler pages dev`).
-// Bikin adaptor kecil yang meniru bentuk D1Database (prepare/bind/all/first/run).
-import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
+// Uji langsung functions/api/*.js dengan SQLite asli lewat tiruan D1 (scripts/migrate/_d1.mjs).
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { createEnv, root } from './_d1.mjs';
 
 const imp = (p) => import(pathToFileURL(p).href);
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '../..');
-
-const db = new DatabaseSync(':memory:');
-db.exec(readFileSync(join(root, 'd1/schema.sql'), 'utf8'));
-db.exec(readFileSync(join(root, 'scripts/migrate/insert.sql'), 'utf8'));
-db.exec(readFileSync(join(root, 'scripts/migrate/seed-teacher.sql'), 'utf8'));
-
-const wrapStmt = (sql) => {
-  const stmt = db.prepare(sql);
-  let boundArgs = [];
-  return {
-    bind: (...args) => { boundArgs = args; return {
-      all: async () => ({ results: stmt.all(...boundArgs) }),
-      first: async () => stmt.get(...boundArgs) ?? null,
-      run: async () => { const r = stmt.run(...boundArgs); return { success: true, meta: { last_row_id: r.lastInsertRowid } }; },
-    }},
-    // panggilan tanpa .bind() (tak ada parameter)
-    all: async () => ({ results: stmt.all() }),
-    first: async () => stmt.get() ?? null,
-    run: async () => { const r = stmt.run(); return { success: true, meta: { last_row_id: r.lastInsertRowid } }; },
-  };
-};
-const DB = { prepare: (sql) => wrapStmt(sql) };
-const env = { DB };
+const { env, sqlite } = createEnv();
+const DB = env.DB;
 
 let failed = 0, total = 0;
 const ok = (label, cond) => { total++; console.log(cond ? 'OK  ' : 'GAGAL', '-', label); if (!cond) failed++; };
 
 // ---------- 1) GET /api/data ----------
 const dataMod = await imp(join(root, 'functions/api/data.js'));
-const dataRes = await dataMod.onRequestGet({ env });
+const dataRes = await dataMod.onRequestGet({ request: new Request('http://x/api/data'), env });
 const data = await dataRes.json();
 ok('status /api/data 200', dataRes.status === 200 || dataRes.status === undefined);
 ok('Gallery ada & jumlah cocok (17)', Array.isArray(data.Gallery) && data.Gallery.length === 17);
@@ -74,7 +46,7 @@ const addRes = await rowMod.onRequestPost({ request: authedReq({ action: 'add', 
 const addBody = await addRes.json();
 ok('Tambah Gallery -> success + id baru (18)', addBody.success === true && addBody.id === '18');
 
-const dataAfterAdd = await (await dataMod.onRequestGet({ env })).json();
+const dataAfterAdd = await (await dataMod.onRequestGet({ request: new Request('http://x/api/data'), env })).json();
 ok('Gallery bertambah jadi 18', dataAfterAdd.Gallery.length === 18);
 
 const updRes = await rowMod.onRequestPost({ request: authedReq({ action: 'update', sheetName: 'Gallery', id: addBody.id, expectedUpdatedAt: addBody.updatedAt, row: { title: 'Tes Foto Diedit' } }), env });
@@ -88,14 +60,14 @@ ok('Update dgn expectedUpdatedAt salah -> conflict', conflictBody.conflict === t
 const delRes = await rowMod.onRequestPost({ request: authedReq({ action: 'delete', sheetName: 'Gallery', id: addBody.id }), env });
 const delBody = await delRes.json();
 ok('Delete Gallery -> success', delBody.success === true);
-const dataAfterDel = await (await dataMod.onRequestGet({ env })).json();
+const dataAfterDel = await (await dataMod.onRequestGet({ request: new Request('http://x/api/data'), env })).json();
 ok('Gallery kembali ke 17 setelah delete', dataAfterDel.Gallery.length === 17);
 
 // ---------- 5) reorder ----------
 const ids = dataAfterDel.Gallery.map((g) => g.id).slice().reverse();
 const reorderRes = await rowMod.onRequestPost({ request: authedReq({ action: 'reorder', sheetName: 'Gallery', ids }), env });
 const reorderBody = await reorderRes.json();
-const dataAfterReorder = await (await dataMod.onRequestGet({ env })).json();
+const dataAfterReorder = await (await dataMod.onRequestGet({ request: new Request('http://x/api/data'), env })).json();
 ok('Reorder Gallery -> urutan terbalik', reorderBody.success === true && dataAfterReorder.Gallery[0].id === ids[0]);
 
 // ---------- 6) Bank Soal: add/deleteFolder ----------

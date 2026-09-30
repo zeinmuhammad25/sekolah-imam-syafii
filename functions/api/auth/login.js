@@ -16,8 +16,13 @@ export async function onRequestPost({ request, env }) {
   }
 
   const token = randomToken();
-  const expiresAt = Date.now() + SESSION_DAYS * 86400 * 1000;
-  await env.DB.prepare('INSERT INTO teacher_sessions (token, user_id, expires_at) VALUES (?, ?, ?)').bind(token, user.id, expiresAt).run();
+  const now = Date.now();
+  const expiresAt = now + SESSION_DAYS * 86400 * 1000;
+  // Banyak guru login dari banyak perangkat -> bersihkan sesi kedaluwarsa supaya tabel tidak menumpuk.
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM teacher_sessions WHERE expires_at < ?').bind(now),
+    env.DB.prepare('INSERT INTO teacher_sessions (token, user_id, expires_at) VALUES (?, ?, ?)').bind(token, user.id, expiresAt),
+  ]);
 
   return json({ success: true, name: user.name || user.username }, {
     headers: { 'Set-Cookie': sessionCookie(token, SESSION_DAYS * 86400) },

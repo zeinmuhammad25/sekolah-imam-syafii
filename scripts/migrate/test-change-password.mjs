@@ -1,24 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+// Uji langsung functions/api/*.js dengan SQLite asli lewat tiruan D1 (scripts/migrate/_d1.mjs).
+import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
+import { createEnv, root } from './_d1.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '../..');
 const imp = (p) => import(pathToFileURL(p).href);
-
-const db = new DatabaseSync(':memory:');
-db.exec(readFileSync(join(root, 'd1/schema.sql'), 'utf8'));
-db.exec(readFileSync(join(root, 'scripts/migrate/seed-teacher.sql'), 'utf8'));
-const wrapStmt = (sql) => {
-  const stmt = db.prepare(sql);
-  return { bind: (...args) => ({
-    all: async () => ({ results: stmt.all(...args) }),
-    first: async () => stmt.get(...args) ?? null,
-    run: async () => stmt.run(...args),
-  })};
-};
-const env = { DB: { prepare: (sql) => wrapStmt(sql) } };
+const { env, sqlite } = createEnv();
+const DB = env.DB;
 
 let failed = 0, total = 0;
 const ok = (label, cond) => { total++; console.log(cond ? 'OK  ' : 'GAGAL', '-', label); if (!cond) failed++; };

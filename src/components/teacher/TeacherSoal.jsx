@@ -129,12 +129,26 @@ export default function TeacherSoal() {
   const [isSyncing, setIsSyncing] = useState(false);
   const GRADE_INDEX = { "TK": 0, "SD 1": 1, "SD 2": 2, "SD 3": 3, "SD 4": 4, "SD 5": 5, "SD 6": 6 };
 
-  // Load Logic: Ambil data dari Cloud (kini dari sheet relasional via doGet)
+  // ---- Sinkron dengan guru lain (bisa 5+ guru mengedit bank soal bersamaan) ----
+  // writeSeqRef naik setiap kali halaman ini menyimpan sesuatu. Hasil sinkron latar belakang
+  // yang DIMULAI sebelum simpan itu dibuang, supaya tidak menimpa tampilan dengan data lama.
+  const writeSeqRef = useRef(0);
+  const lastVersionRef = useRef(null); // versi data server terakhir yang sudah ditampilkan
+  const editingRef = useRef(null);     // soal yang sedang dibuka di form (untuk peringatan dini)
+  const warnedRef = useRef('');
+  useEffect(() => { editingRef.current = editingQuestion; }, [editingQuestion]);
+
+  // Load Logic: Ambil data dari server (D1)
   const loadAllData = async (showSilently = false) => {
+    if (showSilently && savingRef.current) return; // sedang menyimpan -> tunggu putaran berikutnya
+    const seq = writeSeqRef.current;
     if (!showSilently) setIsSyncing(true);
     try {
-      const data = await fetchSchoolData(); 
-      
+      const data = await fetchSchoolData();
+      if (showSilently && (seq !== writeSeqRef.current || savingRef.current)) return; // ada simpan di tengah jalan -> data ini sudah basi
+      if (showSilently && data && data._version != null && data._version === lastVersionRef.current) return; // tidak ada perubahan
+      if (data && data._version != null) lastVersionRef.current = data._version;
+
       if (data && data.TeacherQuestions) {
         const cloudRows = data.TeacherQuestions;
         let newExamTypes = { 'TK': [], 'SD 1': [], 'SD 2': [], 'SD 3': [], 'SD 4': [], 'SD 5': [], 'SD 6': [] };
@@ -161,6 +175,23 @@ export default function TeacherSoal() {
           setExamTypes(newExamTypes);
           setQuestions(newQuestions);
         }
+
+        // Peringatan dini: soal yang sedang dibuka di form baru saja diubah/dihapus guru lain.
+        const ed = editingRef.current;
+        if (ed && ed.id) {
+          const fresh = Object.values(newQuestions).flat().find((q) => String(q.id) === String(ed.id));
+          const key = `${ed.id}:${fresh ? fresh.updatedAt : 'gone'}`;
+          if ((!fresh || String(fresh.updatedAt) !== String(ed.updatedAt)) && warnedRef.current !== key) {
+            warnedRef.current = key;
+            setNotify({
+              type: 'error',
+              title: fresh ? 'Soal ini baru saja diubah guru lain' : 'Soal ini baru saja dihapus guru lain',
+              message: fresh
+                ? 'Soal yang sedang Anda edit sudah disimpan oleh guru lain. Isian Anda aman di form; saat Anda klik Simpan, sistem akan meminta konfirmasi dulu.'
+                : 'Isian Anda aman di form. Klik Simpan untuk menyimpannya sebagai soal baru, atau tutup form.',
+            });
+          }
+        }
       }
     } catch (e) {
       console.error("Load error:", e);
@@ -169,18 +200,25 @@ export default function TeacherSoal() {
     }
   };
 
-  // Initial Load & Polling (Cek data setiap 90 detik agar 'Live') — diperlonggar dari 30 dtk
-  // supaya tidak membebani Apps Script bersamaan dengan aksi guru (server ini dipakai bareng seluruh situs).
+  // Initial Load & sinkron "live": tiap 20 detik saat tab terbuka + langsung saat guru kembali ke tab.
+  // Murah: server menjawab 304 (kosong) selama tidak ada perubahan, jadi aman untuk banyak guru.
   useEffect(() => {
     loadAllData();
-    const interval = setInterval(() => loadAllData(true), 90000);
-    return () => clearInterval(interval);
+    const refresh = () => { if (document.visibilityState === 'visible') loadAllData(true); };
+    const interval = setInterval(refresh, 20000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   // Terjemahkan kegagalan dari server jadi pesan yang jelas untuk guru.
   const describeError = (res) => {
     const e = String((res && res.error) || '');
-    if (res && res.conflict) return 'Soal ini baru saja diubah dari perangkat/guru lain. Versi terbaru sudah dimuat — silakan buka lagi dan edit ulang.';
+    if (res && res.conflict && !e) return 'Soal ini baru saja diubah dari perangkat/guru lain. Versi terbaru sudah dimuat — silakan buka lagi dan edit ulang.';
     if (/id tidak ditemukan/i.test(e)) return 'Data sudah dihapus dari perangkat/guru lain. Halaman dimuat ulang.';
     if (/sheet tidak ditemukan/i.test(e)) return 'Penyimpanan belum siap di server (sheet belum dibuat). Hubungi admin — migrasi Apps Script belum dijalankan.';
     if (/sheet tidak diizinkan/i.test(e)) return 'Operasi tidak diizinkan untuk data ini.';
@@ -192,6 +230,7 @@ export default function TeacherSoal() {
     if (!newFolderName.trim()) return;
     if (savingRef.current) return; // cegah klik ganda
     savingRef.current = true;
+    writeSeqRef.current += 1;
     setIsSyncing(true);
     try {
       const res = await mutateRow({ action: 'add', sheetName: 'QuestionFolders', row: { grade: activeGrade, name: newFolderName.trim() } });
@@ -210,9 +249,12 @@ export default function TeacherSoal() {
 
   const handleDeleteFolder = async (id) => {
     if (!confirm('Hapus folder ini dan semua soal di dalamnya?')) return;
+    // Soal yang TERLIHAT saat ini -> kalau guru lain baru menambah soal ke folder ini, server menolak hapus.
+    const seenIds = (questions[id] || []).map(q => q.id);
+    writeSeqRef.current += 1;
     setExamTypes(prev => ({ ...prev, [activeGrade]: prev[activeGrade].filter(f => f.id !== id) }));
     if (activeExamFolder === id) setActiveExamFolder(null);
-    const res = await mutateRow({ action: 'deleteFolder', sheetName: 'QuestionFolders', id });
+    const res = await mutateRow({ action: 'deleteFolder', sheetName: 'QuestionFolders', id, ids: seenIds });
     if (!res.success) { setNotify({ type: 'error', title: 'Gagal menghapus folder', message: describeError(res) }); loadAllData(); return; }
     setNotify({ type: 'success', title: 'Folder dihapus', message: 'Folder beserta soal di dalamnya dihapus.' });
   };
@@ -234,16 +276,27 @@ export default function TeacherSoal() {
     };
 
     savingRef.current = true;
+    writeSeqRef.current += 1;
     setIsSyncing(true);
     try {
       const res = wasEdit
-        ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt, row })
+        ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt ?? null, row })
         : await mutateRow({ action: 'add', sheetName: 'Questions', row });
 
-      if (res.conflict) {
-        setIsQuestionModalOpen(false); setEditingQuestion(null);
-        await loadAllData();
-        setNotify({ type: 'error', title: 'Gagal disimpan — bentrok', message: describeError(res) });
+      if (res.conflict && res.current) {
+        // Guru lain menyimpan soal ini lebih dulu. Form & isian TIDAK ditutup/dibuang; versi dirujuk
+        // ulang ke yang terbaru -> klik Simpan sekali lagi = sadar memakai isian sendiri.
+        setEditingQuestion(q => ({ ...q, updatedAt: res.current.updatedAt }));
+        warnedRef.current = `${editingQuestion.id}:${res.current.updatedAt}`;
+        setTimeout(() => loadAllData(true), 0);
+        setNotify({ type: 'error', title: 'Belum disimpan — soal diubah guru lain', message: 'Soal ini baru saja disimpan oleh guru lain. Isian Anda masih ada di form: klik Simpan sekali lagi untuk memakai isian Anda, atau tutup form untuk melihat versi guru lain.' });
+        return;
+      }
+      if (res.notFound) {
+        // Soal dihapus guru lain saat sedang diedit -> isian dipertahankan, simpan berikutnya jadi soal baru.
+        setEditingQuestion(null);
+        setTimeout(() => loadAllData(true), 0);
+        setNotify({ type: 'error', title: 'Belum disimpan — soal sudah dihapus guru lain', message: 'Isian Anda masih ada di form. Klik Simpan untuk menyimpannya sebagai soal baru, atau tutup form.' });
         return;
       }
       if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan soal', message: describeError(res) }); return; }
@@ -273,8 +326,11 @@ export default function TeacherSoal() {
 
   const handleDeleteQuestion = async (id) => {
     if (!confirm('Hapus soal ini?')) return;
+    const target = (questions[activeExamFolder] || []).find(q => q.id === id);
+    writeSeqRef.current += 1;
     setQuestions(prev => ({ ...prev, [activeExamFolder]: (prev[activeExamFolder] || []).filter(q => q.id !== id) }));
-    const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id });
+    // Versi yang terlihat -> kalau guru lain baru saja memperbaiki soal ini, hapus ditolak (kerjanya tidak hilang).
+    const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id, expectedUpdatedAt: target ? (target.updatedAt ?? null) : undefined });
     if (!res.success) { setNotify({ type: 'error', title: 'Gagal menghapus soal', message: describeError(res) }); loadAllData(); return; }
     setNotify({ type: 'success', title: 'Soal dihapus', message: 'Soal berhasil dihapus.' });
   };
@@ -297,13 +353,14 @@ export default function TeacherSoal() {
   };
   const saveOrder = async () => {
     if (savingRef.current) return;
-    savingRef.current = true; setIsSyncing(true);
+    savingRef.current = true; writeSeqRef.current += 1; setIsSyncing(true);
     try {
       const ids = orderDraft.map(q => q.id);
       const res = await mutateRow({ action: 'reorderQuestions', sheetName: 'Questions', ids });
       if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan urutan', message: describeError(res) }); return; }
       setQuestions(prev => ({ ...prev, [activeExamFolder]: orderDraft }));
       setReorderMode(false); setOrderDraft([]);
+      setTimeout(() => loadAllData(true), 0); // ikut tampilkan soal yang ditambah guru lain selama atur urutan
       setNotify({ type: 'success', title: 'Urutan disimpan', message: 'Urutan soal diperbarui.' });
     } finally {
       setIsSyncing(false); savingRef.current = false;

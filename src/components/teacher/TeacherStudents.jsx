@@ -5,7 +5,7 @@ import {
   Plus, Pencil, Trash2, Eye, ArrowUpCircle, LogOut, Search, Download, Loader2, AlertTriangle, FolderOpen,
   FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown,
 } from 'lucide-react';
-import { fetchSchoolData, mutateRow, moveKKFile, formatSheetDate, formatSheetDateDMY } from '../../services/gsheet';
+import { fetchSchoolData, mutateRow, mutateBatch, moveKKFile, formatSheetDate, formatSheetDateDMY, describeMutationError } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Thumb, Field } from './ModalKit';
 
 // Taksonomi kelas — "Tamat" mengikuti SD 6, dipakai sebagai tab tersendiri untuk siswa yang sudah lulus.
@@ -231,7 +231,7 @@ export default function TeacherStudents() {
   // ---- Mode edit di halaman list: Edit-field & Hapus ditahan sampai Simpan; Naik Kelas & Pindah langsung jalan ----
   const [listEditMode, setListEditMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState([]); // dicentang, kandidat Naik Kelas / Pindah
-  const [stagedEdits, setStagedEdits] = useState({}); // { [id]: {...field yang diubah} }
+  const [stagedEdits, setStagedEdits] = useState({}); // { [id]: {...field yang diubah, _v: versi saat mulai diedit} }
   const [stagedDeleteIds, setStagedDeleteIds] = useState([]);
   const [confirmingListSave, setConfirmingListSave] = useState(false);
   const [confirmingListCancel, setConfirmingListCancel] = useState(false);
@@ -260,7 +260,12 @@ export default function TeacherStudents() {
   useEffect(() => { load(); }, []);
 
   // Update state lokal langsung dari hasil mutateRow, tanpa reload seluruh spreadsheet (jauh lebih cepat).
+  // Selalu ikut simpan updatedAt baru dari server, supaya edit berikutnya membawa versi yang benar.
   const patchItemLocal = (id, fields) => setItems((prev) => (prev || []).map((s) => (String(s.id) === String(id) ? { ...s, ...fields } : s)));
+  const versionOf = (id) => {
+    const it = (items || []).find((s) => String(s.id) === String(id));
+    return it ? (it.updatedAt ?? null) : undefined;
+  };
   const removeItemLocal = (id) => setItems((prev) => (prev || []).filter((s) => String(s.id) !== String(id)));
   const addItemLocal = (item) => setItems((prev) => [...(prev || []), item]);
 
@@ -316,11 +321,18 @@ export default function TeacherStudents() {
     setError('');
     const row = { kelas: next };
     if (next === 'Tamat') row.status = 'Lulus';
-    const res = await mutateRow({ action: 'update', sheetName: 'Students', id: editing.id, row });
+    const res = await mutateRow({ action: 'update', sheetName: 'Students', id: editing.id, expectedUpdatedAt: versionOf(editing.id), row });
     if (!res.success) {
       setPromoting(false);
       setConfirmingPromote(false);
-      setError('Gagal memindahkan tahap: ' + (res.error || 'tidak diketahui'));
+      if (res.conflict || res.notFound) {
+        // Guru lain lebih dulu mengubah/menghapus siswa ini -> tampilkan data terbaru.
+        setEditing(null);
+        await load();
+        window.alert(describeMutationError(res));
+        return;
+      }
+      setError('Gagal memindahkan tahap: ' + describeMutationError(res));
       return;
     }
     const fotoUrl = (editing.form.foto_kk || '').trim();
@@ -331,7 +343,7 @@ export default function TeacherStudents() {
         photoWarning = `Kelas berhasil diubah ke ${next}, tapi foto KK gagal dipindah otomatis (${moveRes.error || 'tidak diketahui'}). Silakan pindahkan manual di Drive.`;
       }
     }
-    patchItemLocal(editing.id, row);
+    patchItemLocal(editing.id, { ...row, updatedAt: res.updatedAt });
     setPromoting(false);
     setConfirmingPromote(false);
     setEditing(null);
@@ -350,13 +362,18 @@ export default function TeacherStudents() {
       setSaving(true);
       const res = await mutateRow({ action: 'add', sheetName: 'Students', row: formToSave });
       setSaving(false);
-      if (!res.success) { setError('Gagal menyimpan: ' + (res.error || 'tidak diketahui')); return; }
+      if (!res.success) { setError('Gagal menyimpan: ' + describeMutationError(res)); return; }
       addItemLocal({ ...formToSave, id: res.id, updatedAt: res.updatedAt });
       setEditing(null);
       return;
     }
     // Edit siswa lama: ditahan dulu (staged) — baru benar-benar tersimpan saat klik "Simpan" di mode edit list.
-    setStagedEdits((prev) => ({ ...prev, [editing.id]: { ...(prev[editing.id] || {}), ...formToSave } }));
+    // _v = versi data saat guru PERTAMA kali mulai mengedit -> kalau guru lain menyimpan siswa ini
+    // sebelum "Simpan" diklik, simpan ditolak (tidak menimpa diam-diam).
+    setStagedEdits((prev) => ({
+      ...prev,
+      [editing.id]: { ...(prev[editing.id] || {}), ...formToSave, _v: prev[editing.id] ? prev[editing.id]._v : versionOf(editing.id) },
+    }));
     setEditing(null);
   };
 
@@ -372,10 +389,10 @@ export default function TeacherStudents() {
       if (!item) continue;
       const row = computeRow(item);
       if (!row) continue;
-      const res = await mutateRow({ action: 'update', sheetName: 'Students', id, row });
-      results.push({ label: `${item.nama_siswa || id} ${labelSuffix(row)}`, success: res.success, error: res.error });
+      const res = await mutateRow({ action: 'update', sheetName: 'Students', id, expectedUpdatedAt: item.updatedAt ?? null, row });
+      results.push({ label: `${item.nama_siswa || id} ${labelSuffix(row)}`, success: res.success, error: res.success ? undefined : describeMutationError(res), stale: !!(res.conflict || res.notFound) });
       if (res.success) {
-        patchItemLocal(id, row);
+        patchItemLocal(id, { ...row, updatedAt: res.updatedAt });
         const fotoUrl = (item.foto_kk || '').trim();
         if (fotoUrl) {
           const moveRes = await moveKKFile({ fotoKkUrl: fotoUrl, targetKelas: row.kelas });
@@ -385,6 +402,7 @@ export default function TeacherStudents() {
     }
     setBulkProcessing(false);
     setCheckedIds([]);
+    if (results.some((r) => r.stale)) await load(); // ada yang diubah guru lain -> tampilkan versi terbaru
     const failed = results.filter((r) => !r.success);
     if (failed.length) {
       window.alert(`${results.length - failed.length} berhasil, ${failed.length} gagal:\n` + failed.map((f) => `- ${f.label}: ${f.error || 'tidak diketahui'}`).join('\n'));
@@ -430,22 +448,24 @@ export default function TeacherStudents() {
 
     for (const id of stagedDeleteIds) {
       const item = items.find((s) => String(s.id) === String(id));
-      const res = await mutateRow({ action: 'delete', sheetName: 'Students', id });
-      results.push({ label: `Hapus: ${item?.nama_siswa || id}`, success: res.success, error: res.error });
+      const res = await mutateRow({ action: 'delete', sheetName: 'Students', id, expectedUpdatedAt: item ? (item.updatedAt ?? null) : undefined });
+      results.push({ label: `Hapus: ${item?.nama_siswa || id}`, success: res.success, error: res.success ? undefined : describeMutationError(res), stale: !!res.conflict });
       if (res.success) removeItemLocal(id);
     }
 
-    for (const [id, fields] of Object.entries(stagedEdits)) {
+    for (const [id, staged] of Object.entries(stagedEdits)) {
       if (stagedDeleteIds.some((d) => String(d) === String(id))) continue; // sudah dihapus, lewati edit-nya
+      const { _v, ...fields } = staged;
       const item = items.find((s) => String(s.id) === String(id));
-      const res = await mutateRow({ action: 'update', sheetName: 'Students', id, row: fields });
-      results.push({ label: `Edit: ${fields.nama_siswa || item?.nama_siswa || id}`, success: res.success, error: res.error });
-      if (res.success) patchItemLocal(id, fields);
+      const res = await mutateRow({ action: 'update', sheetName: 'Students', id, expectedUpdatedAt: _v, row: fields });
+      results.push({ label: `Edit: ${fields.nama_siswa || item?.nama_siswa || id}`, success: res.success, error: res.success ? undefined : describeMutationError(res), stale: !!(res.conflict || res.notFound) });
+      if (res.success) patchItemLocal(id, { ...fields, updatedAt: res.updatedAt });
     }
 
     setListSaving(false);
     setStagedEdits({}); setStagedDeleteIds([]);
     setListEditMode(false);
+    if (results.some((r) => r.stale)) await load(); // ada yang diubah guru lain -> tampilkan versi terbaru
 
     const failed = results.filter((r) => !r.success);
     if (failed.length) {
@@ -603,10 +623,25 @@ export default function TeacherStudents() {
     setImporting(true);
     const results = [];
     const added = [];
-    for (const r of validRows) {
-      const res = await mutateRow({ action: 'add', sheetName: 'Students', row: r.mapped });
-      results.push({ nama: r.mapped.nama_siswa, success: res.success, error: res.error });
-      if (res.success) added.push({ ...r.mapped, id: res.id, updatedAt: res.updatedAt });
+    // Per 25 baris dalam 1 transaksi (jauh lebih cepat dari 1 request per baris, urutan tetap).
+    // Kalau 1 potongan ditolak (mis. nama yang sama baru saja didaftarkan guru lain), potongan
+    // itu diulang per baris supaya tiap siswa tetap dapat hasil & alasan masing-masing.
+    const CHUNK = 25;
+    for (let i = 0; i < validRows.length; i += CHUNK) {
+      const chunk = validRows.slice(i, i + CHUNK);
+      const res = await mutateBatch(chunk.map((r) => ({ action: 'add', sheetName: 'Students', row: r.mapped })));
+      if (res.success) {
+        res.results.forEach((out, k) => {
+          results.push({ nama: chunk[k].mapped.nama_siswa, success: true });
+          added.push({ ...chunk[k].mapped, id: out.id, updatedAt: out.updatedAt });
+        });
+        continue;
+      }
+      for (const r of chunk) {
+        const one = await mutateRow({ action: 'add', sheetName: 'Students', row: r.mapped });
+        results.push({ nama: r.mapped.nama_siswa, success: one.success, error: one.success ? undefined : describeMutationError(one) });
+        if (one.success) added.push({ ...r.mapped, id: one.id, updatedAt: one.updatedAt });
+      }
     }
     setImporting(false);
     setImportResults(results);

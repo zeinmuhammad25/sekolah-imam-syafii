@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Search, Plus, Pencil, Trash2, ArrowLeft, Loader2, AlertTriangle, FileBarChart2, FileDown } from 'lucide-react';
-import { fetchSchoolData, mutateRow, formatSheetDate } from '../../services/gsheet';
+import { fetchSchoolData, mutateRow, mutateBatch, formatSheetDate } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Field } from './ModalKit';
 
 // Taksonomi kelas — sama dengan Data Siswa.
@@ -100,11 +100,15 @@ const rowsOf = (data, table, periodId) =>
   (data[table.sheet] || []).filter((r) =>
     String(r.reportPeriodId) === String(periodId) && (!table.kelompok || (r.kelompok || table.blankAs || 'umum') === table.kelompok));
 
+// Satu baris draf dari baris tersimpan. `_base` = nilai saat mulai diedit -> dipakai untuk tahu
+// baris mana yang BENAR-BENAR diubah guru ini (bukan sekadar beda dgn data terbaru dari guru lain).
+const draftRow = (t, item) => {
+  const vals = Object.fromEntries(t.fields.map((f) => [f.name, item[f.name] != null ? String(item[f.name]) : '']));
+  return { _key: String(item.id), id: item.id, updatedAt: item.updatedAt ?? null, ...vals, _base: vals };
+};
 const draftsFrom = (kelas, periodId, data) =>
-  Object.fromEntries(tablesFor(kelas).map((t) => [t.key, rowsOf(data, t, periodId).map((item) => ({
-    _key: String(item.id), id: item.id, updatedAt: item.updatedAt,
-    ...Object.fromEntries(t.fields.map((f) => [f.name, item[f.name] != null ? String(item[f.name]) : ''])),
-  }))]));
+  Object.fromEntries(tablesFor(kelas).map((t) => [t.key, rowsOf(data, t, periodId).map((item) => draftRow(t, item))]));
+const touched = (t, r) => !r.id || !r._base || t.fields.some((f) => String(r[f.name] ?? '').trim() !== String(r._base[f.name] ?? '').trim());
 
 // ---------- Nilai: validasi, jumlah, rata-rata, terbilang ----------
 const parseScore = (v) => Number(String(v).trim().replace(',', '.'));
@@ -133,9 +137,11 @@ const summarize = (rows) => {
 const fmtNum = (n) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 
 const describeError = (res) => {
+  if (res && res.error) return res.error;
   if (res && res.conflict) return 'Data ini baru saja diubah dari perangkat/guru lain. Silakan buka lagi dan ulangi.';
-  return (res && res.error) || 'Tidak diketahui — periksa koneksi lalu coba lagi.';
+  return 'Tidak diketahui — periksa koneksi lalu coba lagi.';
 };
+
 
 const cellBase = 'w-full bg-slate-50 border-2 border-slate-100 rounded-lg p-2 text-xs font-semibold text-slate-800 outline-none focus:border-secondary transition-all';
 
@@ -164,13 +170,15 @@ export default function TeacherEraport() {
 
   const load = async () => {
     const d = await fetchSchoolData();
-    setStudents((d && d.Students) || []);
-    setPeriods((d && d.ReportPeriods) || []);
-    setSubData({
+    const sub = {
       ReportGrades: (d && d.ReportGrades) || [],
       ReportAspects: (d && d.ReportAspects) || [],
       ReportExtras: (d && d.ReportExtras) || [],
-    });
+    };
+    setStudents((d && d.Students) || []);
+    setPeriods((d && d.ReportPeriods) || []);
+    setSubData(sub);
+    return { sub, periods: (d && d.ReportPeriods) || [] };
   };
   useEffect(() => { load(); }, []);
 
@@ -223,9 +231,17 @@ export default function TeacherEraport() {
     const row = { ...activePeriod.form };
     if (!activePeriod.id) row.studentId = selectedStudent.id;
     const res = activePeriod.id
-      ? await mutateRow({ action: 'update', sheetName: 'ReportPeriods', id: activePeriod.id, expectedUpdatedAt: activePeriod.updatedAt, row })
+      ? await mutateRow({ action: 'update', sheetName: 'ReportPeriods', id: activePeriod.id, expectedUpdatedAt: activePeriod.updatedAt ?? null, row })
       : await mutateRow({ action: 'add', sheetName: 'ReportPeriods', row });
     setSaving(false);
+    if (res.conflict && res.current) {
+      // Guru lain menyimpan semester ini lebih dulu. Isian di form TIDAK dibuang; versi dirujuk ulang
+      // ke versi terbaru, jadi klik Simpan sekali lagi = sadar memakai isian sendiri.
+      setActivePeriod((p) => ({ ...p, updatedAt: res.current.updatedAt }));
+      setPeriods((prev) => prev.map((p) => (String(p.id) === String(activePeriod.id) ? { ...p, ...res.current } : p)));
+      setError('Data semester ini baru saja diubah guru lain. Isian Anda masih ada di form — klik "Simpan Data Semester" lagi untuk tetap memakai isian Anda, atau kembali ke daftar untuk melihat versi guru lain.');
+      return;
+    }
     if (!res.success) { setError('Gagal menyimpan: ' + describeError(res)); return; }
     const newId = activePeriod.id || res.id;
     setActivePeriod((p) => ({ ...p, id: newId, updatedAt: res.updatedAt }));
@@ -237,9 +253,14 @@ export default function TeacherEraport() {
 
   const confirmDeletePeriod = async () => {
     setDeleting(true);
-    const res = await mutateRow({ action: 'delete', sheetName: 'ReportPeriods', id: confirmingDeletePeriod.id });
+    const res = await mutateRow({ action: 'delete', sheetName: 'ReportPeriods', id: confirmingDeletePeriod.id, expectedUpdatedAt: confirmingDeletePeriod.updatedAt ?? null });
     setDeleting(false);
-    if (!res.success) { setConfirmingDeletePeriod(null); setError('Gagal menghapus: ' + describeError(res)); return; }
+    if (!res.success) {
+      setConfirmingDeletePeriod(null);
+      if (res.conflict) await load(); // tampilkan dulu perubahan guru lain sebelum memutuskan hapus
+      setError('Gagal menghapus: ' + describeError(res));
+      return;
+    }
     setPeriods((prev) => prev.filter((p) => String(p.id) !== String(confirmingDeletePeriod.id)));
     setConfirmingDeletePeriod(null);
     if (activePeriod && activePeriod.id === confirmingDeletePeriod.id) setActivePeriod(null);
@@ -268,7 +289,7 @@ export default function TeacherEraport() {
     setDrafts((d) => ({ ...d, [tk]: (d[tk] || []).map((r) => (r._key === key ? { ...r, [name]: value } : r)) }));
   const removeDraftRow = (tk, key) => {
     const row = (drafts[tk] || []).find((r) => r._key === key);
-    if (row && row.id) setRemoved((rm) => ({ ...rm, [tk]: [...(rm[tk] || []), row.id] }));
+    if (row && row.id) setRemoved((rm) => ({ ...rm, [tk]: [...(rm[tk] || []), { id: row.id, updatedAt: row.updatedAt ?? null }] }));
     setDrafts((d) => ({ ...d, [tk]: (d[tk] || []).filter((r) => r._key !== key) }));
   };
   const cancelDraftSub = () => {
@@ -287,47 +308,112 @@ export default function TeacherEraport() {
       const sc = t.fields.find((f) => f.score);
       if (sc && rows.some((r) => String(r[sc.name] || '').trim() && !isValidScore(r[sc.name]))) { setError(`${t.title}: "${sc.label}" harus angka 0–100`); return; }
     }
-    setSavingSub(true);
-    let firstError = '';
-    const local = { ReportGrades: [...subData.ReportGrades], ReportAspects: [...subData.ReportAspects], ReportExtras: [...subData.ReportExtras] };
-
+    // Susun SEMUA perubahan jadi satu daftar operasi -> disimpan dalam SATU transaksi di server.
+    // Hanya baris yang benar-benar berubah yang dikirim, jadi editan guru lain di baris yang
+    // tidak Anda sentuh tetap aman (tidak tertimpa salinan lama Anda).
+    const ops = [];
+    const plan = []; // sejajar dengan ops: dari mana asal tiap operasi (untuk update state & bentrok)
     for (const t of tables) {
-      const rows = (drafts[t.key] || []).filter((r) => hasContent(t, r));
-      for (const r of rows) {
+      for (const r of (drafts[t.key] || []).filter((x) => hasContent(t, x))) {
+        if (!touched(t, r)) continue; // tidak diubah guru ini -> tidak dikirim (editan guru lain aman)
         let row = { reportPeriodId: activePeriod.id, ...Object.fromEntries(t.fields.map((f) => [f.name, String(r[f.name] ?? '').trim()])) };
         if (t.kelompok) row.kelompok = t.kelompok;
         if (t.finalize) row = t.finalize(row);
-        const res = r.id
-          ? await mutateRow({ action: 'update', sheetName: t.sheet, id: r.id, expectedUpdatedAt: r.updatedAt, row })
-          : await mutateRow({ action: 'add', sheetName: t.sheet, row });
-        if (!res.success) { if (!firstError) firstError = describeError(res); continue; }
-        const savedId = r.id || res.id;
-        const merged = { ...row, id: savedId, updatedAt: res.updatedAt };
-        local[t.sheet] = r.id ? local[t.sheet].map((x) => (String(x.id) === String(savedId) ? merged : x)) : [...local[t.sheet], merged];
+        plan.push({ type: 'row', t, key: r._key, id: r.id, row });
+        ops.push(r.id
+          ? { action: 'update', sheetName: t.sheet, id: r.id, expectedUpdatedAt: r.updatedAt ?? null, row }
+          : { action: 'add', sheetName: t.sheet, row });
       }
-      for (const id of (removed[t.key] || [])) {
-        const res = await mutateRow({ action: 'delete', sheetName: t.sheet, id });
-        if (!res.success) { if (!firstError) firstError = describeError(res); continue; }
-        local[t.sheet] = local[t.sheet].filter((x) => String(x.id) !== String(id));
+      for (const rm of (removed[t.key] || [])) {
+        plan.push({ type: 'remove', t, id: rm.id });
+        ops.push({ action: 'delete', sheetName: t.sheet, id: rm.id, expectedUpdatedAt: rm.updatedAt });
       }
     }
-
-    // TK: Catatan Guru = kolom catatanWaliKelas di baris semester (versi `updatedAt` dijaga)
-    if (isTK && catatanDraft.trim() !== String(activePeriod.form.catatanWaliKelas || '').trim()) {
-      const row = { catatanWaliKelas: catatanDraft.trim() };
-      const res = await mutateRow({ action: 'update', sheetName: 'ReportPeriods', id: activePeriod.id, expectedUpdatedAt: activePeriod.updatedAt, row });
-      if (res.success) {
-        setActivePeriod((p) => ({ ...p, updatedAt: res.updatedAt, form: { ...p.form, ...row } }));
-        setPeriods((prev) => prev.map((p) => (String(p.id) === String(activePeriod.id) ? { ...p, ...row, updatedAt: res.updatedAt } : p)));
-      } else if (!firstError) firstError = 'Catatan Guru: ' + describeError(res);
+    // TK: Catatan Guru = kolom catatanWaliKelas di baris semester -> ikut transaksi yang sama.
+    const catatanRow = isTK && catatanDraft.trim() !== String(activePeriod.form.catatanWaliKelas || '').trim()
+      ? { catatanWaliKelas: catatanDraft.trim() } : null;
+    if (catatanRow) {
+      plan.push({ type: 'catatan' });
+      ops.push({ action: 'update', sheetName: 'ReportPeriods', id: activePeriod.id, expectedUpdatedAt: activePeriod.updatedAt ?? null, row: catatanRow });
     }
 
-    setSubData(local);
+    if (ops.length === 0) { setRemoved({}); setSubEditMode(false); return; }
+
+    setSavingSub(true);
+    const res = await mutateBatch(ops);
     setSavingSub(false);
+
+    if (!res.success) {
+      if (res.conflict && Array.isArray(res.conflicts) && res.conflicts.length) {
+        // TIDAK ADA yang tersimpan. Draf guru dipertahankan; versi baris yang bentrok dirujuk ulang
+        // ke versi terbaru supaya klik Simpan sekali lagi = sadar memakai isian sendiri.
+        const labels = [];
+        const rebase = {}; // key draf -> {updatedAt} | {gone:true}
+        const removedRebase = {};
+        let periodRebase = null;
+        res.conflicts.forEach((c) => {
+          const p = plan[c.index];
+          if (!p) return;
+          if (p.type === 'catatan') { periodRebase = c.current; labels.push('Catatan Guru'); return; }
+          const name = (p.row && (p.row.mataPelajaran || p.row.aspek || p.row.nama)) || (c.current && (c.current.mataPelajaran || c.current.aspek || c.current.nama)) || `baris ${c.id}`;
+          labels.push(`${p.t.title}: ${name}${c.notFound ? ' (sudah dihapus)' : ''}`);
+          if (p.type === 'row') rebase[p.key] = c.notFound ? { gone: true } : { updatedAt: c.current.updatedAt };
+          else if (c.current) removedRebase[`${p.t.key}:${c.id}`] = c.current.updatedAt;
+        });
+        const fresh = await load();
+        const removedNow = removed;
+        setDrafts((d) => {
+          const next = {};
+          for (const t of tables) {
+            const freshRows = rowsOf(fresh.sub, t, activePeriod.id);
+            const freshById = Object.fromEntries(freshRows.map((x) => [String(x.id), x]));
+            next[t.key] = (d[t.key] || []).flatMap((r) => {
+              const rb = rebase[r._key];
+              if (rb) return [rb.gone ? { ...r, id: null, updatedAt: null } : { ...r, updatedAt: rb.updatedAt }];
+              if (touched(t, r)) return [r]; // isian guru ini -> dipertahankan
+              const cur = freshById[String(r.id)];
+              return cur ? [draftRow(t, cur)] : []; // tidak disentuh -> ikut versi terbaru (atau hilang kalau dihapus)
+            });
+            // Baris yang baru ditambahkan guru lain -> ikut tampil di draf.
+            const known = new Set(next[t.key].filter((r) => r.id).map((r) => String(r.id)));
+            (removedNow[t.key] || []).forEach((x) => known.add(String(x.id)));
+            freshRows.forEach((cur) => { if (!known.has(String(cur.id))) next[t.key].push(draftRow(t, cur)); });
+          }
+          return next;
+        });
+        setRemoved((rm) => Object.fromEntries(Object.entries(rm).map(([tk, list]) => [tk, list.map((x) => {
+          const v = removedRebase[`${tk}:${x.id}`];
+          return v !== undefined ? { ...x, updatedAt: v } : x;
+        })])));
+        if (periodRebase) setActivePeriod((p) => ({ ...p, updatedAt: periodRebase.updatedAt }));
+        setError(`Baru saja diubah guru lain, jadi BELUM ADA yang tersimpan: ${labels.join('; ')}. Isian Anda masih utuh — periksa lagi lalu klik Simpan untuk tetap memakai isian Anda, atau Batal untuk melihat versi guru lain.`);
+        return;
+      }
+      setError('Belum ada yang tersimpan: ' + describeError(res));
+      return;
+    }
+
+    // Berhasil semua -> perbarui state lokal dari hasil server (id & versi baru), tanpa muat ulang penuh.
+    const local = { ReportGrades: [...subData.ReportGrades], ReportAspects: [...subData.ReportAspects], ReportExtras: [...subData.ReportExtras] };
+    plan.forEach((p, i) => {
+      const out = res.results[i];
+      if (p.type === 'row') {
+        const merged = { ...p.row, id: out.id, updatedAt: out.updatedAt };
+        local[p.t.sheet] = p.id
+          ? local[p.t.sheet].map((x) => (String(x.id) === String(p.id) ? { ...x, ...merged } : x))
+          : [...local[p.t.sheet], merged];
+      } else if (p.type === 'remove') {
+        local[p.t.sheet] = local[p.t.sheet].filter((x) => String(x.id) !== String(p.id));
+      } else if (p.type === 'catatan') {
+        setActivePeriod((ap) => ({ ...ap, updatedAt: out.updatedAt, form: { ...ap.form, ...catatanRow } }));
+        setPeriods((prev) => prev.map((x) => (String(x.id) === String(activePeriod.id) ? { ...x, ...catatanRow, updatedAt: out.updatedAt } : x)));
+      }
+    });
+    setSubData(local);
     setRemoved({});
     setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, local));
-    if (firstError) setError('Sebagian data gagal disimpan: ' + firstError);
-    else setSubEditMode(false);
+    setSubEditMode(false);
+    load(); // di latar belakang: ikut tampilkan perubahan guru lain di baris yang tidak Anda sentuh
   };
 
   const renderEditCell = (t, row, f) => {

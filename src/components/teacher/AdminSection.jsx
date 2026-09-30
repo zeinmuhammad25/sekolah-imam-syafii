@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, Check, AlertTriangle, Loader2 } from 'lucide-react';
-import { fetchSchoolData, mutateRow, uploadImage, extractYoutubeId } from '../../services/gsheet';
+import { fetchSchoolData, mutateRow, uploadImage, extractYoutubeId, describeMutationError } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Thumb, Field } from './ModalKit';
 
 // Konfigurasi tiap section. Semua CRUD pakai komponen ini.
@@ -104,7 +104,7 @@ export default function AdminSection({ section }) {
     setError('');
     const form = {};
     cfg.fields.forEach((f) => { form[f.name] = item[f.name] != null ? String(item[f.name]) : ''; });
-    setEditing({ id: item.id, form });
+    setEditing({ id: item.id, updatedAt: item.updatedAt ?? null, form }); // versi yg dilihat -> cegah menimpa editan guru lain
   };
 
   const handleFile = async (field, file) => {
@@ -132,6 +132,7 @@ export default function AdminSection({ section }) {
       action: editing.id ? 'update' : 'add',
       sheetName: cfg.sheetName,
       id: editing.id || undefined,
+      expectedUpdatedAt: editing.id ? editing.updatedAt : undefined,
       row: editing.form,
     });
     setSaving(false);
@@ -139,8 +140,14 @@ export default function AdminSection({ section }) {
       setEditing(null);
       setItems(null);
       await load();
+    } else if (res.conflict || res.notFound) {
+      // Guru lain lebih dulu menyimpan/menghapus: tutup form, tampilkan data terbaru, beri tahu.
+      setEditing(null);
+      setItems(null);
+      await load();
+      window.alert(describeMutationError(res));
     } else {
-      setError('Gagal menyimpan: ' + (res.error || 'tidak diketahui'));
+      setError('Gagal menyimpan: ' + describeMutationError(res));
     }
   };
 
@@ -156,10 +163,11 @@ export default function AdminSection({ section }) {
   const confirmDelete = async () => {
     if (!(await commitOrder())) return;
     setDeleting(true);
-    const res = await mutateRow({ action: 'delete', sheetName: cfg.sheetName, id: confirming.id });
+    const res = await mutateRow({ action: 'delete', sheetName: cfg.sheetName, id: confirming.id, expectedUpdatedAt: confirming.updatedAt ?? null });
     setDeleting(false);
     if (res.success) { setConfirming(null); setItems(null); await load(); }
-    else { setConfirming(null); setError('Gagal menghapus: ' + (res.error || 'tidak diketahui')); }
+    else if (res.conflict) { setConfirming(null); setItems(null); await load(); window.alert(describeMutationError(res)); }
+    else { setConfirming(null); window.alert('Gagal menghapus: ' + describeMutationError(res)); }
   };
 
   return (

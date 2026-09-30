@@ -8,7 +8,13 @@
 // `folderId`) supaya frontend (src/services/gsheet.js dst) tidak perlu diubah.
 //
 // `orderCol`: kolom dipakai untuk ORDER BY saat membaca daftar. 'rowid' berarti
-// urutan alami SQLite (= urutan insert, setara urutan baris di Sheets).
+// urutan alami SQLite (= urutan insert, setara urutan baris di Sheets). Baris baru
+// otomatis ditaruh paling akhir (MAX+1), dalam lingkup `orderScope` kalau ada
+// (mis. soal: urutan dihitung per folder, bukan global).
+//
+// `unique`: penjagaan duplikat saat TAMBAH yang dicek atomik di database (bukan
+// cuma di browser) -- supaya 2 guru yang menambah data sama di detik yang sama
+// tidak menghasilkan 2 baris kembar. Perbandingan tanpa beda huruf besar/kecil & spasi tepi.
 
 const S = (json, col) => [json, col];
 
@@ -31,6 +37,7 @@ export const TABLES = {
   },
   Students: {
     table: 'students', orderCol: 'rowid',
+    unique: { cols: ['nama_siswa'], message: 'Nama siswa sudah terdaftar (mungkin baru saja ditambahkan guru lain).' },
     fields: [
       S('id', 'id'), S('nama_siswa', 'nama_siswa'), S('nik_siswa', 'nik_siswa'), S('nisn', 'nisn'),
       S('jenis_kelamin', 'jenis_kelamin'), S('tempat_lahir', 'tempat_lahir'), S('tanggal_lahir', 'tanggal_lahir'),
@@ -46,10 +53,11 @@ export const TABLES = {
   },
   QuestionFolders: {
     table: 'question_folders', orderCol: 'rowid',
+    unique: { cols: ['grade', 'name'], message: 'Folder dengan nama yang sama sudah ada di kelas ini (mungkin baru saja dibuat guru lain).' },
     fields: [S('id', 'id'), S('grade', 'grade'), S('name', 'name'), S('updatedAt', 'updated_at')],
   },
   Questions: {
-    table: 'questions', orderCol: 'order_num',
+    table: 'questions', orderCol: 'order_num', orderScope: 'folder_id',
     fields: [
       S('id', 'id'), S('folderId', 'folder_id'), S('text', 'text'),
       S('optionA', 'option_a'), S('optionB', 'option_b'), S('optionC', 'option_c'), S('optionD', 'option_d'),
@@ -58,6 +66,7 @@ export const TABLES = {
   },
   ReportPeriods: {
     table: 'report_periods', orderCol: 'rowid',
+    unique: { cols: ['studentId', 'tahunAjaran', 'semester'], message: 'Data semester ini untuk siswa tersebut sudah ada (mungkin baru saja dibuat guru lain).' },
     fields: [
       S('id', 'id'), S('studentId', 'student_id'), S('kelas', 'kelas'), S('tahunAjaran', 'tahun_ajaran'), S('semester', 'semester'),
       S('kehadiranSakit', 'kehadiran_sakit'), S('kehadiranIzin', 'kehadiran_izin'), S('kehadiranAlpa', 'kehadiran_alpa'),

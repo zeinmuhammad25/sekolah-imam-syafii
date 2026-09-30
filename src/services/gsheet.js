@@ -29,15 +29,35 @@ export const extractYoutubeId = (input) => {
 };
 
 // Snapshot seluruh data situs (publik, tanpa login) -- pengganti doGet Apps Script.
-export const fetchSchoolData = async () => {
-  try {
-    const response = await fetch('/api/data');
-    if (!response.ok) throw new Error('Network response was not ok');
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching school data:', error);
-    return null;
-  }
+// Beberapa komponen yang memanggil bersamaan cukup berbagi 1 request (tidak dobel).
+// Server mengirim ETag per versi data -> kalau belum ada perubahan, browser dapat 304
+// dan memakai salinannya sendiri (cepat & hemat kuota), tapi SELALU dicek ulang ke
+// server sehingga perubahan guru lain langsung terlihat.
+let inflight = null;
+export const fetchSchoolData = () => {
+  if (inflight) return inflight;
+  const p = (async () => {
+    try {
+      const response = await fetch('/api/data', { cache: 'no-cache' });
+      if (!response.ok) throw new Error('Network response was not ok');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching school data:', error);
+      return null;
+    } finally {
+      if (inflight === p) inflight = null;
+    }
+  })();
+  inflight = p;
+  return p;
+};
+
+// Pesan standar untuk hasil mutateRow yang gagal (bentrok dgn guru lain, sudah dihapus, dst).
+export const describeMutationError = (res) => {
+  if (!res) return 'Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.';
+  if (res.error) return res.error;
+  if (res.conflict) return 'Data ini baru saja diubah oleh guru lain. Muat ulang lalu ulangi.';
+  return 'Tidak diketahui — periksa koneksi lalu coba lagi.';
 };
 
 // Form PPDB publik (halaman utama) -- tanpa login.
@@ -58,20 +78,33 @@ export const submitPPDBForm = async (formData) => {
 // Admin: tambah/edit/hapus/reorder baris (Gallery/Teachers/News/Videos/Students/
 // QuestionFolders/Questions/ReportPeriods/ReportGrades/ReportAspects/ReportExtras).
 // Wajib login (sesi lewat cookie HttpOnly) -- lihat functions/api/row.js.
-export const mutateRow = async ({ action, sheetName, row, id, direction, ids, expectedUpdatedAt }) => {
+// `expectedUpdatedAt` = versi baris yang sedang dilihat guru. Kalau guru lain sudah
+// menyimpan lebih dulu, server menolak ({ conflict: true }) alih-alih menimpa diam-diam.
+export const mutateRow = async ({ action, sheetName, row, id, direction, ids, expectedUpdatedAt, ops }) => {
   try {
     const res = await fetch('/api/row', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, sheetName, row, id, direction, ids, expectedUpdatedAt }),
+      body: JSON.stringify({ action, sheetName, row, id, direction, ids, expectedUpdatedAt, ops }),
     });
+    inflight = null; // data sudah berubah -> muat-ulang berikutnya wajib request baru, bukan nebeng yang lama
+    if (res.status === 401) {
+      sessionStorage.removeItem('isTeacherAuthenticated');
+      return { success: false, error: 'Sesi login habis. Silakan login ulang lalu ulangi.' };
+    }
     return await res.json();
   } catch (error) {
     console.error('mutateRow error:', error);
     return { success: false, error: String(error) };
   }
 };
+
+// Admin: simpan banyak perubahan sekaligus dalam SATU transaksi (semua tersimpan, atau
+// kalau ada yang bentrok dgn guru lain -> tidak ada yang tersimpan sama sekali).
+// ops: [{ action: 'add'|'update'|'delete', sheetName, id?, row?, expectedUpdatedAt? }]
+// -> { success, results: [{ id, updatedAt }] }  |  { success:false, conflict, conflicts, error }
+export const mutateBatch = (ops) => mutateRow({ action: 'batch', ops });
 
 // Admin: upload foto -> Cloudflare R2 -> { success, url }. Wajib login.
 export const uploadImage = async (file) => {

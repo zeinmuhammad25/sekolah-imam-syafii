@@ -223,3 +223,15 @@ CREATE TABLE IF NOT EXISTS teacher_sessions (
   expires_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON teacher_sessions(user_id);
+
+-- ---------- Penjagaan edit bersamaan (lihat d1/migrations/0002_concurrency.sql) ----------
+
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO meta (key, value) VALUES ('data_version', 1);
+
+CREATE TABLE IF NOT EXISTS cas_guard (
+  v INTEGER NOT NULL
+);
