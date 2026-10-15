@@ -146,3 +146,89 @@ export const moveKKFile = async ({ fotoKkUrl, targetKelas }) => {
     return { success: false, error: String(error) };
   }
 };
+
+// ==================== Ujian Berkala & Portal Orang Tua ====================
+
+// Guru: Ambil daftar sesi ujian berdasarkan kelas
+export const fetchExamSessions = async (grade) => {
+  try {
+    const res = await fetch(`/api/exam?grade=${encodeURIComponent(grade || '')}`, { credentials: 'same-origin' });
+    return await res.json();
+  } catch (err) {
+    console.error('fetchExamSessions error:', err);
+    return { success: false, message: String(err) };
+  }
+};
+
+// Guru: Ambil detail 1 sesi ujian + daftar siswa & nilai
+export const fetchExamSessionDetail = async (sessionId) => {
+  try {
+    const res = await fetch(`/api/exam?sessionId=${encodeURIComponent(sessionId)}`, { credentials: 'same-origin' });
+    return await res.json();
+  } catch (err) {
+    console.error('fetchExamSessionDetail error:', err);
+    return { success: false, message: String(err) };
+  }
+};
+
+// Guru: Simpan sesi ujian + nilai
+export const saveExamSession = async (sessionData, grades) => {
+  try {
+    const res = await fetch('/api/exam', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_session', session: sessionData, grades }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('saveExamSession error:', err);
+    return { success: false, message: String(err) };
+  }
+};
+
+// Guru: Ubah status publikasi
+export const toggleExamPublish = async (sessionId, isPublished) => {
+  try {
+    const res = await fetch('/api/exam', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle_publish', sessionId, isPublished }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('toggleExamPublish error:', err);
+    return { success: false, message: String(err) };
+  }
+};
+
+// Guru: Hapus sesi ujian
+export const deleteExamSession = async (sessionId) => {
+  try {
+    const res = await fetch('/api/exam', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_session', sessionId }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteExamSession error:', err);
+    return { success: false, message: String(err) };
+  }
+};
+
+// Orang Tua: Cari siswa berdasarkan Nama, NIK, NISN, atau ID
+export const lookupParentStudent = async ({ q, studentId }) => {
+  try {
+    const params = new URLSearchParams();
+    if (studentId) params.set('studentId', studentId);
+    if (q) params.set('q', q);
+    const res = await fetch(`/api/parent/lookup?${params.toString()}`);
+    return await res.json();
+  } catch (err) {
+    console.error('lookupParentStudent error:', err);
+    return { success: false, message: String(err) };
+  }
+};

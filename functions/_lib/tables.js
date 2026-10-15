@@ -39,7 +39,7 @@ export const TABLES = {
     table: 'students', orderCol: 'rowid',
     unique: { cols: ['nama_siswa'], message: 'Nama siswa sudah terdaftar (mungkin baru saja ditambahkan guru lain).' },
     fields: [
-      S('id', 'id'), S('nama_siswa', 'nama_siswa'), S('nik_siswa', 'nik_siswa'), S('nisn', 'nisn'),
+      S('id', 'id'), S('nama_siswa', 'nama_siswa'), S('nik_siswa', 'nik_siswa'), S('nisn', 'nisn'), S('nis', 'nis'),
       S('jenis_kelamin', 'jenis_kelamin'), S('tempat_lahir', 'tempat_lahir'), S('tanggal_lahir', 'tanggal_lahir'),
       S('agama', 'agama'), S('anak_ke', 'anak_ke'), S('no_kk', 'no_kk'), S('alamat', 'alamat'),
       S('kelurahan', 'kelurahan'), S('kecamatan', 'kecamatan'), S('kabupaten', 'kabupaten'), S('provinsi', 'provinsi'),

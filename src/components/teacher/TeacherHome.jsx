@@ -8,7 +8,8 @@ import {
   ArrowRight,
   TrendingUp,
   Clock,
-  Sparkles
+  Sparkles,
+  Award
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -53,22 +54,22 @@ export default function TeacherHome() {
       tag: 'Siap Digunakan'
     },
     {
-      title: 'Manajemen Siswa',
-      description: 'Pantau perkembangan nilai dan kehadiran siswa secara real-time (Segera Hadir).',
-      path: '/dashboard-guru',
-      icon: Users,
-      color: 'text-blue-500',
-      bg: 'bg-blue-500/10',
-      tag: 'Segera Hadir'
+      title: 'Nilai Ujian & Portal Ortu',
+      description: 'Input nilai ulangan berkala (PH/PTS/PAS/Tahfidz) per kelas dan terbitkan ke wali murid.',
+      path: '/dashboard-guru/nilai',
+      icon: Award,
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500/10',
+      tag: 'Siap Digunakan'
     },
     {
-      title: 'Laporan Akademik',
-      description: 'Generate rapor dan laporan bulanan dengan satu klik berbasis data sistem.',
-      path: '/dashboard-guru',
+      title: 'Data Siswa & E-Raport',
+      description: 'Data induk siswa dari KK dan penilaian E-Raport Kurikulum Merdeka.',
+      path: '/dashboard-guru/siswa',
       icon: FileText,
-      color: 'text-rose-500',
-      bg: 'bg-rose-500/10',
-      tag: 'Pengembangan'
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
+      tag: 'Siap Digunakan'
     }
   ];
 

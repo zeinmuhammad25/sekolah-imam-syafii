@@ -96,6 +96,8 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
   const kelasLabel = `${KELAS_ROMAWI[kelas] || kelas} (${KELAS_ANGKA_KATA[kelas] || ''})`.replace(' ()', '');
   const semesterLabel = String(period.semester) === '2' ? 'Genap' : 'Ganjil';
   const nisn = String(student.nisn || '').trim();
+  const nis = String(student.nis || '').trim();
+  const nisnNis = [nisn, nis].filter(Boolean).join(' / ') || '-';
   const alamatSiswa = String(student.alamat || '').trim();
   const tahunMulai = String(period.tahunAjaran || '').split('/')[0] || String(new Date().getFullYear());
   const tglIdentitas = tglIndo(period.tanggalIdentitas) || `14 Juli ${tahunMulai}`;
@@ -287,7 +289,7 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
   center(String(student.nama_siswa || '').toUpperCase(), PAGE_W / 2, p(605), 'bold', 16);
   center('NISN / NIS', PAGE_W / 2, p(737), 'bold', 16);
   doc.rect(p(250), p(775), p(838 - 250), p(871 - 775));
-  center(nisn, PAGE_W / 2, p(823), 'bold', 16);
+  center(nisnNis, PAGE_W / 2, p(823), 'bold', 16);
   [SCHOOL.yayasan, `KECAMATAN ${SCHOOL.kecamatan.toUpperCase()}`, `KABUPATEN ${SCHOOL.kabupaten.toUpperCase()}`]
     .forEach((t, i) => center(t, PAGE_W / 2, p(901 + i * 33), 'bold', 16));
 
@@ -327,7 +329,7 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
   };
   row('1.', `Nama ${anak}`, student.nama_siswa);
   y += p(3.6);
-  row('2.', 'NISN / NIS', nisn, { blank: true });
+  row('2.', 'NISN / NIS', nisnNis, { blank: true });
   row('3.', 'Tempat, Tanggal Lahir', ttl);
   row('4.', 'Jenis Kelamin', student.jenis_kelamin);
   row('5.', 'Agama', student.agama || 'Islam');

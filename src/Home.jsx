@@ -11,6 +11,7 @@ const MotionLink = motion(Link)
 
 // Mock Data
 const navigation = [
+  { name: 'Portal Nilai', href: '/portal-ortu' },
   { name: 'Twibbon', href: '/twibbon' },
   { name: 'Profil', href: '#profil' },
   { name: 'Akademik', href: '#akademik' },
@@ -285,6 +286,12 @@ export default function Home() {
                   ? <Link key={item.name} to={item.href} className={cls}>{inner}</Link>
                   : <a key={item.name} href={item.href} className={cls}>{inner}</a>
               })}
+              <Link
+                to="/portal-ortu"
+                className="text-[11px] font-bold text-secondary hover:text-secondary-dark transition-all flex items-center gap-1.5 bg-secondary/10 px-3 py-1.5 rounded-lg border border-secondary/20"
+              >
+                <Award size={13} /> PORTAL ORTU
+              </Link>
               <button
                 onClick={() => setIsTeacherLoginOpen(true)}
                 className="text-[11px] font-semibold text-primary/40 hover:text-primary transition-all flex items-center gap-1.5"
@@ -349,6 +356,7 @@ export default function Home() {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     <span className="font-display text-2xl font-semibold text-primary group-hover:text-secondary transition-colors flex items-center gap-4">
+                      {item.name === 'Portal Nilai' && <Award size={18} className="text-secondary/50" />}
                       {item.name === 'Twibbon' && <Sparkles size={18} className="text-secondary/50" />}
                       {item.name === 'Profil' && <Users size={18} className="text-secondary/50" />}
                       {item.name === 'Akademik' && <GraduationCap size={18} className="text-secondary/50" />}

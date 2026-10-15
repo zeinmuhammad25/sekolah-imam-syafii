@@ -6,9 +6,11 @@ import Home from './Home'; // eager: landing page harus tampil instan
 // TeacherSoal menarik jspdf/jspdf-autotable (~ratusan KB) — wajib on-demand.
 const NewsDetail = lazy(() => import('./NewsDetail'));
 const Twibbon = lazy(() => import('./Twibbon'));
+const ParentPortal = lazy(() => import('./ParentPortal'));
 const TeacherLayout = lazy(() => import('./components/teacher/TeacherLayout'));
 const TeacherHome = lazy(() => import('./components/teacher/TeacherHome'));
 const TeacherSoal = lazy(() => import('./components/teacher/TeacherSoal'));
+const TeacherGrades = lazy(() => import('./components/teacher/TeacherGrades'));
 const AdminSection = lazy(() => import('./components/teacher/AdminSection'));
 const TeacherStudents = lazy(() => import('./components/teacher/TeacherStudents'));
 const TeacherEraport = lazy(() => import('./components/teacher/TeacherEraport'));
@@ -38,6 +40,9 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/berita/:id" element={<NewsDetail />} />
           <Route path="/twibbon" element={<Twibbon />} />
+          <Route path="/portal-ortu" element={<ParentPortal />} />
+          <Route path="/portal-wali" element={<Navigate to="/portal-ortu" replace />} />
+          <Route path="/cek-nilai" element={<Navigate to="/portal-ortu" replace />} />
 
           {/* Guru Panel with Layout */}
           <Route
@@ -56,6 +61,16 @@ export default function App() {
               <ProtectedRoute>
                 <TeacherLayout>
                   <TeacherSoal />
+                </TeacherLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard-guru/nilai"
+            element={
+              <ProtectedRoute>
+                <TeacherLayout>
+                  <TeacherGrades />
                 </TeacherLayout>
               </ProtectedRoute>
             }

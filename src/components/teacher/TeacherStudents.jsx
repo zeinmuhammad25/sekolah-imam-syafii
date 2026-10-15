@@ -103,7 +103,8 @@ const SECTIONS = [
     fields: [
       { name: 'nama_siswa', label: 'Nama Lengkap Siswa', type: 'text', required: true },
       { name: 'nik_siswa', label: 'NIK Siswa', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
-      { name: 'nisn', label: 'NISN', type: 'text', numeric: true, maxLength: 10, placeholder: '10 digit angka (boleh kosong)' },
+      { name: 'nisn', label: 'NISN', type: 'text', numeric: true, maxLength: 10, placeholder: '10 digit angka', companion: 'nis' },
+      { name: 'nis', label: 'Nomor Induk Sekolah (NIS)', type: 'text', numeric: true, placeholder: 'NIS (boleh kosong)', isCompanion: true },
       { name: 'jenis_kelamin', label: 'Jenis Kelamin', type: 'select', required: true, options: ['Laki-laki', 'Perempuan'] },
       { name: 'tempat_lahir', label: 'Tempat Lahir', type: 'text', required: true },
       { name: 'tanggal_lahir', label: 'Tanggal Lahir', type: 'date', required: true },
@@ -713,7 +714,7 @@ export default function TeacherStudents() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari nama, NIK, NISN, No. KK, nama ortu…"
+            placeholder="Cari nama, NIK, NISN, NIS, No. KK, nama ortu…"
             className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 font-bold text-slate-800 outline-none focus:border-secondary transition-all"
           />
         </div>
@@ -756,7 +757,7 @@ export default function TeacherStudents() {
                     {hasPendingEdit && !isDeleted && <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Ada perubahan belum disimpan" />}
                   </p>
                   <p className="text-slate-400 font-bold text-xs truncate">
-                    {[display.kelas, display.no_kk && `KK ${display.no_kk}`].filter(Boolean).join(' • ') || '—'}
+                    {[display.kelas, display.nis && `NIS ${display.nis}`, display.nisn && `NISN ${display.nisn}`, display.no_kk && `KK ${display.no_kk}`].filter(Boolean).join(' • ') || '—'}
                     {isDeleted && <span className="text-rose-500 font-black"> (akan dihapus)</span>}
                   </p>
                 </div>
@@ -867,16 +868,40 @@ export default function TeacherStudents() {
                     </div>
                   )}
                   <div className={`grid sm:grid-cols-2 ${expanded ? 'lg:grid-cols-3' : ''} gap-3`}>
-                    {section.fields.map((f) => (
-                      <div key={f.name}>
-                        <Field
-                          field={f}
-                          value={editing.form[f.name]}
-                          dense
-                          onChange={(v) => setEditing((e) => ({ ...e, form: { ...e.form, [f.name]: v } }))}
-                        />
-                      </div>
-                    ))}
+                    {section.fields.map((f) => {
+                      if (f.isCompanion) return null;
+                      if (f.companion) {
+                        const compField = section.fields.find((x) => x.name === f.companion);
+                        return (
+                          <div key={f.name} className="grid grid-cols-2 gap-2">
+                            <Field
+                              field={f}
+                              value={editing.form[f.name]}
+                              dense
+                              onChange={(v) => setEditing((e) => ({ ...e, form: { ...e.form, [f.name]: v } }))}
+                            />
+                            {compField && (
+                              <Field
+                                field={compField}
+                                value={editing.form[compField.name]}
+                                dense
+                                onChange={(v) => setEditing((e) => ({ ...e, form: { ...e.form, [compField.name]: v } }))}
+                              />
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={f.name}>
+                          <Field
+                            field={f}
+                            value={editing.form[f.name]}
+                            dense
+                            onChange={(v) => setEditing((e) => ({ ...e, form: { ...e.form, [f.name]: v } }))}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -1008,18 +1033,38 @@ export default function TeacherStudents() {
                 <div key={section.title}>
                   <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em] mb-2">{section.title}</h4>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    {section.fields.map((f) => (
-                      <div key={f.name} className="bg-slate-50 rounded-lg p-2.5">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{f.label}</p>
-                        <p className="text-sm font-bold text-slate-800 break-words">
-                          {f.name === 'foto_kk' && previewing.foto_kk ? (
-                            <a href={previewing.foto_kk} target="_blank" rel="noopener noreferrer" className="text-secondary hover:underline">Buka file KK</a>
-                          ) : f.name === 'tanggal_lahir' ? (
-                            formatSheetDateDMY(previewing.tanggal_lahir) || '—'
-                          ) : (previewing[f.name] || '—')}
-                        </p>
-                      </div>
-                    ))}
+                    {section.fields.map((f) => {
+                      if (f.isCompanion) return null;
+                      if (f.companion) {
+                        const compField = section.fields.find((x) => x.name === f.companion);
+                        return (
+                          <div key={f.name} className="grid grid-cols-2 gap-2">
+                            <div className="bg-slate-50 rounded-lg p-2.5">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{f.label}</p>
+                              <p className="text-sm font-bold text-slate-800 break-words">{previewing[f.name] || '—'}</p>
+                            </div>
+                            {compField && (
+                              <div className="bg-slate-50 rounded-lg p-2.5">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{compField.label}</p>
+                                <p className="text-sm font-bold text-slate-800 break-words">{previewing[compField.name] || '—'}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={f.name} className="bg-slate-50 rounded-lg p-2.5">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{f.label}</p>
+                          <p className="text-sm font-bold text-slate-800 break-words">
+                            {f.name === 'foto_kk' && previewing.foto_kk ? (
+                              <a href={previewing.foto_kk} target="_blank" rel="noopener noreferrer" className="text-secondary hover:underline">Buka file KK</a>
+                            ) : f.name === 'tanggal_lahir' ? (
+                              formatSheetDateDMY(previewing.tanggal_lahir) || '—'
+                            ) : (previewing[f.name] || '—')}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

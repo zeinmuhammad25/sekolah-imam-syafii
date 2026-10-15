@@ -11,6 +11,11 @@ Tiga lompatan besar: **panel admin CMS** (kelola Galeri/Pengajar/Warta + upload 
 ## 🆕 v3.3 — Data Siswa Lengkap, E-Raport & Naik Kelas Otomatis
 Data induk siswa (dari KK) sekarang punya **CRUD penuh + import/export Excel + validasi ketat** (NIK/NISN/No. KK, agama terkunci), fitur **naik kelas & pindah 1-klik** yang otomatis memindah foto KK antar folder Drive, **E-Raport relasional** per siswa/semester (nilai mapel/aspek gaya tabel input massal), dan **update data instan** (tidak lagi reload seluruh spreadsheet tiap 1 aksi kecil). Rapor SD & TK bisa **diunduh sebagai PDF** (SD meniru 1:1 format rapor sekolah; TK format sama dengan narasi 3 kelompok aspek perkembangan, Catatan Guru & ketidakhadiran) (cover, data sekolah, identitas, capaian kompetensi, ekstrakurikuler, muatan lokal, tanda tangan, watermark logo).
 
+## 🆕 v3.4 — Penilaian Hasil Ujian Berkala & Portal Khusus Wali Murid
+Menjawab kebutuhan monitoring belajar harian:
+1. **Panel Input Nilai Ujian oleh Guru (`/dashboard-guru/nilai`)**: Guru dapat menginput nilai ulangan harian (PH), PTS, PAS, dan Ujian Muatan Lokal (Tahfidz, Fiqih, Bahasa Arab) per kelas secara massal gaya spreadsheet, lengkap dengan nilai angka (0-100), catatan evaluasi personal untuk anak, serta tombol toggle **Draft / Terbitkan ke Portal Wali Murid**.
+2. **Portal Khusus Wali Murid (`/portal-ortu`)**: Orang tua murid dapat memantau hasil ujian dan rapor ananda langsung dari smartphone tanpa perlu registrasi akun atau mengingat PIN rumit—cukup mengetik **Nama Lengkap, NIK, atau NISN** ananda. Dilengkapi riwayat lokal ("Ananda yang tersimpan di perangkat ini"), ringkasan nilai ujian berkala beserta catatan guru, rekap E-Raport semester, dan tombol unduh rapor resmi (PDF).
+
 ## 🚀 Fitur Unggulan (Updated)
 1.  **Cloudflare Pages Hosting**: Bandwidth tanpa batas.
 2.  **Preview Sosial per-Artikel (v3.2)**: `functions/berita/[id].js` (Cloudflare Pages Function) menyisipkan `og:image` / `og:title` / `og:description` / `canonical` **sesuai berita** saat link `/berita/:id` dibagikan ke WhatsApp/FB — robot preview tak menjalankan JS, jadi tag diisi di sisi server. Data berita di-cache di edge (*stale-while-revalidate*, jendela 60 dtk) agar respons instan & tahan saat Apps Script lambat.
