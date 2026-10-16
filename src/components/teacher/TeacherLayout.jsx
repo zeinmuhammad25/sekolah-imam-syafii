@@ -15,7 +15,8 @@ import {
   Youtube,
   Contact,
   FileBarChart2,
-  Award
+  Award,
+  BookMarked
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -27,10 +28,11 @@ export default function TeacherLayout({ children }) {
 
   const menuItems = [
     { name: 'Dashboard Utama', icon: LayoutDashboard, path: '/dashboard-guru' },
-    { name: 'Dashboard Soal', icon: BookOpen, path: '/dashboard-guru/soal' },
-    { name: 'Nilai Ujian', icon: Award, path: '/dashboard-guru/nilai' },
     { name: 'Data Siswa (KK)', icon: Contact, path: '/dashboard-guru/siswa' },
+    { name: 'Mata Pelajaran', icon: BookMarked, path: '/dashboard-guru/mapel' },
     { name: 'E-Raport', icon: FileBarChart2, path: '/dashboard-guru/eraport' },
+    { name: 'Publikasi Nilai', icon: Award, path: '/dashboard-guru/nilai' },
+    { name: 'Dashboard Soal', icon: BookOpen, path: '/dashboard-guru/soal' },
     { name: 'Galeri Siswa', icon: Image, path: '/dashboard-guru/galeri' },
     { name: 'Tim Pengajar', icon: Users, path: '/dashboard-guru/pengajar' },
     { name: 'Warta Terbaru', icon: Newspaper, path: '/dashboard-guru/warta' },

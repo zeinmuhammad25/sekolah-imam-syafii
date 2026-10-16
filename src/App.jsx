@@ -13,6 +13,7 @@ const TeacherSoal = lazy(() => import('./components/teacher/TeacherSoal'));
 const TeacherGrades = lazy(() => import('./components/teacher/TeacherGrades'));
 const AdminSection = lazy(() => import('./components/teacher/AdminSection'));
 const TeacherStudents = lazy(() => import('./components/teacher/TeacherStudents'));
+const TeacherSubjects = lazy(() => import('./components/teacher/TeacherSubjects'));
 const TeacherEraport = lazy(() => import('./components/teacher/TeacherEraport'));
 const TeacherSettings = lazy(() => import('./components/teacher/TeacherSettings'));
 
@@ -94,6 +95,10 @@ export default function App() {
           <Route
             path="/dashboard-guru/siswa"
             element={<ProtectedRoute><TeacherLayout><TeacherStudents /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/mapel"
+            element={<ProtectedRoute><TeacherLayout><TeacherSubjects /></TeacherLayout></ProtectedRoute>}
           />
           <Route
             path="/dashboard-guru/eraport"

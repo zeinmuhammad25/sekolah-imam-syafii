@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, Loader2, AlertTriangle, FileBarChart2, FileDown } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, ArrowLeft, Loader2, AlertTriangle, FileBarChart2, FileDown, RefreshCw, Sparkles } from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch, formatSheetDate } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Field } from './ModalKit';
 
@@ -106,8 +106,76 @@ const draftRow = (t, item) => {
   const vals = Object.fromEntries(t.fields.map((f) => [f.name, item[f.name] != null ? String(item[f.name]) : '']));
   return { _key: String(item.id), id: item.id, updatedAt: item.updatedAt ?? null, ...vals, _base: vals };
 };
-const draftsFrom = (kelas, periodId, data) =>
-  Object.fromEntries(tablesFor(kelas).map((t) => [t.key, rowsOf(data, t, periodId).map((item) => draftRow(t, item))]));
+
+// Buat template baris default otomatis dari Master Mata Pelajaran (dengan nilai kosong)
+export const templateDraftsFor = (kelas, masterSubjects = []) => {
+  const isTK = kelas === 'TK';
+  if (isTK) {
+    const activeTK = (masterSubjects || [])
+      .filter((s) => s.level === 'TK' && s.isActive !== 0)
+      .sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0));
+
+    const makeAspectRows = (kelompok) =>
+      activeTK
+        .filter((s) => s.kelompok === kelompok)
+        .map((s, idx) => {
+          const vals = { aspek: s.nama, deskripsi: '' };
+          return { _key: `tpl-tk-${kelompok}-${s.id || idx}`, id: null, updatedAt: null, ...vals, _base: null };
+        });
+
+    return {
+      aspekAgama: makeAspectRows('agama'),
+      aspekJatiDiri: makeAspectRows('jatidiri'),
+      aspekLiterasi: makeAspectRows('literasi'),
+    };
+  }
+
+  // Cari mata pelajaran spesifik kelas ini (mis. 'SD 1', 'SD 2'), dengan fallback ke 'SD'
+  const matchingSD = (masterSubjects || [])
+    .filter((s) => (s.level === kelas || s.level === 'SD') && s.isActive !== 0)
+    .sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0));
+
+  const hasSpecific = matchingSD.some((s) => s.level === kelas);
+  const activeSD = hasSpecific ? matchingSD.filter((s) => s.level === kelas) : matchingSD;
+
+  return {
+    umum: activeSD
+      .filter((s) => s.kelompok === 'umum')
+      .map((s, idx) => {
+        const vals = {
+          induk: s.induk || '',
+          mataPelajaran: s.nama,
+          nilaiAngka: '',
+          deskripsiCapaian: '',
+          capaianBimbingan: '',
+        };
+        return { _key: `tpl-${kelas}-umum-${s.id || idx}`, id: null, updatedAt: null, ...vals, _base: null };
+      }),
+    mulok: activeSD
+      .filter((s) => s.kelompok === 'mulok')
+      .map((s, idx) => {
+        const vals = {
+          mataPelajaran: s.nama,
+          nilaiAngka: '',
+        };
+        return { _key: `tpl-${kelas}-mulok-${s.id || idx}`, id: null, updatedAt: null, ...vals, _base: null };
+      }),
+    ekskul: [],
+  };
+};
+
+const draftsFrom = (kelas, periodId, data, masterSubjects = []) => {
+  const tpl = templateDraftsFor(kelas, masterSubjects);
+  return Object.fromEntries(
+    tablesFor(kelas).map((t) => {
+      const saved = rowsOf(data, t, periodId);
+      if (saved.length > 0) {
+        return [t.key, saved.map((item) => draftRow(t, item))];
+      }
+      return [t.key, tpl[t.key] || []];
+    })
+  );
+};
 const touched = (t, r) => !r.id || !r._base || t.fields.some((f) => String(r[f.name] ?? '').trim() !== String(r._base[f.name] ?? '').trim());
 
 // ---------- Nilai: validasi, jumlah, rata-rata, terbilang ----------
@@ -149,6 +217,7 @@ export default function TeacherEraport() {
   const [students, setStudents] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [subData, setSubData] = useState(EMPTY_SUBDATA); // { ReportGrades, ReportAspects, ReportExtras }
+  const [masterSubjects, setMasterSubjects] = useState([]); // Master daftar mapel & aspek
   const [activeGrade, setActiveGrade] = useState('TK');
   const [query, setQuery] = useState('');
 
@@ -175,10 +244,12 @@ export default function TeacherEraport() {
       ReportAspects: (d && d.ReportAspects) || [],
       ReportExtras: (d && d.ReportExtras) || [],
     };
+    const ms = (d && d.MasterSubjects) || [];
     setStudents((d && d.Students) || []);
     setPeriods((d && d.ReportPeriods) || []);
     setSubData(sub);
-    return { sub, periods: (d && d.ReportPeriods) || [] };
+    setMasterSubjects(ms);
+    return { sub, periods: (d && d.ReportPeriods) || [], masterSubjects: ms };
   };
   useEffect(() => { load(); }, []);
 
@@ -217,7 +288,7 @@ export default function TeacherEraport() {
       form[f.name] = v != null ? String(v) : '';
     });
     setActivePeriod({ id: p.id, updatedAt: p.updatedAt, form });
-    setDrafts(draftsFrom(p.kelas, p.id, subData));
+    setDrafts(draftsFrom(p.kelas, p.id, subData, masterSubjects));
     setRemoved({}); setSubEditMode(false);
   };
   const backToPeriodList = () => { setActivePeriod(null); resetSub(); };
@@ -235,8 +306,6 @@ export default function TeacherEraport() {
       : await mutateRow({ action: 'add', sheetName: 'ReportPeriods', row });
     setSaving(false);
     if (res.conflict && res.current) {
-      // Guru lain menyimpan semester ini lebih dulu. Isian di form TIDAK dibuang; versi dirujuk ulang
-      // ke versi terbaru, jadi klik Simpan sekali lagi = sadar memakai isian sendiri.
       setActivePeriod((p) => ({ ...p, updatedAt: res.current.updatedAt }));
       setPeriods((prev) => prev.map((p) => (String(p.id) === String(activePeriod.id) ? { ...p, ...res.current } : p)));
       setError('Data semester ini baru saja diubah guru lain. Isian Anda masih ada di form — klik "Simpan Data Semester" lagi untuk tetap memakai isian Anda, atau kembali ke daftar untuk melihat versi guru lain.');
@@ -257,7 +326,7 @@ export default function TeacherEraport() {
     setDeleting(false);
     if (!res.success) {
       setConfirmingDeletePeriod(null);
-      if (res.conflict) await load(); // tampilkan dulu perubahan guru lain sebelum memutuskan hapus
+      if (res.conflict) await load();
       setError('Gagal menghapus: ' + describeError(res));
       return;
     }
@@ -271,7 +340,7 @@ export default function TeacherEraport() {
   const tables = activePeriod ? tablesFor(activePeriod.form.kelas) : [];
 
   const enterSubEditMode = () => {
-    setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, subData));
+    setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, subData, masterSubjects));
     setRemoved({});
     setCatatanDraft(activePeriod.form.catatanWaliKelas || '');
     setError('');
@@ -285,6 +354,51 @@ export default function TeacherEraport() {
     if (t.key === 'ekskul') blank.predikat = 'A';
     setDrafts((d) => ({ ...d, [t.key]: [...(d[t.key] || []), blank] }));
   };
+
+  // Terapkan / sinkronkan ulang susunan dari Master Mata Pelajaran (mempertahankan nilai yang sudah diketik)
+  const applyMasterTemplate = (tableKey) => {
+    if (!activePeriod) return;
+    const tpl = templateDraftsFor(activePeriod.form.kelas, masterSubjects);
+    const tplRows = tpl[tableKey] || [];
+    if (!tplRows.length) return;
+
+    const currentDraft = drafts[tableKey] || [];
+    const existingMap = new Map();
+    currentDraft.forEach((r) => {
+      const k = (r.mataPelajaran || r.aspek || '').trim().toLowerCase();
+      if (k) existingMap.set(k, r);
+    });
+
+    const merged = tplRows.map((tr) => {
+      const k = (tr.mataPelajaran || tr.aspek || '').trim().toLowerCase();
+      const ex = existingMap.get(k);
+      if (ex) {
+        return {
+          ...tr,
+          id: ex.id,
+          updatedAt: ex.updatedAt,
+          _key: ex._key,
+          nilaiAngka: ex.nilaiAngka != null ? ex.nilaiAngka : '',
+          deskripsiCapaian: ex.deskripsiCapaian != null ? ex.deskripsiCapaian : '',
+          capaianBimbingan: ex.capaianBimbingan != null ? ex.capaianBimbingan : '',
+          deskripsi: ex.deskripsi != null ? ex.deskripsi : '',
+        };
+      }
+      return tr;
+    });
+
+    // Pertahankan juga baris kustom di luar master jika ada
+    currentDraft.forEach((r) => {
+      const k = (r.mataPelajaran || r.aspek || '').trim().toLowerCase();
+      const isFromMaster = tplRows.some((tr) => (tr.mataPelajaran || tr.aspek || '').trim().toLowerCase() === k);
+      if (!isFromMaster && (r.mataPelajaran || r.aspek || '').trim()) {
+        merged.push(r);
+      }
+    });
+
+    setDrafts((prev) => ({ ...prev, [tableKey]: merged }));
+  };
+
   const updateDraftCell = (tk, key, name, value) =>
     setDrafts((d) => ({ ...d, [tk]: (d[tk] || []).map((r) => (r._key === key ? { ...r, [name]: value } : r)) }));
   const removeDraftRow = (tk, key) => {
@@ -293,7 +407,7 @@ export default function TeacherEraport() {
     setDrafts((d) => ({ ...d, [tk]: (d[tk] || []).filter((r) => r._key !== key) }));
   };
   const cancelDraftSub = () => {
-    setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, subData));
+    setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, subData, masterSubjects));
     setRemoved({}); setCatatanDraft(activePeriod.form.catatanWaliKelas || ''); setError(''); setSubEditMode(false);
   };
 
@@ -308,14 +422,11 @@ export default function TeacherEraport() {
       const sc = t.fields.find((f) => f.score);
       if (sc && rows.some((r) => String(r[sc.name] || '').trim() && !isValidScore(r[sc.name]))) { setError(`${t.title}: "${sc.label}" harus angka 0–100`); return; }
     }
-    // Susun SEMUA perubahan jadi satu daftar operasi -> disimpan dalam SATU transaksi di server.
-    // Hanya baris yang benar-benar berubah yang dikirim, jadi editan guru lain di baris yang
-    // tidak Anda sentuh tetap aman (tidak tertimpa salinan lama Anda).
     const ops = [];
-    const plan = []; // sejajar dengan ops: dari mana asal tiap operasi (untuk update state & bentrok)
+    const plan = [];
     for (const t of tables) {
       for (const r of (drafts[t.key] || []).filter((x) => hasContent(t, x))) {
-        if (!touched(t, r)) continue; // tidak diubah guru ini -> tidak dikirim (editan guru lain aman)
+        if (!touched(t, r)) continue;
         let row = { reportPeriodId: activePeriod.id, ...Object.fromEntries(t.fields.map((f) => [f.name, String(r[f.name] ?? '').trim()])) };
         if (t.kelompok) row.kelompok = t.kelompok;
         if (t.finalize) row = t.finalize(row);
@@ -329,7 +440,6 @@ export default function TeacherEraport() {
         ops.push({ action: 'delete', sheetName: t.sheet, id: rm.id, expectedUpdatedAt: rm.updatedAt });
       }
     }
-    // TK: Catatan Guru = kolom catatanWaliKelas di baris semester -> ikut transaksi yang sama.
     const catatanRow = isTK && catatanDraft.trim() !== String(activePeriod.form.catatanWaliKelas || '').trim()
       ? { catatanWaliKelas: catatanDraft.trim() } : null;
     if (catatanRow) {
@@ -345,10 +455,8 @@ export default function TeacherEraport() {
 
     if (!res.success) {
       if (res.conflict && Array.isArray(res.conflicts) && res.conflicts.length) {
-        // TIDAK ADA yang tersimpan. Draf guru dipertahankan; versi baris yang bentrok dirujuk ulang
-        // ke versi terbaru supaya klik Simpan sekali lagi = sadar memakai isian sendiri.
         const labels = [];
-        const rebase = {}; // key draf -> {updatedAt} | {gone:true}
+        const rebase = {};
         const removedRebase = {};
         let periodRebase = null;
         res.conflicts.forEach((c) => {
@@ -370,11 +478,10 @@ export default function TeacherEraport() {
             next[t.key] = (d[t.key] || []).flatMap((r) => {
               const rb = rebase[r._key];
               if (rb) return [rb.gone ? { ...r, id: null, updatedAt: null } : { ...r, updatedAt: rb.updatedAt }];
-              if (touched(t, r)) return [r]; // isian guru ini -> dipertahankan
+              if (touched(t, r)) return [r];
               const cur = freshById[String(r.id)];
-              return cur ? [draftRow(t, cur)] : []; // tidak disentuh -> ikut versi terbaru (atau hilang kalau dihapus)
+              return cur ? [draftRow(t, cur)] : [];
             });
-            // Baris yang baru ditambahkan guru lain -> ikut tampil di draf.
             const known = new Set(next[t.key].filter((r) => r.id).map((r) => String(r.id)));
             (removedNow[t.key] || []).forEach((x) => known.add(String(x.id)));
             freshRows.forEach((cur) => { if (!known.has(String(cur.id))) next[t.key].push(draftRow(t, cur)); });
@@ -393,7 +500,6 @@ export default function TeacherEraport() {
       return;
     }
 
-    // Berhasil semua -> perbarui state lokal dari hasil server (id & versi baru), tanpa muat ulang penuh.
     const local = { ReportGrades: [...subData.ReportGrades], ReportAspects: [...subData.ReportAspects], ReportExtras: [...subData.ReportExtras] };
     plan.forEach((p, i) => {
       const out = res.results[i];
@@ -411,9 +517,9 @@ export default function TeacherEraport() {
     });
     setSubData(local);
     setRemoved({});
-    setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, local));
+    setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, local, masterSubjects));
     setSubEditMode(false);
-    load(); // di latar belakang: ikut tampilkan perubahan guru lain di baris yang tidak Anda sentuh
+    load();
   };
 
   const renderEditCell = (t, row, f) => {
@@ -426,7 +532,8 @@ export default function TeacherEraport() {
         </select>
       );
     }
-    return <input {...common} placeholder={f.placeholder} inputMode={f.score ? 'decimal' : undefined} className={`${cellBase} ${f.w || ''}`} />;
+    const listAttr = f.name === 'mataPelajaran' ? 'eraport-subjects-list' : undefined;
+    return <input {...common} list={listAttr} placeholder={f.placeholder} inputMode={f.score ? 'decimal' : undefined} className={`${cellBase} ${f.w || ''}`} />;
   };
 
   // Unduh rapor PDF (format sama dengan rapor sekolah) — memakai data TERSIMPAN, bukan isian form yang belum disimpan.
@@ -572,9 +679,23 @@ export default function TeacherEraport() {
             ) : (
               <>
                 <div className="px-6 md:px-8 py-5 space-y-5">
-                  <button onClick={backToPeriodList} className="inline-flex items-center gap-2 text-xs font-black text-slate-400 hover:text-slate-700 transition-colors">
-                    <ArrowLeft size={14} /> Kembali ke Daftar Semester
-                  </button>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <button onClick={backToPeriodList} className="inline-flex items-center gap-2 text-xs font-black text-slate-400 hover:text-slate-700 transition-colors">
+                      <ArrowLeft size={14} /> Kembali ke Daftar Semester
+                    </button>
+
+                    {activePeriod.id && (
+                      <button
+                        onClick={() => exportRaporPdf(activePeriod.id)}
+                        disabled={exportingId === activePeriod.id}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition-all border border-emerald-200 shadow-sm active:scale-95 disabled:opacity-50"
+                        title="Unduh / Cetak Dokumen Rapor PDF Lengkap"
+                      >
+                        {exportingId === activePeriod.id ? <Loader2 className="animate-spin" size={14} /> : <FileDown size={14} />}
+                        Unduh Rapor (PDF)
+                      </button>
+                    )}
+                  </div>
 
                   {/* Profil ringkas sesuai kepala rapor: Kelas, Fase, Semester, Tahun Pelajaran */}
                   {!isTK && (
@@ -615,12 +736,31 @@ export default function TeacherEraport() {
                         const draft = drafts[t.key] || [];
                         return (
                           <div key={t.key}>
-                            {t.key === 'aspekAgama' && <h3 className="text-sm font-black text-slate-800 mb-3">Aspek Perkembangan</h3>}
-                            <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em] mb-3">{t.title}</h4>
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                              <div>
+                                {t.key === 'aspekAgama' && <h3 className="text-sm font-black text-slate-800 mb-1">Aspek Perkembangan</h3>}
+                                <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em]">{t.title}</h4>
+                              </div>
+                              {subEditMode && (t.key === 'umum' || t.key === 'mulok' || t.key.startsWith('aspek')) && (
+                                <button
+                                  type="button"
+                                  onClick={() => applyMasterTemplate(t.key)}
+                                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-secondary transition-colors"
+                                  title={`Muat ulang susunan ${t.title} dari Master Mata Pelajaran ${activePeriod.form.kelas}`}
+                                >
+                                  <RefreshCw size={12} /> Muat Standar {activePeriod.form.kelas}
+                                </button>
+                              )}
+                            </div>
 
                             {!subEditMode ? (
                               saved.length === 0 ? (
-                                <div className="text-center py-5 text-slate-400 font-bold text-sm bg-slate-50 rounded-xl">Belum ada data.</div>
+                                <div className="text-center py-6 px-4 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                                  <p className="font-bold text-slate-600 text-xs">Belum ada nilai tersimpan untuk {t.title.toLowerCase()}.</p>
+                                  <p className="text-[11px] text-slate-400 mt-1">
+                                    Klik tombol <b>Edit Nilai</b> di bawah — susunan mata pelajaran {activePeriod.form.kelas} otomatis terisi dan siap diberi nilai.
+                                  </p>
+                                </div>
                               ) : (
                                 <>
                                   <div className="overflow-x-auto -mx-1 px-1">
@@ -736,6 +876,13 @@ export default function TeacherEraport() {
                   )}
 
                   {error && <div className="flex items-center gap-2 text-rose-500 font-bold text-sm bg-rose-50 rounded-xl p-3"><AlertTriangle size={16} /> {error}</div>}
+                  <datalist id="eraport-subjects-list">
+                    {masterSubjects
+                      .filter((s) => (activePeriod ? s.level === activePeriod.form.kelas || s.level === 'SD' : true) && s.isActive !== 0)
+                      .map((s) => (
+                        <option key={s.id || s.nama} value={s.nama} />
+                      ))}
+                  </datalist>
                 </div>
                 <ModalFooter>
                   <div className="flex gap-3">

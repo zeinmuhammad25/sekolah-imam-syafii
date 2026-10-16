@@ -265,3 +265,34 @@ CREATE TABLE IF NOT EXISTS exam_grades (
 );
 CREATE INDEX IF NOT EXISTS idx_exam_grades_session ON exam_grades(session_id);
 CREATE INDEX IF NOT EXISTS idx_exam_grades_student ON exam_grades(student_id);
+
+-- ---------- Master Data Mata Pelajaran & Aspek Perkembangan (TK & SD) ----------
+
+CREATE TABLE IF NOT EXISTS master_subjects (
+  id          TEXT PRIMARY KEY,
+  level       TEXT NOT NULL,        -- 'SD 1'..'SD 6' | 'TK'
+  kelompok    TEXT NOT NULL,        -- SD: 'umum' | 'mulok'; TK: 'agama' | 'jatidiri' | 'literasi'
+  nama        TEXT NOT NULL,        -- Nama mata pelajaran / aspek
+  induk       TEXT,                 -- Induk (misal: 'Seni (Pilihan)')
+  urutan      INTEGER DEFAULT 0,    -- Urutan tampil
+  is_active   INTEGER DEFAULT 1,    -- 1 = aktif
+  updated_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_master_subjects_level ON master_subjects(level);
+CREATE INDEX IF NOT EXISTS idx_master_subjects_kelompok ON master_subjects(kelompok);
+
+-- ---------- Kontrol Publikasi Rapor per Kelas untuk Portal Wali Murid ----------
+
+CREATE TABLE IF NOT EXISTS grade_publications (
+  id             TEXT PRIMARY KEY,  -- mis. 'pub-SD 1-20252026-1'
+  grade          TEXT NOT NULL,     -- 'SD 1'..'SD 6' atau 'TK'
+  academic_year  TEXT NOT NULL,     -- '2025/2026'
+  semester       TEXT NOT NULL,     -- '1' | '2'
+  is_published   INTEGER DEFAULT 0, -- 1 = Terbit ke Ortu, 0 = Draft
+  published_at   INTEGER,
+  published_by   TEXT,
+  notes          TEXT,              -- Catatan/pesan pengumuman untuk wali murid
+  updated_at     INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grade_pub_unique ON grade_publications(grade, academic_year, semester);
+CREATE INDEX IF NOT EXISTS idx_grade_pub_status ON grade_publications(grade, is_published);

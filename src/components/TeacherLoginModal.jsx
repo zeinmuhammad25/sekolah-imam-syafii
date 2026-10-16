@@ -27,6 +27,17 @@ export default function TeacherLoginModal({ isOpen, onClose }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
+
+      // Jika di dev mode lokal (mis. npm run dev biasa tanpa wrangler backend), loloskan admin123
+      if (import.meta.env.DEV && (!res.ok || res.status === 404)) {
+        if (password === 'admin123' || password === 'admin') {
+          sessionStorage.setItem('isTeacherAuthenticated', 'true');
+          onClose();
+          navigate('/dashboard-guru');
+          return;
+        }
+      }
+
       const data = await res.json();
       if (data.success) {
         // Cookie sesi (HttpOnly) yang benar-benar menjaga akses -- flag ini cuma dipakai
@@ -38,6 +49,12 @@ export default function TeacherLoginModal({ isOpen, onClose }) {
         setError(data.error || 'Username atau kata sandi salah');
       }
     } catch (err) {
+      if (import.meta.env.DEV && (password === 'admin123' || password === 'admin')) {
+        sessionStorage.setItem('isTeacherAuthenticated', 'true');
+        onClose();
+        navigate('/dashboard-guru');
+        return;
+      }
       setError('Gagal terhubung ke server. Coba lagi.');
     } finally {
       setLoading(false);

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Search, ArrowLeft, Award, FileText, Calendar, User, BookOpen,
   Download, Loader2, AlertCircle, CheckCircle2, ChevronRight, MessageSquare,
-  HelpCircle, RefreshCw, X, Sparkles
+  HelpCircle, RefreshCw, X, Sparkles, Lock
 } from 'lucide-react';
 import { lookupParentStudent } from './services/gsheet';
 
@@ -36,8 +36,8 @@ export default function ParentPortal() {
   const [multipleMatches, setMultipleMatches] = useState([]);
   const [showMatchPicker, setShowMatchPicker] = useState(false);
 
-  // Tabs: 'exams' | 'raport'
-  const [activeTab, setActiveTab] = useState('exams');
+  // Tabs: 'raport' | 'exams'
+  const [activeTab, setActiveTab] = useState('raport');
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('ALL');
   const [downloadingPdf, setDownloadingPdf] = useState(null);
 
@@ -395,20 +395,8 @@ export default function ParentPortal() {
               </button>
             </div>
 
-            {/* Navigasi Tab: Nilai Ujian vs E-Raport */}
+            {/* Navigasi Tab */}
             <div className="flex items-center gap-3 border-b border-primary/10 pb-1">
-              <button
-                onClick={() => setActiveTab('exams')}
-                className={`pb-3 px-3 text-xs md:text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
-                  activeTab === 'exams'
-                    ? 'border-secondary text-primary font-bold'
-                    : 'border-transparent text-primary/50 hover:text-primary'
-                }`}
-              >
-                <Award size={16} className={activeTab === 'exams' ? 'text-secondary' : ''} />
-                Nilai Ujian Berkala ({exams.length})
-              </button>
-
               <button
                 onClick={() => setActiveTab('raport')}
                 className={`pb-3 px-3 text-xs md:text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
@@ -418,8 +406,22 @@ export default function ParentPortal() {
                 }`}
               >
                 <FileText size={16} className={activeTab === 'raport' ? 'text-secondary' : ''} />
-                E-Raport Semester ({reportPeriods.length})
+                Rapor & Hasil Belajar Resmi ({reportPeriods.length})
               </button>
+
+              {exams.length > 0 && (
+                <button
+                  onClick={() => setActiveTab('exams')}
+                  className={`pb-3 px-3 text-xs md:text-sm font-bold flex items-center gap-2 border-b-2 transition-all ${
+                    activeTab === 'exams'
+                      ? 'border-secondary text-primary font-bold'
+                      : 'border-transparent text-primary/50 hover:text-primary'
+                  }`}
+                >
+                  <Award size={16} className={activeTab === 'exams' ? 'text-secondary' : ''} />
+                  Nilai Ujian Tambahan ({exams.length})
+                </button>
+              )}
             </div>
 
             {/* TAB 1: NILAI UJIAN BERKALA */}
@@ -543,24 +545,97 @@ export default function ParentPortal() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {reportPeriods.map((p) => {
                       const semGrades = reportGrades.filter(
                         (g) => String(g.reportPeriodId || g.report_period_id) === String(p.id)
                       );
+                      const semAspects = reportAspects.filter(
+                        (a) => String(a.reportPeriodId || a.report_period_id) === String(p.id)
+                      );
+                      const semExtras = reportExtras.filter(
+                        (x) => String(x.reportPeriodId || x.report_period_id) === String(p.id)
+                      );
                       const isDownloading = downloadingPdf === p.id;
+                      const isTk = String(p.kelas || student?.kelas || '').toUpperCase().includes('TK');
+
+                      // Belum Diterbitkan (Draft / Masih diverifikasi)
+                      if (!p.isPublished) {
+                        return (
+                          <div
+                            key={p.id}
+                            className="bg-amber-50/70 rounded-2xl border border-amber-200/80 p-6 shadow-sm space-y-4"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/60 pb-3">
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h3 className="font-display font-semibold text-lg text-primary">
+                                    Rapor Kelas {p.kelas} — Semester {p.semester === '1' ? 'Ganjil' : 'Genap'}
+                                  </h3>
+                                  <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-amber-300">
+                                    <Lock size={12} /> Menunggu Publikasi Resmi
+                                  </span>
+                                </div>
+                                <span className="text-xs text-primary/60">
+                                  Tahun Ajaran {p.tahunAjaran || p.tahun_ajaran}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="bg-white/80 rounded-xl p-4 border border-amber-100 text-xs text-ink/80 space-y-2">
+                              <div className="flex items-start gap-2.5">
+                                <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-semibold text-primary">Nilai Rapor Sedang Dalam Proses Finalisasi</p>
+                                  <p className="text-primary/70 mt-1 leading-relaxed">
+                                    Dewan guru dan wali kelas sedang menyelesaikan verifikasi nilai capaian kompetensi ananda untuk kelas {p.kelas}.
+                                    Nilai rapor resmi beserta dokumen PDF lengkap akan dapat diakses dan diunduh di portal ini segera setelah diposting secara resmi oleh wali kelas.
+                                  </p>
+                                </div>
+                              </div>
+                              {p.publicationNotes && (
+                                <div className="mt-3 pt-3 border-t border-amber-100 flex items-start gap-2 text-xs text-amber-900 bg-amber-50/60 p-2.5 rounded-lg">
+                                  <MessageSquare size={13} className="text-amber-700 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <span className="font-semibold block text-[11px] text-amber-800">Catatan Wali Kelas:</span>
+                                    <span className="italic leading-relaxed">{p.publicationNotes}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // SUDAH DITERBITKAN
+                      const umumGrades = semGrades.filter((g) => !g.kelompok || g.kelompok === 'umum');
+                      const mulokGrades = semGrades.filter((g) => g.kelompok === 'mulok');
 
                       return (
                         <div
                           key={p.id}
-                          className="bg-white rounded-2xl border border-primary/10 p-6 shadow-sm space-y-4"
+                          className="bg-white rounded-2xl border border-primary/10 p-6 shadow-sm space-y-5"
                         >
+                          {/* Header Rapor & Action */}
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-primary/5 pb-3">
                             <div>
-                              <h3 className="font-display font-semibold text-lg text-primary">
-                                Rapor Kelas {p.kelas} — Semester {p.semester === '1' ? 'Ganjil' : 'Genap'}
-                              </h3>
-                              <span className="text-xs text-primary/60">Tahun Ajaran {p.tahunAjaran || p.tahun_ajaran}</span>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-display font-semibold text-lg text-primary">
+                                  Rapor Kelas {p.kelas} — Semester {p.semester === '1' ? 'Ganjil' : 'Genap'}
+                                </h3>
+                                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                  <CheckCircle2 size={12} /> Resmi Diterbitkan
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-primary/60 mt-0.5">
+                                <span>Tahun Ajaran {p.tahunAjaran || p.tahun_ajaran}</span>
+                                {p.publishedAt && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Diterbitkan: {new Date(p.publishedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
 
                             <button
@@ -576,6 +651,17 @@ export default function ParentPortal() {
                               Unduh Rapor Lengkap (PDF)
                             </button>
                           </div>
+
+                          {/* Catatan / Pesan Pengumuman Wali Kelas */}
+                          {p.publicationNotes && (
+                            <div className="bg-primary/[0.03] border border-primary/10 rounded-xl p-3 text-xs text-primary/80 flex items-start gap-2.5">
+                              <MessageSquare size={14} className="text-secondary flex-shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-semibold text-primary block text-[11px]">Pesan / Pengumuman Wali Kelas:</span>
+                                <span className="italic leading-relaxed">{p.publicationNotes}</span>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Rekap Kehadiran */}
                           <div className="grid grid-cols-3 gap-2 bg-primary/[0.02] p-3 rounded-xl border border-primary/5 text-center text-xs">
@@ -593,32 +679,116 @@ export default function ParentPortal() {
                             </div>
                           </div>
 
-                          {/* Ringkasan Nilai Mapel */}
-                          {semGrades.length > 0 && (
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs">
-                                <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
-                                  <tr>
-                                    <th className="py-2.5 px-3">Mata Pelajaran</th>
-                                    <th className="py-2.5 px-3 text-center w-24">Nilai Akhir</th>
-                                    <th className="py-2.5 px-3">Capaian Kompetensi</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-primary/5">
-                                  {semGrades.slice(0, 6).map((g) => (
-                                    <tr key={g.id}>
-                                      <td className="py-2.5 px-3 font-semibold text-primary">{g.mataPelajaran || g.mata_pelajaran}</td>
-                                      <td className="py-2.5 px-3 text-center font-bold text-secondary">{g.nilaiAngka || g.nilai_angka || '-'}</td>
-                                      <td className="py-2.5 px-3 text-primary/70 text-[11px] line-clamp-2">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                          {/* KONTEN TK: Aspek Perkembangan */}
+                          {isTk && semAspects.length > 0 && (
+                            <div className="space-y-3">
+                              <h4 className="font-semibold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                <Sparkles size={13} className="text-secondary" />
+                                Aspek Perkembangan Ananda (Kurikulum Merdeka TK)
+                              </h4>
+                              <div className="grid grid-cols-1 gap-2.5">
+                                {semAspects.map((a, idx) => (
+                                  <div key={a.id || idx} className="bg-primary/[0.02] border border-primary/10 rounded-xl p-3.5 space-y-1">
+                                    <div className="font-semibold text-xs text-primary flex items-center justify-between">
+                                      <span>{a.aspek || 'Aspek Perkembangan'}</span>
+                                      <span className="text-[10px] uppercase font-bold text-secondary bg-secondary/10 px-2 py-0.5 rounded">
+                                        {a.kelompok || 'Perkembangan'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-primary/80 leading-relaxed">
+                                      {a.deskripsi || '-'}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* KONTEN SD: Muatan Umum */}
+                          {!isTk && umumGrades.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                <BookOpen size={13} className="text-secondary" />
+                                A. Muatan Pelajaran Umum
+                              </h4>
+                              <div className="overflow-x-auto border border-primary/5 rounded-xl">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
+                                    <tr>
+                                      <th className="py-2.5 px-3">Mata Pelajaran</th>
+                                      <th className="py-2.5 px-3 text-center w-24">Nilai Akhir</th>
+                                      <th className="py-2.5 px-3">Capaian Kompetensi</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                              {semGrades.length > 6 && (
-                                <p className="text-[11px] text-primary/50 text-center pt-2 italic">
-                                  *Klik "Unduh Rapor Lengkap (PDF)" di atas untuk melihat seluruh mata pelajaran, muatan lokal, dan ekstrakurikuler.
-                                </p>
-                              )}
+                                  </thead>
+                                  <tbody className="divide-y divide-primary/5 bg-white">
+                                    {umumGrades.map((g) => (
+                                      <tr key={g.id} className="hover:bg-primary/[0.01]">
+                                        <td className="py-2.5 px-3 font-semibold text-primary">{g.mataPelajaran || g.mata_pelajaran}</td>
+                                        <td className="py-2.5 px-3 text-center font-bold text-secondary">{g.nilaiAngka || g.nilai_angka || '-'}</td>
+                                        <td className="py-2.5 px-3 text-primary/70 text-[11px] leading-relaxed">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* KONTEN SD: Muatan Lokal Diniyyah */}
+                          {!isTk && mulokGrades.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                <Award size={13} className="text-secondary" />
+                                B. Muatan Lokal Diniyyah / Ciri Khusus
+                              </h4>
+                              <div className="overflow-x-auto border border-primary/5 rounded-xl">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
+                                    <tr>
+                                      <th className="py-2.5 px-3">Mata Pelajaran Diniyyah</th>
+                                      <th className="py-2.5 px-3 text-center w-24">Nilai Akhir</th>
+                                      <th className="py-2.5 px-3">Capaian Kompetensi</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-primary/5 bg-white">
+                                    {mulokGrades.map((g) => (
+                                      <tr key={g.id} className="hover:bg-primary/[0.01]">
+                                        <td className="py-2.5 px-3 font-semibold text-primary">{g.mataPelajaran || g.mata_pelajaran}</td>
+                                        <td className="py-2.5 px-3 text-center font-bold text-secondary">{g.nilaiAngka || g.nilai_angka || '-'}</td>
+                                        <td className="py-2.5 px-3 text-primary/70 text-[11px] leading-relaxed">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Ekstrakurikuler jika ada */}
+                          {semExtras.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-xs text-primary uppercase tracking-wider">
+                                Ekstrakurikuler
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                {semExtras.map((x, idx) => (
+                                  <div key={x.id || idx} className="bg-primary/[0.02] border border-primary/10 rounded-xl p-2.5">
+                                    <div className="flex justify-between font-semibold text-primary text-[11px]">
+                                      <span>{x.nama}</span>
+                                      <span className="text-secondary font-bold">{x.predikat}</span>
+                                    </div>
+                                    {x.keterangan && <p className="text-[10px] text-primary/60 mt-0.5">{x.keterangan}</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Catatan Wali Kelas */}
+                          {(p.catatanWaliKelas || p.catatan_wali_kelas) && (
+                            <div className="bg-ivory/60 border border-primary/10 rounded-xl p-3 text-xs text-primary/80">
+                              <span className="font-semibold text-primary block text-[11px] mb-1">Catatan Wali Kelas:</span>
+                              <p className="italic leading-relaxed">"{p.catatanWaliKelas || p.catatan_wali_kelas}"</p>
                             </div>
                           )}
                         </div>

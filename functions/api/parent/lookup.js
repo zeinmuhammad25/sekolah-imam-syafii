@@ -31,26 +31,57 @@ async function getStudentFullData(db, studentId) {
     ORDER BY es.exam_date DESC, es.created_at DESC
   `).bind(studentId).all();
 
-  // 3. E-Raport Semester (ReportPeriods)
+  // 3. Status Publikasi Rapor per Kelas (grade_publications)
+  // Ambil publikasi seluruh kelas & tahun ajaran agar riwayat kelas sebelumnya (misal saat masih di SD 1) tetap cocok
+  const pubsRes = await db.prepare(`
+    SELECT grade, academic_year, semester, is_published, published_at, published_by, notes
+    FROM grade_publications
+  `).all();
+  const publications = pubsRes.results || [];
+  const pubMap = new Map();
+  publications.forEach((pub) => {
+    const key = `${String(pub.grade).trim()}|${String(pub.academic_year).replace(/\s+/g, '')}|${String(pub.semester).trim()}`;
+    pubMap.set(key, pub);
+  });
+
+  // 4. E-Raport Semester (ReportPeriods)
   const periods = await db.prepare(`
     SELECT * FROM report_periods 
     WHERE student_id = ?
     ORDER BY tahun_ajaran DESC, semester DESC
   `).bind(studentId).all();
 
-  const periodList = periods.results || [];
+  const allPeriods = periods.results || [];
+  // Pasangkan status publikasi pada setiap periode
+  const periodList = allPeriods.map((p) => {
+    const pGrade = String(p.kelas || student.kelas || '').trim();
+    const pYear = String(p.tahun_ajaran || p.tahunAjaran || '').replace(/\s+/g, '');
+    const pSem = String(p.semester || '').trim();
+    const key = `${pGrade}|${pYear}|${pSem}`;
+    const pub = pubMap.get(key);
+    const isPub = pub ? Number(pub.is_published) === 1 : false;
+    return {
+      ...p,
+      isPublished: isPub,
+      publicationNotes: pub ? pub.notes : '',
+      publishedAt: pub ? pub.published_at : null,
+      publishedBy: pub ? pub.published_by : '',
+    };
+  });
+
+  // Hanya ambil nilai untuk periode yang SUDAH DITERBITKAN
+  const publishedPeriodIds = periodList.filter((p) => p.isPublished).map((p) => p.id);
   let reportGrades = [];
   let reportAspects = [];
   let reportExtras = [];
 
-  if (periodList.length > 0) {
-    const periodIds = periodList.map((p) => p.id);
-    const placeholders = periodIds.map(() => '?').join(',');
+  if (publishedPeriodIds.length > 0) {
+    const placeholders = publishedPeriodIds.map(() => '?').join(',');
 
     const [gradesRes, aspectsRes, extrasRes] = await db.batch([
-      db.prepare(`SELECT * FROM report_grades WHERE report_period_id IN (${placeholders}) ORDER BY rowid ASC`).bind(...periodIds),
-      db.prepare(`SELECT * FROM report_aspects WHERE report_period_id IN (${placeholders}) ORDER BY rowid ASC`).bind(...periodIds),
-      db.prepare(`SELECT * FROM report_extras WHERE report_period_id IN (${placeholders}) ORDER BY rowid ASC`).bind(...periodIds),
+      db.prepare(`SELECT * FROM report_grades WHERE report_period_id IN (${placeholders}) ORDER BY rowid ASC`).bind(...publishedPeriodIds),
+      db.prepare(`SELECT * FROM report_aspects WHERE report_period_id IN (${placeholders}) ORDER BY rowid ASC`).bind(...publishedPeriodIds),
+      db.prepare(`SELECT * FROM report_extras WHERE report_period_id IN (${placeholders}) ORDER BY rowid ASC`).bind(...publishedPeriodIds),
     ]);
 
     reportGrades = gradesRes.results || [];
@@ -61,6 +92,7 @@ async function getStudentFullData(db, studentId) {
   return {
     student,
     exams: exams.results || [],
+    publications,
     reportPeriods: periodList,
     reportGrades,
     reportAspects,

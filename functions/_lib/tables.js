@@ -91,6 +91,23 @@ export const TABLES = {
     table: 'report_extras', orderCol: 'rowid',
     fields: [S('id', 'id'), S('reportPeriodId', 'report_period_id'), S('nama', 'nama'), S('predikat', 'predikat'), S('keterangan', 'keterangan'), S('updatedAt', 'updated_at')],
   },
+  MasterSubjects: {
+    table: 'master_subjects', orderCol: 'urutan',
+    fields: [
+      S('id', 'id'), S('level', 'level'), S('kelompok', 'kelompok'),
+      S('nama', 'nama'), S('induk', 'induk'), S('urutan', 'urutan'),
+      S('isActive', 'is_active'), S('updatedAt', 'updated_at')
+    ],
+  },
+  GradePublications: {
+    table: 'grade_publications', orderCol: 'grade',
+    fields: [
+      S('id', 'id'), S('grade', 'grade'), S('academicYear', 'academic_year'),
+      S('semester', 'semester'), S('isPublished', 'is_published'),
+      S('publishedAt', 'published_at'), S('publishedBy', 'published_by'),
+      S('notes', 'notes'), S('updatedAt', 'updated_at')
+    ],
+  },
 };
 
 // Tabel yang cuma dibaca (tidak lewat generic ROW CRUD) — sama seperti di Code.gs,
