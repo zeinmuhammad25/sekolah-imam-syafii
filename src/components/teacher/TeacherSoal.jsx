@@ -969,12 +969,12 @@ export default function TeacherSoal() {
         </div>
 
         {/* Tab Jenjang Kelas */}
-        <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar">
+        <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar w-full sm:w-auto max-w-full">
           {GRADES.map(grade => (
             <button
               key={grade}
               onClick={() => { setActiveGrade(grade); setSearchTerm(''); }}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
+              className={`px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
                 activeGrade === grade ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -986,7 +986,7 @@ export default function TeacherSoal() {
 
       {/* Seksi Tab Mata Pelajaran (Otomatis dari MasterSubjects) */}
       <section>
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 px-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 px-1">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <BookOpen size={14} className="text-secondary" /> Mata Pelajaran — Kelas {activeGrade}
@@ -999,7 +999,7 @@ export default function TeacherSoal() {
           {/* Tombol Export Multi-Soal di Header Kelas */}
           <button
             onClick={handleOpenMultiExportModal}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 text-xs font-black transition-all shadow-sm active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 text-xs font-black transition-all shadow-sm active:scale-95"
             title="Export Lembar Soal / Kunci beberapa mata pelajaran sekaligus"
           >
             <Layers size={15} />
@@ -1041,15 +1041,15 @@ export default function TeacherSoal() {
       </section>
 
       {/* Seksi Bank Soal Aktif */}
-      <main className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+      <main className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-sm border border-slate-100">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 sm:pb-6 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-secondary uppercase tracking-wider mb-1">
               <span>Kelas {activeGrade}</span>
               <span>•</span>
               <span>{activeSubjectObj?.nama}</span>
             </div>
-            <h3 className="text-xl md:text-2xl font-black text-slate-900">
+            <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 leading-tight">
               Bank Soal: {activeSubjectObj?.nama || 'Pilih Mata Pelajaran'}
             </h3>
             <p className="text-slate-400 text-xs font-medium mt-0.5">
@@ -1057,17 +1057,17 @@ export default function TeacherSoal() {
             </p>
           </div>
 
-          {/* Action Bar */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* Action Bar — Tertata responsif di mobile */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {/* Input Cari */}
-            <div className="relative">
+            <div className="relative w-full sm:w-auto flex-grow sm:flex-grow-0">
               <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Cari kata kunci soal…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all w-48 sm:w-56"
+                className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all w-full sm:w-48 md:w-56"
               />
             </div>
 
@@ -1075,14 +1075,14 @@ export default function TeacherSoal() {
             {currentQuestions.length > 1 && (
               <button
                 onClick={reorderMode ? saveOrder : enterReorderMode}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all flex-1 sm:flex-initial ${
                   reorderMode
                     ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
                 <ArrowUpDown size={14} />
-                {reorderMode ? 'Simpan Urutan' : 'Atur Urutan'}
+                <span>{reorderMode ? 'Simpan' : 'Urutan'}</span>
               </button>
             )}
 
@@ -1090,26 +1090,26 @@ export default function TeacherSoal() {
             <button
               onClick={() => setIsPrintModalOpen(true)}
               disabled={!currentQuestions.length}
-              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+              className="px-3.5 sm:px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 flex-1 sm:flex-initial"
             >
-              <FileDown size={15} /> Cetak PDF
+              <FileDown size={15} /> <span className="whitespace-nowrap">Cetak PDF</span>
             </button>
 
             {/* Tombol Export Multi-Soal */}
             <button
               onClick={handleOpenMultiExportModal}
-              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 flex-1 sm:flex-initial"
               title="Export banyak mapel sekaligus"
             >
-              <Layers size={14} className="text-secondary" /> Multi-Export
+              <Layers size={14} className="text-secondary" /> <span className="whitespace-nowrap">Multi-Export</span>
             </button>
 
             {/* Tombol Buat Soal Baru */}
             <button
               onClick={handleOpenNewQuestion}
-              className="px-4 py-2 rounded-xl bg-secondary hover:brightness-95 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-secondary/20 transition-all active:scale-95"
+              className="px-4 py-2 rounded-xl bg-secondary hover:brightness-95 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md shadow-secondary/20 transition-all active:scale-95 w-full sm:w-auto"
             >
-              <Plus size={16} /> Tambah Soal
+              <Plus size={16} /> <span>Tambah Soal</span>
             </button>
           </div>
         </div>
@@ -1406,14 +1406,14 @@ export default function TeacherSoal() {
         {isPrintModalOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="bg-white w-full max-w-md rounded-3xl p-6 md:p-8 shadow-2xl relative space-y-5"
+              className="bg-white w-full max-w-md rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl relative space-y-4 sm:space-y-5"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="font-black text-lg text-slate-900">Pilih Dokumen PDF</h3>
+                <h3 className="font-black text-base sm:text-lg text-slate-900">Pilih Dokumen PDF</h3>
                 <button onClick={() => setIsPrintModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-700">
                   <X size={18} />
                 </button>
@@ -1423,45 +1423,45 @@ export default function TeacherSoal() {
                 Pilih format dokumen PDF yang ingin diunduh untuk <b>{activeSubjectObj?.nama}</b> ({activeGrade}):
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-2.5 sm:space-y-3">
                 <button
                   onClick={() => generateExamPdf('STUDENT')}
-                  className="w-full p-4 rounded-2xl border border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all flex items-center justify-between text-left group"
+                  className="w-full p-3.5 sm:p-4 rounded-2xl border border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all flex items-center justify-between text-left group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
                       <FileDown size={20} />
                     </div>
                     <div>
-                      <h4 className="font-black text-sm text-slate-900 group-hover:text-secondary">
+                      <h4 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-secondary">
                         1. Lembar Soal Siswa
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[10px] sm:text-[11px] text-slate-500">
                         Lengkap dengan kop resmi, kotak nilai & nama murid
                       </p>
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-slate-400 group-hover:text-secondary" />
+                  <ChevronRight size={16} className="text-slate-400 group-hover:text-secondary shrink-0" />
                 </button>
 
                 <button
                   onClick={() => generateExamPdf('ANSWER_KEY')}
-                  className="w-full p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all flex items-center justify-between text-left group"
+                  className="w-full p-3.5 sm:p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all flex items-center justify-between text-left group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                       <FileCheck size={20} />
                     </div>
                     <div>
-                      <h4 className="font-black text-sm text-slate-900 group-hover:text-emerald-700">
+                      <h4 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700">
                         2. Lembar Kunci Jawaban (Pegangan Guru)
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-[10px] sm:text-[11px] text-slate-500">
                         Tabel rekap kunci pilihan ganda untuk koreksi cepat
                       </p>
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-700" />
+                  <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-700 shrink-0" />
                 </button>
               </div>
             </motion.div>
@@ -1476,24 +1476,24 @@ export default function TeacherSoal() {
         {isMultiExportModalOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-              className="bg-white w-full max-w-2xl rounded-3xl p-6 md:p-8 shadow-2xl relative space-y-6 max-h-[90vh] flex flex-col"
+              className="bg-white w-full max-w-2xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl relative space-y-4 sm:space-y-6 max-h-[92vh] flex flex-col"
             >
               {/* Header Modal */}
-              <div className="flex items-start justify-between border-b border-slate-100 pb-4 shrink-0">
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3 sm:pb-4 shrink-0">
                 <div>
                   <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-xl bg-secondary/10 text-secondary">
+                    <div className="p-1.5 sm:p-2 rounded-xl bg-secondary/10 text-secondary">
                       <Layers size={18} />
                     </div>
-                    <h3 className="font-black text-lg text-slate-900">
+                    <h3 className="font-black text-base sm:text-lg text-slate-900">
                       Export Multi-Soal — Kelas {activeGrade}
                     </h3>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1">
                     Gabungkan lembar soal beberapa mata pelajaran menjadi satu dokumen PDF tanpa merusak struktur halaman.
                   </p>
                 </div>
@@ -1507,7 +1507,7 @@ export default function TeacherSoal() {
               </div>
 
               {/* Konten Scrollable */}
-              <div className="space-y-6 overflow-y-auto pr-1 flex-grow">
+              <div className="space-y-5 sm:space-y-6 overflow-y-auto pr-1 flex-grow">
                 {/* 1. Pilihan Mode Dokumen */}
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">

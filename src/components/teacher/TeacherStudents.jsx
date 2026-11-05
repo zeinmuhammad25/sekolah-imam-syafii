@@ -660,34 +660,34 @@ export default function TeacherStudents() {
             {items === null ? 'Memuat…' : `${filtered.length} siswa • Kelas ${activeGrade}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {!listEditMode && (
             <button
               onClick={enterListEditMode}
               disabled={!items || !items.length}
-              className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
             >
-              <Pencil size={16} /> Edit
+              <Pencil size={15} /> Edit
             </button>
           )}
           <button
             onClick={() => setImportOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all"
           >
-            <FileSpreadsheet size={16} /> Import
+            <FileSpreadsheet size={15} /> Import
           </button>
           <button
             onClick={() => setExportOpen(true)}
             disabled={!items || !items.length}
-            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
           >
-            <Download size={16} /> Export
+            <Download size={15} /> Export
           </button>
           <button
             onClick={openAdd}
-            className="inline-flex items-center gap-2 bg-secondary text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider hover:brightness-95 active:scale-95 transition-all shadow-lg shadow-secondary/20"
+            className="inline-flex items-center gap-1.5 sm:gap-2 bg-secondary text-white px-4 sm:px-5 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider hover:brightness-95 active:scale-95 transition-all shadow-lg shadow-secondary/20 ml-auto sm:ml-0"
           >
-            <Plus size={18} /> Tambah
+            <Plus size={16} /> Tambah
           </button>
         </div>
       </div>
@@ -740,45 +740,45 @@ export default function TeacherStudents() {
             return (
               <div
                 key={item.id}
-                className={`flex items-center gap-3 bg-white rounded-2xl p-3 border shadow-sm transition-colors ${isDeleted ? 'border-rose-200 opacity-60' : 'border-slate-100'}`}
+                className={`flex items-center gap-2 sm:gap-3 bg-white rounded-2xl p-2.5 sm:p-3 border shadow-sm transition-colors ${isDeleted ? 'border-rose-200 opacity-60' : 'border-slate-100'}`}
               >
                 {listEditMode && !isDeleted && display.kelas !== 'Tamat' && (
                   <input
                     type="checkbox"
                     checked={checkedIds.includes(item.id)}
                     onChange={() => toggleChecked(item.id)}
-                    className="w-5 h-5 accent-secondary shrink-0"
+                    className="w-4 h-4 sm:w-5 sm:h-5 accent-secondary shrink-0"
                   />
                 )}
                 <Thumb src={driveThumbUrl(display.foto_kk)} />
                 <div className="min-w-0 flex-grow">
-                  <p className={`font-black text-slate-900 truncate flex items-center gap-1.5 ${isDeleted ? 'line-through text-slate-400' : ''}`}>
+                  <p className={`font-black text-xs sm:text-sm text-slate-900 truncate flex items-center gap-1.5 ${isDeleted ? 'line-through text-slate-400' : ''}`}>
                     {display.nama_siswa || '(tanpa nama)'}
                     {hasPendingEdit && !isDeleted && <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Ada perubahan belum disimpan" />}
                   </p>
-                  <p className="text-slate-400 font-bold text-xs truncate">
+                  <p className="text-slate-400 font-bold text-[11px] sm:text-xs truncate">
                     {[display.kelas, display.nis && `NIS ${display.nis}`, display.nisn && `NISN ${display.nisn}`, display.no_kk && `KK ${display.no_kk}`].filter(Boolean).join(' • ') || '—'}
                     {isDeleted && <span className="text-rose-500 font-black"> (akan dihapus)</span>}
                   </p>
                 </div>
                 {!isDeleted && (
-                  <span className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  <span className={`shrink-0 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${
                     (display.status || 'Aktif') === 'Aktif' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
                   }`}>
                     {display.status || 'Aktif'}
                   </span>
                 )}
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-1.5 sm:gap-2 shrink-0">
                   {!listEditMode && (
-                    <button onClick={() => setPreviewing(item)} className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-primary hover:text-white transition-all" title="Preview"><Eye size={16} /></button>
+                    <button onClick={() => setPreviewing(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-primary hover:text-white transition-all" title="Preview"><Eye size={15} /></button>
                   )}
                   {listEditMode && isDeleted && (
-                    <button onClick={() => undoStagedDelete(item.id)} className="text-xs font-black text-secondary hover:underline px-2">Urungkan</button>
+                    <button onClick={() => undoStagedDelete(item.id)} className="text-[11px] sm:text-xs font-black text-secondary hover:underline px-1.5 sm:px-2">Urungkan</button>
                   )}
                   {listEditMode && !isDeleted && (
                     <>
-                      <button onClick={() => openEdit(item)} className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-secondary hover:text-white transition-all" title="Edit"><Pencil size={16} /></button>
-                      <button onClick={() => stageDelete(item)} className="p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-rose-500 hover:text-white transition-all" title="Hapus"><Trash2 size={16} /></button>
+                      <button onClick={() => openEdit(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-secondary hover:text-white transition-all" title="Edit"><Pencil size={15} /></button>
+                      <button onClick={() => stageDelete(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-rose-500 hover:text-white transition-all" title="Hapus"><Trash2 size={15} /></button>
                     </>
                   )}
                 </div>
@@ -838,7 +838,7 @@ export default function TeacherStudents() {
             onToggleExpand={() => setExpanded((v) => !v)}
             closeOnBackdrop={false}
           >
-            <div className="px-6 md:px-8 py-5 space-y-5">
+            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 space-y-4 sm:space-y-5">
               {SECTIONS.map((section) => (
                 <div key={section.title}>
                   <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em] mb-2">{section.title}</h4>
@@ -1028,7 +1028,7 @@ export default function TeacherStudents() {
       <AnimatePresence>
         {previewing && (
           <Modal onClose={() => setPreviewing(null)} title={previewing.nama_siswa || '(tanpa nama)'} maxWidthClass="max-w-2xl">
-            <div className="px-6 md:px-8 py-5 space-y-5">
+            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 space-y-4 sm:space-y-5">
               {SECTIONS.map((section) => (
                 <div key={section.title}>
                   <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em] mb-2">{section.title}</h4>

@@ -9,28 +9,28 @@ export function Modal({ title, onClose, children, maxWidthClass = 'max-w-lg', cl
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[150] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[150] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4"
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <motion.div
-        initial={{ y: 40, scale: 0.98, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 40, scale: 0.98, opacity: 0 }}
+        initial={{ y: 30, scale: 0.98, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 30, scale: 0.98, opacity: 0 }}
         transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-        className={`bg-white w-full ${expanded ? expandedWidthClass : maxWidthClass} rounded-3xl flex flex-col ${expanded ? 'max-h-[95vh]' : 'max-h-[88vh]'} overflow-hidden shadow-2xl transition-[max-width] duration-200`}
+        className={`bg-white w-full ${expanded ? expandedWidthClass : maxWidthClass} rounded-2xl sm:rounded-3xl flex flex-col ${expanded ? 'max-h-[96vh]' : 'max-h-[92vh] sm:max-h-[88vh]'} overflow-hidden shadow-2xl transition-[max-width] duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="shrink-0 flex items-center justify-between px-6 md:px-8 py-5 border-b border-slate-100">
-          <h3 className="text-lg md:text-xl font-black text-slate-900">{title}</h3>
-          <div className="flex items-center gap-1.5">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3.5 sm:py-5 border-b border-slate-100">
+          <h3 className="text-base sm:text-lg md:text-xl font-black text-slate-900 truncate pr-2 min-w-0">{title}</h3>
+          <div className="flex items-center gap-1.5 shrink-0">
             {onToggleExpand && (
               <button
                 onClick={onToggleExpand}
-                className="p-2 bg-slate-50 rounded-full text-slate-400 hover:text-slate-700 transition-colors"
+                className="p-1.5 sm:p-2 bg-slate-50 rounded-full text-slate-400 hover:text-slate-700 transition-colors"
                 title={expanded ? 'Perkecil' : 'Perbesar'}
               >
                 {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
             )}
-            <button onClick={onClose} className="p-2 bg-slate-50 rounded-full text-slate-400 hover:text-slate-700 transition-colors"><X size={18} /></button>
+            <button onClick={onClose} className="p-1.5 sm:p-2 bg-slate-50 rounded-full text-slate-400 hover:text-slate-700 transition-colors" aria-label="Tutup"><X size={18} /></button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
@@ -40,30 +40,31 @@ export function Modal({ title, onClose, children, maxWidthClass = 'max-w-lg', cl
 }
 
 export function ModalFooter({ children }) {
-  return <div className="shrink-0 px-6 md:px-8 py-4 border-t border-slate-100 bg-white">{children}</div>;
+  return <div className="shrink-0 px-4 sm:px-6 md:px-8 py-3.5 sm:py-4 border-t border-slate-100 bg-white">{children}</div>;
 }
 
-export function ConfirmDialog({ title, message, confirmLabel, loading, onCancel, onConfirm }) {
+export function ConfirmDialog({ open, title, message, confirmLabel, loading, onCancel, onConfirm }) {
+  if (open === false) return null;
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[160] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[160] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
       onClick={onCancel}
     >
       <motion.div
         initial={{ scale: 0.9, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }} exit={{ scale: 0.9, y: 20, opacity: 0 }}
         transition={{ type: 'spring', damping: 24, stiffness: 320 }}
-        className="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl"
+        className="bg-white w-full max-w-sm rounded-2xl sm:rounded-3xl p-6 sm:p-8 text-center shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 mx-auto mb-5">
-          <AlertTriangle size={30} />
+        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 mx-auto mb-4 sm:mb-5">
+          <AlertTriangle size={28} />
         </div>
-        <h3 className="text-xl font-black text-slate-900 mb-2">{title}</h3>
-        <p className="text-slate-500 font-medium text-sm mb-7 leading-relaxed">{message}</p>
-        <div className="flex gap-3">
-          <button onClick={onCancel} disabled={loading} className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-600 font-black text-sm hover:bg-slate-200 transition-all disabled:opacity-50">Batal</button>
-          <button onClick={onConfirm} disabled={loading} className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white font-black text-sm hover:bg-rose-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+        <h3 className="text-lg sm:text-xl font-black text-slate-900 mb-2">{title}</h3>
+        <p className="text-slate-500 font-medium text-xs sm:text-sm mb-6 leading-relaxed">{message}</p>
+        <div className="flex gap-2.5 sm:gap-3">
+          <button onClick={onCancel} disabled={loading} className="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-slate-100 text-slate-600 font-black text-xs sm:text-sm hover:bg-slate-200 transition-all disabled:opacity-50">Batal</button>
+          <button onClick={onConfirm} disabled={loading} className="flex-1 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-rose-500 text-white font-black text-xs sm:text-sm hover:bg-rose-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
             {loading ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />} {confirmLabel}
           </button>
         </div>
@@ -74,8 +75,8 @@ export function ConfirmDialog({ title, message, confirmLabel, loading, onCancel,
 
 export function Thumb({ src }) {
   const [err, setErr] = useState(false);
-  if (!src || err) return <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 shrink-0"><ImageOff size={20} /></div>;
-  return <img src={src} onError={() => setErr(true)} className="w-14 h-14 rounded-xl object-cover bg-slate-100 shrink-0" alt="" />;
+  if (!src || err) return <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-slate-100 flex items-center justify-center text-slate-300 shrink-0"><ImageOff size={18} /></div>;
+  return <img src={src} onError={() => setErr(true)} className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl object-cover bg-slate-100 shrink-0" alt="" />;
 }
 
 // Input generik berdasar deskriptor field { name, label, type, options, allowCustom, placeholder, rows }.
@@ -83,10 +84,10 @@ export function Thumb({ src }) {
 // tidak memengaruhi panel CRUD lain yang tetap pakai ukuran default.
 export function Field({ field, value, uploading, onChange, onFile, dense = false }) {
   const base = dense
-    ? 'w-full bg-slate-50 border-2 border-slate-100 rounded-lg p-2 text-sm font-semibold text-slate-800 outline-none focus:border-secondary transition-all'
-    : 'w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-3.5 font-bold text-slate-800 outline-none focus:border-secondary transition-all';
+    ? 'w-full bg-slate-50 border-2 border-slate-100 rounded-lg p-2 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:border-secondary transition-all'
+    : 'w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-3 sm:p-3.5 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-secondary transition-all';
   const label = (
-    <label className={`block font-black text-slate-500 uppercase tracking-wider ${dense ? 'text-[10px] mb-1' : 'text-xs mb-1.5'}`}>{field.label}</label>
+    <label className={`block font-black text-slate-500 uppercase tracking-wider ${dense ? 'text-[10px] mb-1' : 'text-[11px] sm:text-xs mb-1.5'}`}>{field.label}</label>
   );
 
   // Field dikunci (nilai tetap, tidak bisa diubah TU) — mis. Agama = Islam untuk sekolah Islam.

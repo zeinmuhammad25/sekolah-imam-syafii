@@ -268,38 +268,38 @@ export default function ParentPortal() {
   return (
     <div className="min-h-screen bg-ivory text-ink flex flex-col antialiased selection:bg-secondary/20">
       {/* Top Header */}
-      <header className="bg-forest text-ivory py-4 px-6 sticky top-0 z-40 border-b border-primary/20 shadow-md">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-ivory p-1 flex items-center justify-center overflow-hidden border border-secondary/30">
+      <header className="bg-forest text-ivory py-3 sm:py-4 px-3.5 sm:px-6 sticky top-0 z-40 border-b border-primary/20 shadow-md">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-2">
+          <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-ivory p-1 flex items-center justify-center overflow-hidden border border-secondary/30 shrink-0">
               <img src="/avatars/logo.png" alt="Logo MIAS" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <span className="font-display font-bold text-sm md:text-base tracking-wide block leading-tight group-hover:text-secondary transition-colors">
+            <div className="min-w-0">
+              <span className="font-display font-bold text-sm sm:text-base tracking-wide block leading-tight group-hover:text-secondary transition-colors truncate">
                 Portal Wali Murid
               </span>
-              <span className="text-[10px] md:text-xs text-ivory/60 font-sans tracking-wider block">
+              <span className="text-[10px] sm:text-xs text-ivory/60 font-sans tracking-wider block truncate">
                 Sekolah Islam Imam Syafi'i
               </span>
             </div>
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {viewMode !== 'CLASS_SELECT' && (
               <button
                 onClick={handleBackNavigation}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-ivory/10 hover:bg-ivory/20 text-xs font-semibold text-ivory transition-all"
+                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-ivory/10 hover:bg-ivory/20 text-xs font-semibold text-ivory transition-all active:scale-95"
               >
-                <ArrowLeft size={14} /> Kembali
+                <ArrowLeft size={14} /> <span className="hidden sm:inline">Kembali</span>
               </button>
             )}
 
             <Link
               to="/dashboard-guru"
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-secondary hover:brightness-110 text-xs font-bold text-white shadow-sm transition-all active:scale-95"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-secondary hover:brightness-110 text-xs font-bold text-white shadow-sm transition-all active:scale-95"
               title="Kembali ke Dashboard Guru / Admin"
             >
-              <LayoutDashboard size={14} /> Ke Dashboard
+              <LayoutDashboard size={14} /> <span><span className="hidden sm:inline">Ke </span>Dashboard</span>
             </Link>
           </div>
         </div>
@@ -320,12 +320,12 @@ export default function ParentPortal() {
         {viewMode === 'CLASS_SELECT' && (
           <div className="space-y-8 animate-fadeIn">
             {/* Banner Pengantar */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-forest to-primary p-8 md:p-10 text-ivory shadow-xl border border-secondary/20">
-              <div className="relative z-10 max-w-2xl space-y-3">
-                <span className="inline-flex items-center gap-2 bg-secondary/20 border border-secondary/30 text-secondary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-forest to-primary p-5 sm:p-8 md:p-10 text-ivory shadow-xl border border-secondary/20">
+              <div className="relative z-10 max-w-2xl space-y-2.5 sm:space-y-3">
+                <span className="inline-flex items-center gap-2 bg-secondary/20 border border-secondary/30 text-secondary text-[11px] sm:text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                   <Sparkles size={14} /> Layanan Informasi Siswa & Rapor Digital
                 </span>
-                <h1 className="font-display text-2xl md:text-4xl font-bold leading-tight">
+                <h1 className="font-display text-xl sm:text-2xl md:text-4xl font-bold leading-tight">
                   Selamat Datang di Portal Wali Murid
                 </h1>
                 <p className="text-xs md:text-sm text-ivory/80 leading-relaxed font-sans">
@@ -334,7 +334,7 @@ export default function ParentPortal() {
               </div>
 
               {/* Hiasan background visual */}
-              <div className="absolute right-[-20px] bottom-[-20px] opacity-10 pointer-events-none">
+              <div className="hidden sm:block absolute right-[-20px] bottom-[-20px] opacity-10 pointer-events-none">
                 <GraduationCap size={220} />
               </div>
             </div>
@@ -342,33 +342,33 @@ export default function ParentPortal() {
             {/* Grid Kartu Kelas */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-display font-bold text-lg md:text-xl text-primary flex items-center gap-2">
-                  <Users size={20} className="text-secondary" /> Pilih Jenjang / Kelas
+                <h2 className="font-display font-bold text-base sm:text-lg md:text-xl text-primary flex items-center gap-2">
+                  <Users size={18} className="text-secondary" /> Pilih Jenjang / Kelas
                 </h2>
-                <span className="text-xs text-primary/60 font-semibold">7 Tingkatan Kelas</span>
+                <span className="text-[11px] sm:text-xs text-primary/60 font-semibold">7 Tingkatan Kelas</span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
                 {GRADES.map((grade) => {
                   const isTK = grade === 'TK';
                   return (
                     <button
                       key={grade}
                       onClick={() => handleSelectClass(grade)}
-                      className="group relative bg-white hover:bg-forest rounded-3xl p-6 border border-primary/10 hover:border-secondary/50 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between items-start text-left active:scale-95 overflow-hidden"
+                      className="group relative bg-white hover:bg-forest rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-primary/10 hover:border-secondary/50 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between items-start text-left active:scale-95 overflow-hidden"
                     >
-                      <div className="space-y-1 mb-4">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-secondary group-hover:text-secondary-light">
+                      <div className="space-y-1 mb-3 sm:mb-4">
+                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-secondary group-hover:text-secondary-light">
                           {isTK ? 'Fondasi' : 'Tingkat SD'}
                         </span>
-                        <h3 className="font-display text-xl md:text-2xl font-bold text-primary group-hover:text-ivory transition-colors">
+                        <h3 className="font-display text-lg sm:text-xl md:text-2xl font-bold text-primary group-hover:text-ivory transition-colors">
                           {grade}
                         </h3>
                       </div>
 
-                      <div className="flex items-center justify-between w-full pt-4 border-t border-primary/5 group-hover:border-ivory/10 text-xs font-bold text-primary/60 group-hover:text-ivory/90">
+                      <div className="flex items-center justify-between w-full pt-3 sm:pt-4 border-t border-primary/5 group-hover:border-ivory/10 text-xs font-bold text-primary/60 group-hover:text-ivory/90">
                         <span>Buka Kelas</span>
-                        <ChevronRight size={16} className="text-secondary group-hover:translate-x-1 transition-transform" />
+                        <ChevronRight size={15} className="text-secondary group-hover:translate-x-1 transition-transform" />
                       </div>
                     </button>
                   );
@@ -384,7 +384,7 @@ export default function ParentPortal() {
         {viewMode === 'STUDENT_LIST' && (
           <div className="space-y-6 animate-fadeIn">
             {/* Breadcrumb Header Kelas */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-primary/10 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-primary/10 shadow-sm">
               <div>
                 <div className="flex items-center gap-2 text-xs font-bold text-secondary mb-1">
                   <button onClick={() => setViewMode('CLASS_SELECT')} className="hover:underline">Semua Kelas</button>
@@ -473,7 +473,7 @@ export default function ParentPortal() {
             ) : studentProfile ? (
               <div className="space-y-6">
                 {/* Header Profil */}
-                <div className="bg-white rounded-3xl border border-primary/10 p-6 shadow-sm flex flex-col sm:flex-row items-center gap-5">
+                <div className="bg-white rounded-2xl sm:rounded-3xl border border-primary/10 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
                   <Avatar gender={studentProfile.jenis_kelamin} className="w-20 h-20 shrink-0" />
                   <div className="text-center sm:text-left space-y-1">
                     <span className="bg-secondary/15 text-secondary text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
@@ -928,7 +928,7 @@ export default function ParentPortal() {
                                 A. Muatan Pelajaran Umum
                               </h4>
                               <div className="overflow-x-auto border border-primary/5 rounded-xl">
-                                <table className="w-full text-left text-xs">
+                                <table className="w-full min-w-[500px] text-left text-xs">
                                   <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
                                     <tr>
                                       <th className="py-2.5 px-3">Mata Pelajaran</th>
@@ -958,7 +958,7 @@ export default function ParentPortal() {
                                 B. Muatan Lokal Diniyyah / Ciri Khusus
                               </h4>
                               <div className="overflow-x-auto border border-primary/5 rounded-xl">
-                                <table className="w-full text-left text-xs">
+                                <table className="w-full min-w-[500px] text-left text-xs">
                                   <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
                                     <tr>
                                       <th className="py-2.5 px-3">Mata Pelajaran Diniyyah</th>
@@ -1056,13 +1056,13 @@ export default function ParentPortal() {
       {/* MODAL 1: PILIHAN AKSES SISWA (A. DATA SISWA vs B. NILAI RAPOR) */}
       {/* ========================================================================= */}
       {showChoiceModal && targetStudent && (
-        <div className="fixed inset-0 z-50 bg-forest/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-primary/10 space-y-6 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-forest/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 max-w-md w-full shadow-2xl border border-primary/10 space-y-5 sm:space-y-6 animate-scaleUp">
             <div className="flex items-center justify-between border-b border-primary/5 pb-4">
-              <div className="flex items-center gap-3">
-                <Avatar gender={targetStudent.jenis_kelamin} className="w-12 h-12" />
-                <div>
-                  <h3 className="font-display font-bold text-base text-primary leading-tight">
+              <div className="flex items-center gap-3 min-w-0 pr-2">
+                <Avatar gender={targetStudent.jenis_kelamin} className="w-11 h-11 sm:w-12 sm:h-12 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="font-display font-bold text-sm sm:text-base text-primary leading-tight truncate">
                     {targetStudent.nama_siswa}
                   </h3>
                   <p className="text-xs text-primary/60 font-sans">Kelas {targetStudent.kelas}</p>
@@ -1070,7 +1070,7 @@ export default function ParentPortal() {
               </div>
               <button
                 onClick={() => setShowChoiceModal(false)}
-                className="p-1.5 rounded-full text-primary/40 hover:text-primary hover:bg-primary/5"
+                className="p-1.5 rounded-full text-primary/40 hover:text-primary hover:bg-primary/5 shrink-0"
               >
                 <X size={18} />
               </button>
@@ -1138,13 +1138,13 @@ export default function ParentPortal() {
       {/* MODAL 2: VERIFIKASI NISN / NIS (KHUSUS SD SEBELUM BUKA RAPOR) */}
       {/* ========================================================================= */}
       {showAuthModal && targetStudent && (
-        <div className="fixed inset-0 z-50 bg-forest/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl border border-primary/10 space-y-5 animate-scaleUp">
+        <div className="fixed inset-0 z-50 bg-forest/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-8 max-w-sm w-full shadow-2xl border border-primary/10 space-y-4 sm:space-y-5 animate-scaleUp">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-2xl bg-secondary/15 text-secondary flex items-center justify-center mx-auto">
                 <ShieldCheck size={24} />
               </div>
-              <h3 className="font-display font-bold text-lg text-primary">
+              <h3 className="font-display font-bold text-base sm:text-lg text-primary">
                 Verifikasi Keamanan Rapor
               </h3>
               <p className="text-xs text-primary/70 leading-relaxed">

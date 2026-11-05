@@ -83,9 +83,9 @@ const fmtNum = (n) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 const dash = (v) => (String(v ?? '').trim() ? String(v).trim() : '-');
 const hari = (v) => { const n = Number(String(v ?? '').trim()); return n > 0 ? `${n} hari` : '-'; };
 
-export async function generateRaporPdf({ student, period, umum = [], mulok = [], extras = [], aspek = {}, watermark }) {
+export async function generateRaporPdf({ student, period, umum = [], mulok = [], extras = [], aspek = {}, watermark, existingDoc }) {
   const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = existingDoc || new jsPDF({ unit: 'mm', format: 'a4' });
   doc.setLineHeightFactor(1);
 
   const kelas = period.kelas;
@@ -116,7 +116,7 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
     doc.addImage(watermark, watermark.startsWith('data:image/png') ? 'PNG' : 'JPEG', p(128), p(345), p(807), p(810));
     doc.setGState(new doc.GState({ opacity: 1 }));
   };
-  let firstPage = true;
+  let firstPage = !existingDoc;
   const newPage = () => { if (!firstPage) doc.addPage(); firstPage = false; watermarkPage(); };
 
   const underlined = (s, x, y, style = 'bold', size = 12) => {
@@ -583,3 +583,6 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
 
 export const raporFileName = (student, period) =>
   `Rapor_${String(student.nama_siswa || 'siswa').replace(/[^\w]+/g, '_')}_${period.kelas.replace(/\s+/g, '')}_Smt${period.semester}_${String(period.tahunAjaran || '').replace('/', '-')}.pdf`;
+
+export const multiRaporFileName = (kelas, semester, tahunAjaran) =>
+  `Rapor_Kompilasi_${String(kelas || '').replace(/\s+/g, '')}_Smt${semester}_${String(tahunAjaran || '').replace('/', '-')}.pdf`;

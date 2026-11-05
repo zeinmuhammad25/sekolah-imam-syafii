@@ -76,7 +76,7 @@ export default function TeacherHome() {
   return (
     <div className="space-y-10">
       {/* Welcome Banner */}
-      <section className="relative overflow-hidden bg-slate-900 rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl">
+      <section className="relative overflow-hidden bg-slate-900 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 md:p-12 text-white shadow-2xl">
         <div className="relative z-10 max-w-2xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -126,7 +126,7 @@ export default function TeacherHome() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3 + (i * 0.1) }}
             key={stat.label}
-            className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-secondary/20 transition-all cursor-default"
+            className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-slate-100 shadow-sm flex items-center justify-between group hover:border-secondary/20 transition-all cursor-default"
           >
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">{stat.label}</p>
@@ -153,7 +153,7 @@ export default function TeacherHome() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 + (i * 0.1) }}
               key={mod.title}
-              className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm hover:shadow-2xl hover:shadow-slate-200 transition-all flex flex-col group relative overflow-hidden"
+              className="bg-white rounded-2xl sm:rounded-[2.5rem] border border-slate-100 p-5 sm:p-8 shadow-sm hover:shadow-2xl hover:shadow-slate-200 transition-all flex flex-col group relative overflow-hidden"
             >
               <div className={`w-16 h-16 ${mod.bg} ${mod.color} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
                 <mod.icon size={32} />

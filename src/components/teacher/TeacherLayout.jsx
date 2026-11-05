@@ -49,7 +49,7 @@ export default function TeacherLayout({ children }) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-72 bg-slate-950 text-white flex-col border-r border-white/5">
+      <aside className="hidden md:flex w-72 bg-slate-950 text-white flex-col border-r border-white/5 shrink-0">
         <div className="p-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-secondary/20">IS</div>
@@ -60,7 +60,7 @@ export default function TeacherLayout({ children }) {
           </div>
         </div>
 
-        <nav className="flex-grow px-4 space-y-1">
+        <nav className="flex-grow px-4 space-y-1 overflow-y-auto">
           <p className="text-[10px] uppercase font-black text-slate-600 tracking-[0.2em] mb-4 px-4">Menu Utama</p>
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -106,29 +106,34 @@ export default function TeacherLayout({ children }) {
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden bg-slate-950 text-white p-4 flex items-center justify-between sticky top-0 z-[100]">
+      <header className="md:hidden bg-slate-950 text-white p-4 flex items-center justify-between sticky top-0 z-[100] shadow-md">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center text-white font-black text-xs">IS</div>
           <span className="font-black text-xs tracking-widest uppercase">Guru Panel</span>
         </div>
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 bg-white/5 rounded-lg"
+          className="p-2 bg-white/10 rounded-xl active:scale-95 transition-all text-white"
+          aria-label="Toggle Menu"
         >
           {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </header>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Menu Overlay — Scrollable agar 11 menu tidak terpotong di mobile */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
             initial={{ opacity: 0, x: '-100%' }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: '-100%' }}
-            className="fixed inset-0 z-[90] bg-slate-950 pt-20 flex flex-col md:hidden"
+            transition={{ type: 'tween', duration: 0.25 }}
+            className="fixed inset-0 z-[90] bg-slate-950 pt-16 flex flex-col md:hidden overflow-y-auto"
           >
-            <nav className="p-6 space-y-2">
+            <nav className="p-4 sm:p-6 space-y-1.5 pb-10 flex-grow">
+              <p className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em] mb-3 px-3">
+                Menu Utama Guru
+              </p>
               {menuItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
@@ -136,28 +141,33 @@ export default function TeacherLayout({ children }) {
                     key={item.path}
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-4 px-6 py-5 rounded-2xl font-black text-base transition-all ${
-                      isActive ? 'bg-secondary text-white' : 'text-slate-400'
+                    className={`flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
+                      isActive ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-300 hover:bg-white/5 active:bg-white/10'
                     }`}
                   >
-                    <item.icon size={22} />
-                    {item.name}
+                    <div className="flex items-center gap-3">
+                      <item.icon size={18} className={isActive ? 'text-white' : 'text-slate-400'} />
+                      <span>{item.name}</span>
+                    </div>
+                    {isActive && <ChevronRight size={14} />}
                   </Link>
                 );
               })}
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center gap-4 px-6 py-5 rounded-2xl font-black text-base text-rose-500"
-              >
-                <LogOut size={22} /> Keluar Panel
-              </button>
+              <div className="pt-4 border-t border-white/10 mt-4">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm text-rose-400 hover:bg-rose-500/10 active:bg-rose-500/20 transition-all"
+                >
+                  <LogOut size={18} /> Keluar Panel
+                </button>
+              </div>
             </nav>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Content Area */}
-      <main className="flex-grow flex flex-col min-h-0 pt-0 md:pt-0">
+      {/* Content Area — Aman dari horizontal blowout di mobile */}
+      <main className="flex-grow flex flex-col min-h-0 min-w-0 max-w-full overflow-x-hidden pt-0 md:pt-0">
         {/* Top Header Bar (PC) */}
         <header className="hidden md:flex bg-white h-20 items-center justify-between px-10 border-b border-slate-100 sticky top-0 z-40">
            <div className="text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">
@@ -181,7 +191,8 @@ export default function TeacherLayout({ children }) {
            </div>
         </header>
 
-        <div className="p-6 md:p-10">
+        {/* Padding responsif: nyaman di HP (3.5 = 14px) dan lapang di PC (10 = 40px) */}
+        <div className="p-3.5 sm:p-6 md:p-10 w-full max-w-full min-w-0">
           {children}
         </div>
       </main>

@@ -255,6 +255,17 @@ export default function TeacherEraport() {
     namaWaliKelas: '',
   });
   const [savingBatch, setSavingBatch] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState(false);
+  const [confirmingDeleteBatchSemester, setConfirmingDeleteBatchSemester] = useState(false);
+
+  // Modal Multi-Export Rapor Kelas
+  const [showMultiExportModal, setShowMultiExportModal] = useState(false);
+  const [exportYear, setExportYear] = useState('2025/2026');
+  const [exportSemester, setExportSemester] = useState('1');
+  const [selectedExportStudentIds, setSelectedExportStudentIds] = useState([]);
+  const [exportFormat, setExportFormat] = useState('bundle'); // 'bundle' | 'separate'
+  const [exportingMulti, setExportingMulti] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, currentName: '' });
 
   const load = async () => {
     const d = await fetchSchoolData();
@@ -703,6 +714,233 @@ export default function TeacherEraport() {
     }
   };
 
+  // Periode yang cocok dengan form batch semester saat ini di kelas aktif
+  const matchingBatchPeriods = useMemo(() => {
+    const classStudentIds = new Set((students || []).filter((s) => s.kelas === activeGrade).map((s) => String(s.id)));
+    return (periods || []).filter(
+      (p) =>
+        classStudentIds.has(String(p.studentId)) &&
+        String(p.tahunAjaran) === String(batchForm.tahunAjaran) &&
+        String(p.semester) === String(batchForm.semester)
+    );
+  }, [periods, students, activeGrade, batchForm.tahunAjaran, batchForm.semester]);
+
+  // Eksekusi Hapus Seluruh Periode Semester Ini Se-Kelas (Bila salah input)
+  const handleDeleteBatchSemester = async () => {
+    if (!matchingBatchPeriods.length) return;
+    setDeletingBatch(true);
+    setError('');
+
+    try {
+      const periodIds = new Set(matchingBatchPeriods.map((p) => String(p.id)));
+      const ops = [];
+
+      // 1. Hapus ReportGrades
+      (subData.ReportGrades || []).forEach((r) => {
+        if (periodIds.has(String(r.reportPeriodId))) {
+          ops.push({ action: 'delete', sheetName: 'ReportGrades', id: r.id, expectedUpdatedAt: r.updatedAt ?? null });
+        }
+      });
+
+      // 2. Hapus ReportAspects
+      (subData.ReportAspects || []).forEach((r) => {
+        if (periodIds.has(String(r.reportPeriodId))) {
+          ops.push({ action: 'delete', sheetName: 'ReportAspects', id: r.id, expectedUpdatedAt: r.updatedAt ?? null });
+        }
+      });
+
+      // 3. Hapus ReportExtras
+      (subData.ReportExtras || []).forEach((r) => {
+        if (periodIds.has(String(r.reportPeriodId))) {
+          ops.push({ action: 'delete', sheetName: 'ReportExtras', id: r.id, expectedUpdatedAt: r.updatedAt ?? null });
+        }
+      });
+
+      // 4. Hapus ReportPeriods
+      matchingBatchPeriods.forEach((p) => {
+        ops.push({ action: 'delete', sheetName: 'ReportPeriods', id: p.id, expectedUpdatedAt: p.updatedAt ?? null });
+      });
+
+      const res = await mutateBatch(ops);
+      setDeletingBatch(false);
+      setConfirmingDeleteBatchSemester(false);
+
+      if (!res.success) {
+        alert('Gagal menghapus semester massal: ' + describeError(res));
+        return;
+      }
+
+      setShowBatchModal(false);
+      await load();
+      alert(`Berhasil menghapus seluruh periode semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${matchingBatchPeriods.length} siswa kelas ${activeGrade}!`);
+    } catch (err) {
+      setDeletingBatch(false);
+      setConfirmingDeleteBatchSemester(false);
+      alert('Terjadi kesalahan saat menghapus: ' + String(err));
+    }
+  };
+
+  // Daftar tahun ajaran yang tersedia di kelas ini
+  const classAvailableYears = useMemo(() => {
+    const classStudentIds = new Set((students || []).filter((s) => s.kelas === activeGrade).map((s) => String(s.id)));
+    const years = new Set();
+    (periods || []).forEach((p) => {
+      if (classStudentIds.has(String(p.studentId)) && p.tahunAjaran) {
+        years.add(String(p.tahunAjaran).trim());
+      }
+    });
+    if (batchForm.tahunAjaran) years.add(batchForm.tahunAjaran.trim());
+    years.add('2025/2026');
+    years.add('2024/2025');
+    return Array.from(years).sort().reverse();
+  }, [periods, students, activeGrade, batchForm.tahunAjaran]);
+
+  const openMultiExportModal = () => {
+    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
+    const classStudentIds = new Set(classStudents.map((s) => String(s.id)));
+    const classPeriods = (periods || []).filter((p) => classStudentIds.has(String(p.studentId)));
+
+    const latestP = [...classPeriods].sort((a, b) =>
+      String(b.tahunAjaran || '').localeCompare(String(a.tahunAjaran || '')) || (Number(b.semester) || 0) - (Number(a.semester) || 0)
+    )[0];
+
+    const targetYear = latestP?.tahunAjaran || batchForm.tahunAjaran || '2025/2026';
+    const targetSem = latestP?.semester || batchForm.semester || '1';
+    setExportYear(targetYear);
+    setExportSemester(targetSem);
+    setSelectedExportStudentIds(classStudents.map((s) => String(s.id)));
+    setExportFormat('bundle');
+    setShowMultiExportModal(true);
+  };
+
+  const toggleExportStudent = (id) => {
+    const sId = String(id);
+    setSelectedExportStudentIds((prev) =>
+      prev.includes(sId) ? prev.filter((x) => x !== sId) : [...prev, sId]
+    );
+  };
+
+  const selectAllExportStudents = () => {
+    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
+    setSelectedExportStudentIds(classStudents.map((s) => String(s.id)));
+  };
+
+  const deselectAllExportStudents = () => {
+    setSelectedExportStudentIds([]);
+  };
+
+  const handleExecuteMultiExport = async () => {
+    if (!selectedExportStudentIds.length) {
+      alert('Pilih minimal 1 murid untuk diunduh rapornya.');
+      return;
+    }
+
+    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
+    const targetStudents = classStudents.filter((s) => selectedExportStudentIds.includes(String(s.id)));
+
+    const readyTargets = [];
+    const missingNames = [];
+
+    targetStudents.forEach((stu) => {
+      const p = (periods || []).find(
+        (period) =>
+          String(period.studentId) === String(stu.id) &&
+          String(period.tahunAjaran) === String(exportYear) &&
+          String(period.semester) === String(exportSemester)
+      );
+      if (p) {
+        readyTargets.push({ student: stu, period: p });
+      } else {
+        missingNames.push(stu.nama_siswa);
+      }
+    });
+
+    if (!readyTargets.length) {
+      alert(`Tidak ada siswa terpilih yang memiliki data rapor semester ${exportSemester === '1' ? 'Ganjil' : 'Genap'} TP ${exportYear}. Silakan pastikan data semester sudah di-setup.`);
+      return;
+    }
+
+    if (missingNames.length > 0) {
+      const proceed = confirm(
+        `${missingNames.length} murid (${missingNames.slice(0, 3).join(', ')}${missingNames.length > 3 ? '...' : ''}) belum memiliki periode rapor pada Semester ${exportSemester === '1' ? 'Ganjil' : 'Genap'} TP ${exportYear} dan akan dilewati.\n\nLanjutkan mengunduh ${readyTargets.length} murid lainnya?`
+      );
+      if (!proceed) return;
+    }
+
+    setExportingMulti(true);
+    setExportProgress({ current: 0, total: readyTargets.length, currentName: 'Menyiapkan berkas…' });
+
+    try {
+      const { generateRaporPdf, raporFileName, multiRaporFileName } = await import('../../services/raporPdf');
+      const wmBlob = await fetch(activeGrade === 'TK' ? '/avatars/logo-tk.png' : '/avatars/rapor-watermark.jpeg')
+        .then((r) => (r.ok ? r.blob() : null))
+        .catch(() => null);
+      const watermark = wmBlob
+        ? await new Promise((res) => {
+            const fr = new FileReader();
+            fr.onloadend = () => res(fr.result);
+            fr.readAsDataURL(wmBlob);
+          })
+        : null;
+
+      if (exportFormat === 'bundle') {
+        let bundleDoc = null;
+        for (let i = 0; i < readyTargets.length; i++) {
+          const target = readyTargets[i];
+          setExportProgress({ current: i + 1, total: readyTargets.length, currentName: target.student.nama_siswa });
+          await new Promise((r) => setTimeout(r, 80));
+
+          bundleDoc = await generateRaporPdf({
+            student: target.student,
+            period: target.period,
+            watermark,
+            umum: rowsOf(subData, TABLES.umum, target.period.id),
+            mulok: rowsOf(subData, TABLES.mulok, target.period.id),
+            extras: rowsOf(subData, TABLES.ekskul, target.period.id),
+            aspek: {
+              agama: rowsOf(subData, TABLES.aspekAgama, target.period.id),
+              jatidiri: rowsOf(subData, TABLES.aspekJatiDiri, target.period.id),
+              literasi: rowsOf(subData, TABLES.aspekLiterasi, target.period.id),
+            },
+            existingDoc: bundleDoc,
+          });
+        }
+
+        if (bundleDoc) {
+          bundleDoc.save(multiRaporFileName(activeGrade, exportSemester, exportYear));
+        }
+      } else {
+        for (let i = 0; i < readyTargets.length; i++) {
+          const target = readyTargets[i];
+          setExportProgress({ current: i + 1, total: readyTargets.length, currentName: target.student.nama_siswa });
+
+          const doc = await generateRaporPdf({
+            student: target.student,
+            period: target.period,
+            watermark,
+            umum: rowsOf(subData, TABLES.umum, target.period.id),
+            mulok: rowsOf(subData, TABLES.mulok, target.period.id),
+            extras: rowsOf(subData, TABLES.ekskul, target.period.id),
+            aspek: {
+              agama: rowsOf(subData, TABLES.aspekAgama, target.period.id),
+              jatidiri: rowsOf(subData, TABLES.aspekJatiDiri, target.period.id),
+              literasi: rowsOf(subData, TABLES.aspekLiterasi, target.period.id),
+            },
+          });
+
+          doc.save(raporFileName(target.student, target.period));
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      }
+
+      setExportingMulti(false);
+      setShowMultiExportModal(false);
+    } catch (err) {
+      setExportingMulti(false);
+      alert('Gagal mengekspor rapor massal: ' + String((err && err.message) || err));
+    }
+  };
+
   // Template Saran Cepat Capaian Kompetensi Kurikulum Merdeka
   const QUICK_TEMPLATES = {
     capaian: [
@@ -795,11 +1033,17 @@ export default function TeacherEraport() {
           </p>
         </div>
 
-        {/* Tombol Aksi Massal / Batch Setup */}
-        <div className="flex items-center gap-2">
+        {/* Tombol Aksi Massal / Batch Setup & Multi-Export */}
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <button
+            onClick={openMultiExportModal}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-secondary text-white hover:brightness-95 font-black text-xs uppercase tracking-wider transition-all shadow-md shadow-secondary/20 active:scale-95"
+          >
+            <FileDown size={16} /> Unduh E-Raport Kelas
+          </button>
           <button
             onClick={() => setShowBatchModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white hover:bg-black font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white hover:bg-black font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
           >
             <Users size={16} /> Setup Semester Se-Kelas
           </button>
@@ -917,7 +1161,7 @@ export default function TeacherEraport() {
           >
             {!activePeriod ? (
               <>
-                <div className="px-6 md:px-8 py-5">
+                <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5">
                   <button
                     onClick={openAddPeriod}
                     className="inline-flex items-center gap-2 bg-secondary text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider hover:brightness-95 active:scale-95 transition-all shadow-lg shadow-secondary/20 mb-5"
@@ -929,19 +1173,19 @@ export default function TeacherEraport() {
                   ) : (
                     <div className="grid gap-3">
                       {studentPeriods.map((p) => (
-                        <div key={p.id} className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3.5 border border-slate-100">
+                        <div key={p.id} className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3 sm:p-3.5 border border-slate-100">
                           <div className="min-w-0 flex-grow">
                             <p className="font-black text-slate-900 text-sm">{periodTitle(p)}</p>
                             <p className="text-slate-400 font-bold text-xs">Tahun Pelajaran {p.tahunAjaran}</p>
                           </div>
-                          <div className="flex gap-2 shrink-0">
+                          <div className="flex gap-1.5 sm:gap-2 shrink-0">
                             {(
-                              <button onClick={() => exportRaporPdf(p.id)} disabled={exportingId === p.id} className="p-2.5 rounded-xl bg-white text-slate-500 hover:bg-emerald-600 hover:text-white transition-all border border-slate-100 disabled:opacity-50" title="Unduh Rapor (PDF)">
+                              <button onClick={() => exportRaporPdf(p.id)} disabled={exportingId === p.id} className="p-2 sm:p-2.5 rounded-xl bg-white text-slate-500 hover:bg-emerald-600 hover:text-white transition-all border border-slate-100 disabled:opacity-50" title="Unduh Rapor (PDF)">
                                 {exportingId === p.id ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
                               </button>
                             )}
-                            <button onClick={() => openEditPeriod(p)} className="p-2.5 rounded-xl bg-white text-slate-500 hover:bg-secondary hover:text-white transition-all border border-slate-100" title="Buka"><Pencil size={16} /></button>
-                            <button onClick={() => setConfirmingDeletePeriod(p)} className="p-2.5 rounded-xl bg-white text-slate-500 hover:bg-rose-500 hover:text-white transition-all border border-slate-100" title="Hapus"><Trash2 size={16} /></button>
+                            <button onClick={() => openEditPeriod(p)} className="p-2 sm:p-2.5 rounded-xl bg-white text-slate-500 hover:bg-secondary hover:text-white transition-all border border-slate-100" title="Buka"><Pencil size={16} /></button>
+                            <button onClick={() => setConfirmingDeletePeriod(p)} className="p-2 sm:p-2.5 rounded-xl bg-white text-slate-500 hover:bg-rose-500 hover:text-white transition-all border border-slate-100" title="Hapus"><Trash2 size={16} /></button>
                           </div>
                         </div>
                       ))}
@@ -952,7 +1196,7 @@ export default function TeacherEraport() {
               </>
             ) : (
               <>
-                <div className="px-6 md:px-8 py-5 space-y-5">
+                <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 space-y-5">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <button onClick={backToPeriodList} className="inline-flex items-center gap-2 text-xs font-black text-slate-400 hover:text-slate-700 transition-colors">
                       <ArrowLeft size={14} /> Kembali ke Daftar Semester
@@ -1038,7 +1282,7 @@ export default function TeacherEraport() {
                               ) : (
                                 <>
                                   <div className="overflow-x-auto -mx-1 px-1">
-                                    <table className="w-full border-separate border-spacing-x-2 border-spacing-y-1">
+                                    <table className="w-full min-w-[580px] border-separate border-spacing-x-2 border-spacing-y-1">
                                       <thead>
                                         <tr>
                                           <th className="text-left pb-1 font-black text-slate-400 text-[10px] uppercase tracking-wider">No</th>
@@ -1087,7 +1331,7 @@ export default function TeacherEraport() {
                               <>
                                 {draft.length > 0 && (
                                   <div className="overflow-x-auto -mx-1 px-1 mb-2">
-                                    <table className="w-full border-separate border-spacing-x-2 border-spacing-y-1">
+                                    <table className="w-full min-w-[580px] border-separate border-spacing-x-2 border-spacing-y-1">
                                       <thead>
                                         <tr>
                                           {t.fields.map((f) => (
@@ -1298,15 +1542,40 @@ export default function TeacherEraport() {
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
                   />
                 </div>
+
+                {/* Panel Opsi Hapus All Semester Ini (Bila salah input) */}
+                {matchingBatchPeriods.length > 0 && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 mt-2">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-rose-500 text-white shrink-0 mt-0.5">
+                        <Trash2 size={16} />
+                      </div>
+                      <div className="flex-grow min-w-0">
+                        <h5 className="font-black text-rose-900 text-xs">Pembersihan / Hapus All Semester Ini</h5>
+                        <p className="text-[11px] text-rose-700 font-medium mt-0.5 leading-relaxed">
+                          Ditemukan <b>{matchingBatchPeriods.length} data semester</b> untuk TP {batchForm.tahunAjaran} Semester {batchForm.semester === '1' ? 'Ganjil' : 'Genap'} di kelas {activeGrade}. Jika Anda salah setup atau salah ketik tahun/semester, Anda dapat menghapus seluruh semester ini sekaligus se-kelas.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDeleteBatchSemester(true)}
+                          disabled={savingBatch || deletingBatch}
+                          className="mt-3 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black rounded-xl uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {deletingBatch ? <><Loader2 size={13} className="animate-spin" /> Menghapus…</> : <><Trash2 size={13} /> Hapus All Semester Ini ({matchingBatchPeriods.length} Siswa)</>}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             <ModalFooter>
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end w-full">
                 <button
                   type="button"
                   onClick={() => setShowBatchModal(false)}
-                  disabled={savingBatch}
+                  disabled={savingBatch || deletingBatch}
                   className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs hover:bg-slate-200 transition-all"
                 >
                   Batal
@@ -1314,10 +1583,268 @@ export default function TeacherEraport() {
                 <button
                   type="button"
                   onClick={handleApplyBatchSemester}
-                  disabled={savingBatch}
+                  disabled={savingBatch || deletingBatch}
                   className="px-5 py-2.5 rounded-xl bg-secondary text-white font-black text-xs uppercase tracking-wider hover:brightness-95 transition-all shadow-md shadow-secondary/20 flex items-center gap-2 disabled:opacity-50"
                 >
                   {savingBatch ? <><Loader2 size={14} className="animate-spin" /> Menerapkan…</> : <><Check size={14} /> Terapkan ke Semua Siswa Kelas {activeGrade}</>}
+                </button>
+              </div>
+            </ModalFooter>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Konfirmasi Hapus Massal Semester Se-Kelas */}
+      <AnimatePresence>
+        {confirmingDeleteBatchSemester && (
+          <ConfirmDialog
+            title={`Hapus All Semester: Kelas ${activeGrade}?`}
+            message={`PERINGATAN: Tindakan ini akan menghapus seluruh data rapor Semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${matchingBatchPeriods.length} siswa kelas ${activeGrade}, termasuk nilai mata pelajaran, aspek capaian, dan catatan wali kelas yang terhubung ke semester tersebut.\n\nApakah Anda yakin ingin menghapus seluruhnya?`}
+            confirmLabel="Ya, Hapus Semua"
+            cancelLabel="Batal"
+            loading={deletingBatch}
+            onConfirm={handleDeleteBatchSemester}
+            onCancel={() => !deletingBatch && setConfirmingDeleteBatchSemester(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Modal Unduh E-Raport Kelas (Multi-Export) */}
+      <AnimatePresence>
+        {showMultiExportModal && (
+          <Modal
+            onClose={() => !exportingMulti && setShowMultiExportModal(false)}
+            title={`Unduh E-Raport: Kelas ${activeGrade}`}
+            maxWidthClass="max-w-3xl"
+          >
+            <div className="p-4 sm:p-6 md:p-8 space-y-5">
+              {/* Filter Tahun Ajaran & Semester */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[11px] font-black uppercase text-secondary tracking-wider">
+                    1. Pilih Semester Rapor yang Ingin Diunduh
+                  </span>
+                  <span className="text-xs font-bold text-slate-500">
+                    Kelas {activeGrade}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Tahun Pelajaran</label>
+                    <select
+                      value={exportYear}
+                      onChange={(e) => setExportYear(e.target.value)}
+                      disabled={exportingMulti}
+                      className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary transition-all"
+                    >
+                      {classAvailableYears.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Semester</label>
+                    <select
+                      value={exportSemester}
+                      onChange={(e) => setExportSemester(e.target.value)}
+                      disabled={exportingMulti}
+                      className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary transition-all"
+                    >
+                      <option value="1">1 (Ganjil)</option>
+                      <option value="2">2 (Genap)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Format Unduh (Kompilasi All vs Terpisah) */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-black uppercase text-secondary tracking-wider">
+                  2. Pilih Format Dokumen PDF
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => !exportingMulti && setExportFormat('bundle')}
+                    className={`cursor-pointer p-3.5 rounded-2xl border-2 transition-all ${
+                      exportFormat === 'bundle'
+                        ? 'border-secondary bg-secondary/5 text-slate-900 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={exportFormat === 'bundle'}
+                        onChange={() => setExportFormat('bundle')}
+                        className="accent-secondary"
+                      />
+                      <span className="font-black text-xs">1 File PDF Kompilasi (Gabungan)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1.5 ml-5 leading-relaxed">
+                      Seluruh rapor murid terpilih digabung berurutan dalam 1 file PDF. Sangat praktis untuk langsung dicetak se-kelas ke printer/percetakan!
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => !exportingMulti && setExportFormat('separate')}
+                    className={`cursor-pointer p-3.5 rounded-2xl border-2 transition-all ${
+                      exportFormat === 'separate'
+                        ? 'border-secondary bg-secondary/5 text-slate-900 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={exportFormat === 'separate'}
+                        onChange={() => setExportFormat('separate')}
+                        className="accent-secondary"
+                      />
+                      <span className="font-black text-xs">File PDF Terpisah per Murid</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1.5 ml-5 leading-relaxed">
+                      Tiap murid diunduh menjadi 1 file PDF masing-masing (diunduh berurutan otomatis satu per satu).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Daftar Pilihan Murid */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-[11px] font-black uppercase text-secondary tracking-wider">
+                    3. Pilih Murid ({selectedExportStudentIds.length} dari {(students || []).filter((s) => s.kelas === activeGrade).length} dipilih)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllExportStudents}
+                      disabled={exportingMulti}
+                      className="text-[11px] font-black text-secondary hover:underline px-2.5 py-1 rounded-lg bg-secondary/10"
+                    >
+                      Pilih Semua
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deselectAllExportStudents}
+                      disabled={exportingMulti}
+                      className="text-[11px] font-black text-slate-500 hover:underline px-2.5 py-1 rounded-lg bg-slate-100"
+                    >
+                      Batal Pilih
+                    </button>
+                  </div>
+                </div>
+
+                {/* List Siswa */}
+                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-white">
+                  {(students || [])
+                    .filter((s) => s.kelas === activeGrade)
+                    .map((stu, idx) => {
+                      const isSelected = selectedExportStudentIds.includes(String(stu.id));
+                      const matchPeriod = (periods || []).find(
+                        (p) =>
+                          String(p.studentId) === String(stu.id) &&
+                          String(p.tahunAjaran) === String(exportYear) &&
+                          String(p.semester) === String(exportSemester)
+                      );
+                      const isTK = activeGrade === 'TK';
+                      const filledScores = matchPeriod
+                        ? isTK
+                          ? (subData.ReportAspects || []).filter((a) => String(a.reportPeriodId) === String(matchPeriod.id) && String(a.deskripsi || '').trim() !== '').length
+                          : (subData.ReportGrades || []).filter((g) => String(g.reportPeriodId) === String(matchPeriod.id) && String(g.nilaiAngka || '').trim() !== '').length
+                        : 0;
+
+                      return (
+                        <div
+                          key={stu.id}
+                          onClick={() => !exportingMulti && toggleExportStudent(stu.id)}
+                          className={`p-3 flex items-center justify-between gap-3 text-xs cursor-pointer hover:bg-slate-50 transition-colors ${
+                            isSelected ? 'bg-secondary/5' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleExportStudent(stu.id)}
+                              disabled={exportingMulti}
+                              className="w-4 h-4 accent-secondary shrink-0"
+                            />
+                            <span className="font-bold text-slate-400 w-5 text-center shrink-0">{idx + 1}</span>
+                            <div className="min-w-0">
+                              <p className="font-black text-slate-900 truncate">{stu.nama_siswa}</p>
+                              <p className="text-[10px] text-slate-400 font-medium truncate">
+                                NISN: {stu.nisn || '-'} {stu.nis ? `• NIS: ${stu.nis}` : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-2">
+                            {matchPeriod ? (
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                filledScores > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                              }`}>
+                                {filledScores > 0 ? `✓ Rapor Siap (${filledScores} ${isTK ? 'aspek' : 'mapel'})` : 'Periode Ada (Nilai Kosong)'}
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">
+                                Belum Ada Semester Ini
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Progress Bar saat Eksekusi */}
+              {exportingMulti && (
+                <div className="bg-secondary/5 border border-secondary/20 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2 text-secondary">
+                      <Loader2 size={14} className="animate-spin" /> Sedang Menghasilkan Dokumen PDF Rapor…
+                    </span>
+                    <span>
+                      {exportProgress.current} / {exportProgress.total} Siswa
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-secondary transition-all duration-300"
+                      style={{ width: `${exportProgress.total ? (exportProgress.current / exportProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium italic truncate">
+                    Memproses murid: <span className="font-bold text-slate-700">{exportProgress.currentName}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <ModalFooter>
+              <div className="flex gap-2 justify-end w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowMultiExportModal(false)}
+                  disabled={exportingMulti}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs hover:bg-slate-200 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteMultiExport}
+                  disabled={exportingMulti || selectedExportStudentIds.length === 0}
+                  className="px-5 py-2.5 rounded-xl bg-secondary text-white font-black text-xs uppercase tracking-wider hover:brightness-95 transition-all shadow-md shadow-secondary/20 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {exportingMulti ? (
+                    <><Loader2 size={14} className="animate-spin" /> Memproses…</>
+                  ) : (
+                    <><FileDown size={14} /> Unduh {selectedExportStudentIds.length} Rapor Murid</>
+                  )}
                 </button>
               </div>
             </ModalFooter>

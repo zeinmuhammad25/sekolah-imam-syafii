@@ -45,7 +45,7 @@ export default function TeacherSettings() {
       <h2 className="text-2xl font-black text-slate-900 mb-1">Pengaturan</h2>
       <p className="text-slate-400 font-medium mb-8 text-sm">Kelola akses akun panel guru.</p>
 
-      <div className="bg-white border-2 border-slate-100 rounded-3xl p-6 md:p-8">
+      <div className="bg-white border-2 border-slate-100 rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-11 h-11 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
             <KeyRound size={20} />

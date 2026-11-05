@@ -430,7 +430,7 @@ export default function TeacherSubjects() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {!isTK && (
             <button
               onClick={() => {

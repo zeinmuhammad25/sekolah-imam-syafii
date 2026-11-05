@@ -291,19 +291,19 @@ export default function TeacherGrades() {
         </div>
 
         {/* Filter Tahun Ajaran & Semester */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="bg-white border border-slate-200 rounded-2xl p-1 shadow-sm flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="bg-white border border-slate-200 rounded-2xl p-1 shadow-sm flex items-center gap-2 flex-grow sm:flex-grow-0 justify-between sm:justify-start">
             <input
               type="text"
               value={academicYear}
               onChange={(e) => setAcademicYear(e.target.value)}
               placeholder="2025/2026"
-              className="w-28 px-3 py-1.5 text-xs font-black text-slate-800 bg-slate-50 rounded-xl outline-none border border-transparent focus:border-secondary transition-all"
+              className="w-24 sm:w-28 px-3 py-1.5 text-xs font-black text-slate-800 bg-slate-50 rounded-xl outline-none border border-transparent focus:border-secondary transition-all"
             />
             <select
               value={semester}
               onChange={(e) => setSemester(e.target.value)}
-              className="px-3 py-1.5 text-xs font-black text-slate-800 bg-slate-50 rounded-xl outline-none border border-transparent focus:border-secondary transition-all"
+              className="px-2.5 sm:px-3 py-1.5 text-xs font-black text-slate-800 bg-slate-50 rounded-xl outline-none border border-transparent focus:border-secondary transition-all"
             >
               {SEMESTER_OPTIONS.map((opt) => (
                 <option key={opt.key} value={opt.key}>
@@ -350,7 +350,7 @@ export default function TeacherGrades() {
             return (
               <div
                 key={g.key}
-                className={`rounded-3xl border transition-all duration-200 bg-white p-6 flex flex-col justify-between shadow-sm relative overflow-hidden ${
+                className={`rounded-2xl sm:rounded-3xl border transition-all duration-200 bg-white p-4 sm:p-6 flex flex-col justify-between shadow-sm relative overflow-hidden ${
                   g.isPublished
                     ? 'border-emerald-200 shadow-emerald-500/5'
                     : 'border-slate-100 hover:border-slate-200'
@@ -473,7 +473,7 @@ export default function TeacherGrades() {
             onClose={() => setInspectGrade(null)}
             maxWidthClass="max-w-2xl"
           >
-            <div className="p-6 md:p-8 space-y-4">
+            <div className="p-4 sm:p-6 md:p-8 space-y-4">
               {/* Search Siswa */}
               <div className="relative">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -569,7 +569,7 @@ export default function TeacherGrades() {
             onClose={() => !savingNotes && setNotesModal(null)}
             maxWidthClass="max-w-md"
           >
-            <div className="p-6 md:p-8 space-y-4">
+            <div className="p-4 sm:p-6 md:p-8 space-y-4">
               <p className="text-xs text-slate-600 leading-relaxed">
                 Pesan ini akan ditampilkan di kartu nilai murid saat orang tua membuka <b>Portal Wali Murid</b>.
               </p>

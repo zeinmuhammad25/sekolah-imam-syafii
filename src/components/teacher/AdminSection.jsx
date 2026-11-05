@@ -213,7 +213,7 @@ export default function AdminSection({ section }) {
           {items.map((item, index) => (
             <div
               key={item.id}
-              className={`flex items-center gap-3 bg-white rounded-2xl p-3 border shadow-sm transition-colors ${
+              className={`flex items-center gap-2.5 sm:gap-3 bg-white rounded-2xl p-2.5 sm:p-3 border shadow-sm transition-colors ${
                 editMode ? 'border-slate-200' : 'border-slate-100'
               }`}
             >
@@ -260,7 +260,7 @@ export default function AdminSection({ section }) {
       <AnimatePresence>
         {editing && (
           <Modal onClose={() => !saving && setEditing(null)} title={`${editing.id ? 'Edit' : 'Tambah'} ${cfg.title}`}>
-            <div className="px-6 md:px-8 py-6 space-y-4">
+            <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-6 space-y-4">
               {cfg.fields.map((f) => (
                 <Field
                   key={f.name}
