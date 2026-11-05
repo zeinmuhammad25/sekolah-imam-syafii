@@ -219,13 +219,25 @@ export const deleteExamSession = async (sessionId) => {
   }
 };
 
-// Orang Tua: Cari siswa berdasarkan Nama, NIK, NISN, atau ID
-export const lookupParentStudent = async ({ q, studentId }) => {
+// Orang Tua: Layanan Portal Wali Murid
+export const lookupParentStudent = async ({ q, studentId, action, kelas, authCode }) => {
   try {
     const params = new URLSearchParams();
+    if (action) params.set('action', action);
+    if (kelas) params.set('kelas', kelas);
     if (studentId) params.set('studentId', studentId);
+    if (authCode) params.set('authCode', authCode);
     if (q) params.set('q', q);
     const res = await fetch(`/api/parent/lookup?${params.toString()}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      console.warn('lookupParentStudent non-JSON response:', text.slice(0, 100));
+      return {
+        success: false,
+        message: 'Endpoint API lokal belum terhubung. Pastikan dev server telah di-restart agar proxy Vite aktif.',
+      };
+    }
     return await res.json();
   } catch (err) {
     console.error('lookupParentStudent error:', err);

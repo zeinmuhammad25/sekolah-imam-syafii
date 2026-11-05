@@ -1,5 +1,42 @@
 import { json } from '../../_lib/auth.js';
 
+// Sensor field privat kependudukan jika ada isinya
+function maskValue(val, type = 'nik') {
+  if (!val || typeof val !== 'string') return val;
+  const s = val.trim();
+  if (!s) return s;
+  if (type === 'nik' || type === 'kk') {
+    if (s.length <= 6) return s;
+    return `${s.slice(0, 6)}${'*'.repeat(Math.max(s.length - 10, 4))}${s.slice(-4)}`;
+  }
+  if (type === 'phone') {
+    if (s.length <= 4) return s;
+    return `${s.slice(0, 4)}****${s.slice(-3)}`;
+  }
+  return s;
+}
+
+// Helper untuk mengambil data profil siswa (dengan sensor data sensitif)
+async function getStudentProfile(db, studentId) {
+  const row = await db.prepare(`
+    SELECT * FROM students WHERE id = ?
+  `).bind(studentId).first();
+
+  if (!row) return null;
+
+  // Mask data identitas sensitif
+  const safeProfile = {
+    ...row,
+    nik_siswa: maskValue(row.nik_siswa, 'nik'),
+    no_kk: maskValue(row.no_kk, 'kk'),
+    nik_ayah: maskValue(row.nik_ayah, 'nik'),
+    nik_ibu: maskValue(row.nik_ibu, 'nik'),
+    no_hp_ortu: maskValue(row.no_hp_ortu, 'phone'),
+  };
+
+  return safeProfile;
+}
+
 // Helper untuk mengambil seluruh nilai ujian terbit & rapor siswa
 async function getStudentFullData(db, studentId) {
   // 1. Data Siswa
@@ -32,7 +69,6 @@ async function getStudentFullData(db, studentId) {
   `).bind(studentId).all();
 
   // 3. Status Publikasi Rapor per Kelas (grade_publications)
-  // Ambil publikasi seluruh kelas & tahun ajaran agar riwayat kelas sebelumnya (misal saat masih di SD 1) tetap cocok
   const pubsRes = await db.prepare(`
     SELECT grade, academic_year, semester, is_published, published_at, published_by, notes
     FROM grade_publications
@@ -102,14 +138,92 @@ async function getStudentFullData(db, studentId) {
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  const db = env.DB;
+  const db = env?.DB;
+
+  if (!db) {
+    return json({
+      success: false,
+      message: 'Database D1 (env.DB) belum terhubung di environment ini.',
+    }, { status: 500 });
+  }
+
   const url = new URL(request.url);
 
+  const action = url.searchParams.get('action'); // 'list_class' | 'profile' | 'raport' | default lookup
+  const kelas = url.searchParams.get('kelas');
   const studentId = url.searchParams.get('studentId');
+  const authCode = String(url.searchParams.get('authCode') || '').trim(); // NISN atau NIS untuk verifikasi
   const q = String(url.searchParams.get('q') || '').trim();
 
   try {
-    // A. Akses langsung via studentId (misal setelah ortu memilih dari daftar nama)
+    // 1. Ambil daftar ringkas siswa per kelas (untuk tampilan awal setelah pilih kelas)
+    if (action === 'list_class' && kelas) {
+      const rows = await db.prepare(`
+        SELECT id, nama_siswa, jenis_kelamin, kelas, nisn, nis
+        FROM students
+        WHERE kelas = ? AND (status IS NULL OR LOWER(status) != 'alumni')
+        ORDER BY nama_siswa ASC
+      `).bind(kelas).all();
+
+      return json({
+        success: true,
+        students: (rows.results || []).map((s) => ({
+          id: s.id,
+          nama_siswa: s.nama_siswa,
+          jenis_kelamin: s.jenis_kelamin,
+          kelas: s.kelas,
+          hasNisn: !!s.nisn,
+          hasNis: !!s.nis,
+        })),
+      });
+    }
+
+    // 2. Ambil Profil Data Siswa (bebas buka tanpa NISN, field sensitif disensor)
+    if (action === 'profile' && studentId) {
+      const profile = await getStudentProfile(db, studentId);
+      if (!profile) {
+        return json({ success: false, message: 'Data ananda tidak ditemukan' }, { status: 404 });
+      }
+      return json({ success: true, profile });
+    }
+
+    // 3. Akses Nilai Rapor (Memerlukan verifikasi NISN atau NIS untuk SD, atau langsung jika TK)
+    if (action === 'raport' && studentId) {
+      // Periksa data siswa
+      const stu = await db.prepare(`SELECT id, kelas, nisn, nis FROM students WHERE id = ?`).bind(studentId).first();
+      if (!stu) {
+        return json({ success: false, message: 'Data ananda tidak ditemukan' }, { status: 404 });
+      }
+
+      const isTK = String(stu.kelas || '').toUpperCase() === 'TK';
+
+      // Jika bukan TK, lakukan verifikasi NISN / NIS
+      if (!isTK) {
+        if (!authCode) {
+          return json({ success: false, message: 'Silakan masukkan nomor NISN atau NIS ananda untuk melihat rapor.' }, { status: 400 });
+        }
+
+        const cleanAuth = authCode.replace(/\s+/g, '');
+        const cleanNisn = String(stu.nisn || '').replace(/\s+/g, '');
+        const cleanNis = String(stu.nis || '').replace(/\s+/g, '');
+
+        const matchNisn = cleanNisn && cleanNisn === cleanAuth;
+        const matchNis = cleanNis && cleanNis === cleanAuth;
+
+        if (!matchNisn && !matchNis) {
+          return json({
+            success: false,
+            message: 'NISN atau NIS yang Anda masukkan tidak sesuai dengan data ananda. Mohon periksa kembali.',
+          }, { status: 403 });
+        }
+      }
+
+      // Berhasil verifikasi -> ambil data lengkap rapor
+      const data = await getStudentFullData(db, studentId);
+      return json({ success: true, ...data });
+    }
+
+    // 4. Fallback: Akses langsung via studentId lama
     if (studentId) {
       const data = await getStudentFullData(db, studentId);
       if (!data) {
@@ -118,63 +232,28 @@ export async function onRequestGet(context) {
       return json({ success: true, single: true, ...data });
     }
 
-    // B. Pencarian via Nama / NIK / NISN
-    if (!q || q.length < 2) {
-      return json({ success: false, message: 'Silakan ketik minimal 2 karakter (Nama, NIK, atau NISN)' }, { status: 400 });
-    }
+    // 5. Fallback: Pencarian teks via query q (pencarian nama)
+    if (q && q.length >= 2) {
+      const normalized = q.toLowerCase();
+      const wild = `%${normalized}%`;
 
-    // Cari di tabel students
-    const normalized = q.toLowerCase();
-    const wild = `%${normalized}%`;
+      const matches = await db.prepare(`
+        SELECT id, nama_siswa, jenis_kelamin, kelas, nisn, nis
+        FROM students
+        WHERE LOWER(nama_siswa) LIKE ?
+           OR REPLACE(REPLACE(LOWER(nama_siswa), '.', ''), ' ', '') LIKE ?
+        ORDER BY nama_siswa ASC
+        LIMIT 20
+      `).bind(wild, `%${normalized.replace(/[\s.]/g, '')}%`).all();
 
-    const matches = await db.prepare(`
-      SELECT id, nama_siswa, jenis_kelamin, kelas, nisn, nis, nik_siswa
-      FROM students
-      WHERE LOWER(nama_siswa) LIKE ? 
-         OR nik_siswa = ? 
-         OR nisn = ?
-         OR nis = ?
-         OR REPLACE(REPLACE(LOWER(nama_siswa), '.', ''), ' ', '') LIKE ?
-      ORDER BY nama_siswa ASC
-      LIMIT 15
-    `).bind(wild, q, q, q, `%${normalized.replace(/[\s.]/g, '')}%`).all();
-
-    const results = matches.results || [];
-
-    if (results.length === 0) {
       return json({
         success: true,
-        found: false,
-        message: 'Data ananda tidak ditemukan. Mohon pastikan ejaan Nama, NIK, atau NISN sudah sesuai.',
+        students: matches.results || [],
       });
     }
 
-    // Jika tepat cocok 1 siswa -> langsung muat seluruh nilai dan rapornya
-    if (results.length === 1) {
-      const data = await getStudentFullData(db, results[0].id);
-      return json({
-        success: true,
-        found: true,
-        single: true,
-        ...data,
-      });
-    }
-
-    // Jika ada lebih dari 1 siswa dengan nama mirip -> kembalikan daftar ringkas agar ortu bisa memilih
-    return json({
-      success: true,
-      found: true,
-      multiple: true,
-      students: results.map((s) => ({
-        id: s.id,
-        nama_siswa: s.nama_siswa,
-        kelas: s.kelas,
-        jenis_kelamin: s.jenis_kelamin,
-        nisn: s.nisn ? `${s.nisn.slice(0, 4)}***` : '',
-      })),
-    });
+    return json({ success: false, message: 'Parameter tidak valid' }, { status: 400 });
   } catch (err) {
     return json({ success: false, message: err.message }, { status: 500 });
   }
 }
-

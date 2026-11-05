@@ -1,22 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Plus, 
   Search, 
   FileEdit, 
   Trash2, 
-  FileDown as Download, 
   ChevronRight, 
-  LayoutDashboard, 
   BookOpen, 
-  FolderPlus,
-  AlertCircle,
-  FileText,
-  CheckCircle2,
-  FileDown,
-  X,
-  ArrowUpDown,
-  ChevronUp,
-  ChevronDown
+  AlertCircle, 
+  CheckCircle2, 
+  FileDown, 
+  X, 
+  ArrowUpDown, 
+  ChevronUp, 
+  ChevronDown,
+  Copy,
+  Layers,
+  Sparkles,
+  HelpCircle,
+  FileCheck,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mutateRow, fetchSchoolData } from '../../services/gsheet';
@@ -26,172 +29,93 @@ import "jspdf-autotable";
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
 
 export default function TeacherSoal() {
-  const [activeGrade, setActiveGrade] = useState('TK');
-  const [examTypes, setExamTypes] = useState(() => {
-    try {
-      const saved = localStorage.getItem('mias_exam_types');
-      if (!saved) return {
-        'TK': [], 'SD 1': [], 'SD 2': [], 'SD 3': [], 'SD 4': [], 'SD 5': [], 'SD 6': []
-      };
-      const parsed = JSON.parse(saved);
-      // Validate structure
-      if (typeof parsed !== 'object' || !parsed['TK']) throw new Error();
-      return parsed;
-    } catch (e) {
-      return {
-        'TK': [], 'SD 1': [], 'SD 2': [], 'SD 3': [], 'SD 4': [], 'SD 5': [], 'SD 6': []
-      };
-    }
-  });
-
+  const [activeGrade, setActiveGrade] = useState('SD 1');
+  
+  // Data Master Mata Pelajaran (Otomatis dari Master Mapel)
+  const [masterSubjects, setMasterSubjects] = useState([]);
+  
+  // Data Folder Ujian & Soal dari D1
+  const [allFolders, setAllFolders] = useState([]); // [{id, grade, name}]
+  const [questions, setQuestions] = useState({});   // { [folderId]: [questions] }
+  
+  // Folder / Mapel yang sedang dipilih guru
   const [activeExamFolder, setActiveExamFolder] = useState(null);
-  const [questions, setQuestions] = useState(() => {
-    try {
-      const saved = localStorage.getItem('mias_questions');
-      if (!saved) return {};
-      const parsed = JSON.parse(saved);
-      if (typeof parsed !== 'object') throw new Error();
-      return parsed;
-    } catch (e) {
-      return {};
-    }
-  });
   
-  const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  
+  // Modal Input Soal
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [questionForm, setQuestionForm] = useState({
     text: '',
     options: { a: '', b: '', c: '', d: '' },
-    correctAnswer: 'a'
+    correctAnswer: 'a',
+    type: 'pg'
   });
 
+  // Modal Cetak Pilihan (Lembar Siswa vs Kunci Jawaban Guru)
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Modal Cetak Multi-Mapel
+  const [isMultiExportModalOpen, setIsMultiExportModalOpen] = useState(false);
+  const [selectedSubjectsForExport, setSelectedSubjectsForExport] = useState([]);
+  const [multiExportMode, setMultiExportMode] = useState('STUDENT'); // 'STUDENT' | 'ANSWER_KEY' | 'BOTH'
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [backPressCounter, setBackPressCounter] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [notify, setNotify] = useState(null); // { type: 'success' | 'error', title, message }
-  const savingRef = useRef(false); // kunci sinkron cegah klik-ganda saat simpan (jeda 2-4 dtk)
+  const savingRef = useRef(false);
   const [reorderMode, setReorderMode] = useState(false);
-  const [orderDraft, setOrderDraft] = useState([]); // salinan soal folder aktif saat atur urutan
+  const [orderDraft, setOrderDraft] = useState([]);
 
-  // Persist data
-  useEffect(() => {
-    localStorage.setItem('mias_exam_types', JSON.stringify(examTypes));
-  }, [examTypes]);
+  // Sequence ref untuk isolasi agar hasil sync lama tidak menimpa state yang sedang diedit
+  const writeSeqRef = useRef(0);
+  const lastVersionRef = useRef(null);
+  const editingRef = useRef(null);
+  useEffect(() => { editingRef.current = editingQuestion; }, [editingQuestion]);
 
-  useEffect(() => {
-    localStorage.setItem('mias_questions', JSON.stringify(questions));
-  }, [questions]);
-
-  // Toast otomatis hilang (sukses lebih cepat, error lebih lama biar sempat dibaca)
+  // Toast auto-dismiss
   useEffect(() => {
     if (!notify) return;
     const t = setTimeout(() => setNotify(null), notify.type === 'error' ? 6000 : 3000);
     return () => clearTimeout(t);
   }, [notify]);
 
-  // Protection for Mobile Back Button: "Trap" the user in the modal
-  useEffect(() => {
-    if (isQuestionModalOpen) {
-      setBackPressCounter(0);
-      window.history.pushState({ modalOpen: true }, '');
-      const handlePopState = () => {
-        if (isQuestionModalOpen) {
-          setBackPressCounter(prev => {
-            const next = prev + 1;
-            if (next <= 3) {
-              window.history.pushState({ modalOpen: true }, '');
-              return next;
-            } else if (next === 4) {
-              alert("Silahkan selesaikan soal dan simpan");
-              window.history.pushState({ modalOpen: true }, '');
-              return next;
-            } else {
-              setIsQuestionModalOpen(false);
-              return 0;
+  // 1. Load Data dari Server (Master Mapel, Folder Soal, dan Butir Soal)
+  const loadAllData = async (showSilently = false) => {
+    if (showSilently && savingRef.current) return;
+    const seq = writeSeqRef.current;
+    if (!showSilently) setIsSyncing(true);
+
+    try {
+      const data = await fetchSchoolData();
+      if (showSilently && (seq !== writeSeqRef.current || savingRef.current)) return;
+      if (showSilently && data && data._version != null && data._version === lastVersionRef.current) return;
+      if (data && data._version != null) lastVersionRef.current = data._version;
+
+      if (data) {
+        // Simpan Master Mapel
+        if (data.MasterSubjects) {
+          setMasterSubjects(data.MasterSubjects);
+        }
+
+        // Simpan Folders & Soal dari QuestionFolders & Questions (atau TeacherQuestions)
+        let qMap = {};
+        let fList = [];
+
+        if (data.QuestionFolders) {
+          fList = data.QuestionFolders;
+        }
+
+        if (data.TeacherQuestions && Array.isArray(data.TeacherQuestions)) {
+          data.TeacherQuestions.forEach(tq => {
+            if (tq && tq.data && tq.data.questions) {
+              Object.assign(qMap, tq.data.questions);
             }
           });
         }
-      };
-      window.addEventListener('popstate', handlePopState);
-      return () => window.removeEventListener('popstate', handlePopState);
-    } else if (isAddFolderModalOpen) {
-      window.history.pushState({ modalOpen: true }, '');
-      const handlePopState = () => {
-        if (isAddFolderModalOpen) window.history.pushState({ modalOpen: true }, '');
-      };
-      window.addEventListener('popstate', handlePopState);
-      return () => window.removeEventListener('popstate', handlePopState);
-    }
-  }, [isQuestionModalOpen, isAddFolderModalOpen]);
 
-  const [isSyncing, setIsSyncing] = useState(false);
-  const GRADE_INDEX = { "TK": 0, "SD 1": 1, "SD 2": 2, "SD 3": 3, "SD 4": 4, "SD 5": 5, "SD 6": 6 };
-
-  // ---- Sinkron dengan guru lain (bisa 5+ guru mengedit bank soal bersamaan) ----
-  // writeSeqRef naik setiap kali halaman ini menyimpan sesuatu. Hasil sinkron latar belakang
-  // yang DIMULAI sebelum simpan itu dibuang, supaya tidak menimpa tampilan dengan data lama.
-  const writeSeqRef = useRef(0);
-  const lastVersionRef = useRef(null); // versi data server terakhir yang sudah ditampilkan
-  const editingRef = useRef(null);     // soal yang sedang dibuka di form (untuk peringatan dini)
-  const warnedRef = useRef('');
-  useEffect(() => { editingRef.current = editingQuestion; }, [editingQuestion]);
-
-  // Load Logic: Ambil data dari server (D1)
-  const loadAllData = async (showSilently = false) => {
-    if (showSilently && savingRef.current) return; // sedang menyimpan -> tunggu putaran berikutnya
-    const seq = writeSeqRef.current;
-    if (!showSilently) setIsSyncing(true);
-    try {
-      const data = await fetchSchoolData();
-      if (showSilently && (seq !== writeSeqRef.current || savingRef.current)) return; // ada simpan di tengah jalan -> data ini sudah basi
-      if (showSilently && data && data._version != null && data._version === lastVersionRef.current) return; // tidak ada perubahan
-      if (data && data._version != null) lastVersionRef.current = data._version;
-
-      if (data && data.TeacherQuestions) {
-        const cloudRows = data.TeacherQuestions;
-        let newExamTypes = { 'TK': [], 'SD 1': [], 'SD 2': [], 'SD 3': [], 'SD 4': [], 'SD 5': [], 'SD 6': [] };
-        let newQuestions = {};
-        let hasDataInCloud = false;
-
-        GRADES.forEach(grade => {
-          const index = GRADE_INDEX[grade];
-          const gradeCloudData = cloudRows[index];
-          
-          if (gradeCloudData && gradeCloudData.data) {
-            const actualData = gradeCloudData.data;
-            if (actualData.examTypes && actualData.examTypes[grade]) {
-              hasDataInCloud = true;
-              newExamTypes[grade] = actualData.examTypes[grade];
-              if (actualData.questions) {
-                Object.assign(newQuestions, actualData.questions);
-              }
-            }
-          }
-        });
-
-        if (!showSilently || hasDataInCloud) {
-          setExamTypes(newExamTypes);
-          setQuestions(newQuestions);
-        }
-
-        // Peringatan dini: soal yang sedang dibuka di form baru saja diubah/dihapus guru lain.
-        const ed = editingRef.current;
-        if (ed && ed.id) {
-          const fresh = Object.values(newQuestions).flat().find((q) => String(q.id) === String(ed.id));
-          const key = `${ed.id}:${fresh ? fresh.updatedAt : 'gone'}`;
-          if ((!fresh || String(fresh.updatedAt) !== String(ed.updatedAt)) && warnedRef.current !== key) {
-            warnedRef.current = key;
-            setNotify({
-              type: 'error',
-              title: fresh ? 'Soal ini baru saja diubah guru lain' : 'Soal ini baru saja dihapus guru lain',
-              message: fresh
-                ? 'Soal yang sedang Anda edit sudah disimpan oleh guru lain. Isian Anda aman di form; saat Anda klik Simpan, sistem akan meminta konfirmasi dulu.'
-                : 'Isian Anda aman di form. Klik Simpan untuk menyimpannya sebagai soal baru, atau tutup form.',
-            });
-          }
-        }
+        setAllFolders(fList);
+        setQuestions(qMap);
       }
     } catch (e) {
       console.error("Load error:", e);
@@ -200,8 +124,6 @@ export default function TeacherSoal() {
     }
   };
 
-  // Initial Load & sinkron "live": tiap 20 detik saat tab terbuka + langsung saat guru kembali ke tab.
-  // Murah: server menjawab 304 (kosong) selama tidak ada perubahan, jadi aman untuk banyak guru.
   useEffect(() => {
     loadAllData();
     const refresh = () => { if (document.visibilityState === 'visible') loadAllData(true); };
@@ -215,228 +137,407 @@ export default function TeacherSoal() {
     };
   }, []);
 
-  // Terjemahkan kegagalan dari server jadi pesan yang jelas untuk guru.
-  const describeError = (res) => {
-    const e = String((res && res.error) || '');
-    if (res && res.conflict && !e) return 'Soal ini baru saja diubah dari perangkat/guru lain. Versi terbaru sudah dimuat — silakan buka lagi dan edit ulang.';
-    if (/id tidak ditemukan/i.test(e)) return 'Data sudah dihapus dari perangkat/guru lain. Halaman dimuat ulang.';
-    if (/sheet tidak ditemukan/i.test(e)) return 'Penyimpanan belum siap di server (sheet belum dibuat). Hubungi admin — migrasi Apps Script belum dijalankan.';
-    if (/sheet tidak diizinkan/i.test(e)) return 'Operasi tidak diizinkan untuk data ini.';
-    if (e) return e;
-    return 'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.';
+  // 2. Daftar Mata Pelajaran untuk Kelas Aktif (Tersinkron 100% dari Master Mapel)
+  const currentClassSubjects = useMemo(() => {
+    const isTK = activeGrade === 'TK';
+    return (masterSubjects || [])
+      .filter((s) => (s.level === activeGrade || (!isTK && s.level === 'SD')) && s.isActive !== 0)
+      .sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0));
+  }, [masterSubjects, activeGrade]);
+
+  // Map nama mapel -> folder terdaftar di database
+  const subjectFolders = useMemo(() => {
+    const list = allFolders.filter((f) => f.grade === activeGrade);
+    const map = new Map();
+    list.forEach((f) => {
+      map.set(f.name.trim().toLowerCase(), f);
+    });
+    return map;
+  }, [allFolders, activeGrade]);
+
+  // Otomatis pilih mapel pertama jika belum ada yang terpilih saat ganti tab kelas
+  useEffect(() => {
+    if (currentClassSubjects.length > 0) {
+      const firstSubject = currentClassSubjects[0];
+      const foundFolder = subjectFolders.get(firstSubject.nama.trim().toLowerCase());
+      if (foundFolder) {
+        setActiveExamFolder(foundFolder.id);
+      } else {
+        // Jika folder fisik di database belum ada, kita simpan penanda nama mapel
+        setActiveExamFolder(`auto:${firstSubject.nama}`);
+      }
+    } else {
+      setActiveExamFolder(null);
+    }
+    setReorderMode(false);
+  }, [activeGrade, currentClassSubjects.length]);
+
+  // Menentukan subject aktif dan folder aktif saat ini
+  const activeSubjectObj = useMemo(() => {
+    if (!activeExamFolder) return null;
+    if (activeExamFolder.startsWith('auto:')) {
+      const name = activeExamFolder.replace('auto:', '');
+      return currentClassSubjects.find((s) => s.nama === name) || { nama: name };
+    }
+    const f = allFolders.find((x) => String(x.id) === String(activeExamFolder));
+    if (!f) return null;
+    return currentClassSubjects.find((s) => s.nama.trim().toLowerCase() === f.name.trim().toLowerCase()) || { nama: f.name };
+  }, [activeExamFolder, allFolders, currentClassSubjects]);
+
+  // Cari ID folder fisik riil di D1 (atau buat jika belum ada)
+  const ensurePhysicalFolder = async (subjectName) => {
+    const existing = subjectFolders.get(subjectName.trim().toLowerCase());
+    if (existing) return existing.id;
+
+    // Buat folder fisik otomatis di D1
+    const res = await mutateRow({
+      action: 'add',
+      sheetName: 'QuestionFolders',
+      row: { grade: activeGrade, name: subjectName.trim() },
+    });
+
+    if (res.success && res.id) {
+      const newF = { id: String(res.id), grade: activeGrade, name: subjectName.trim() };
+      setAllFolders((prev) => [...prev, newF]);
+      setQuestions((prev) => ({ ...prev, [newF.id]: [] }));
+      return newF.id;
+    }
+    throw new Error(res.error || 'Gagal menyiapkan folder mapel.');
   };
 
-  const handleAddFolder = async () => {
-    if (!newFolderName.trim()) return;
-    if (savingRef.current) return; // cegah klik ganda
+  // Pilih Mapel
+  const handleSelectSubject = (subj) => {
+    const found = subjectFolders.get(subj.nama.trim().toLowerCase());
+    if (found) {
+      setActiveExamFolder(found.id);
+    } else {
+      setActiveExamFolder(`auto:${subj.nama}`);
+    }
+    setReorderMode(false);
+    setSearchTerm('');
+  };
+
+  // Butir soal di folder mapel aktif
+  const currentQuestions = useMemo(() => {
+    if (!activeExamFolder || activeExamFolder.startsWith('auto:')) {
+      // Belum ada soal
+      return [];
+    }
+    return questions[activeExamFolder] || [];
+  }, [activeExamFolder, questions]);
+
+  const filteredQuestions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return currentQuestions;
+    return currentQuestions.filter((item) =>
+      item.text.toLowerCase().includes(q) ||
+      (item.options && Object.values(item.options).some((v) => String(v).toLowerCase().includes(q)))
+    );
+  }, [currentQuestions, searchTerm]);
+
+  // Statistik Kunci Jawaban (Next-Level Analysis Guru)
+  const keyDistribution = useMemo(() => {
+    const pgs = currentQuestions.filter((q) => (q.type || 'pg') === 'pg');
+    const dist = { a: 0, b: 0, c: 0, d: 0 };
+    pgs.forEach((q) => {
+      const k = String(q.correctAnswer || 'a').toLowerCase();
+      if (dist[k] !== undefined) dist[k]++;
+    });
+    return {
+      total: pgs.length,
+      essayCount: currentQuestions.length - pgs.length,
+      dist,
+    };
+  }, [currentQuestions]);
+
+  // Buka Modal Tambah Soal
+  const handleOpenNewQuestion = () => {
+    setEditingQuestion(null);
+    setQuestionForm({
+      text: '',
+      options: { a: '', b: '', c: '', d: '' },
+      correctAnswer: 'a',
+      type: 'pg',
+    });
+    setIsQuestionModalOpen(true);
+  };
+
+  // Buka Modal Edit Soal
+  const handleOpenEditQuestion = (q) => {
+    setEditingQuestion(q);
+    setQuestionForm({
+      text: q.text || '',
+      options: q.options || { a: '', b: '', c: '', d: '' },
+      correctAnswer: q.correctAnswer || 'a',
+      type: q.type || 'pg',
+    });
+    setIsQuestionModalOpen(true);
+  };
+
+  // Duplikat Cepat Soal (1-Klik Clone)
+  const handleDuplicateQuestion = async (q) => {
+    if (savingRef.current) return;
     savingRef.current = true;
-    writeSeqRef.current += 1;
     setIsSyncing(true);
+
     try {
-      const res = await mutateRow({ action: 'add', sheetName: 'QuestionFolders', row: { grade: activeGrade, name: newFolderName.trim() } });
-      if (!res.success) { setNotify({ type: 'error', title: 'Gagal membuat folder', message: describeError(res) }); return; }
-      const newFolder = { id: String(res.id), name: newFolderName.trim() };
-      setExamTypes(prev => ({ ...prev, [activeGrade]: [...prev[activeGrade], newFolder] }));
-      setQuestions(prev => ({ ...prev, [res.id]: [] }));
-      setNewFolderName('');
-      setIsAddFolderModalOpen(false);
-      setNotify({ type: 'success', title: 'Folder dibuat', message: `"${newFolder.name}" ditambahkan.` });
+      const physicalFolderId = activeExamFolder.startsWith('auto:')
+        ? await ensurePhysicalFolder(activeSubjectObj.nama)
+        : activeExamFolder;
+
+      const isEssay = (q.type || 'pg') === 'essay';
+      const row = {
+        folderId: physicalFolderId,
+        text: `${q.text} (Salinan)`,
+        optionA: isEssay ? '' : (q.options?.a || ''),
+        optionB: isEssay ? '' : (q.options?.b || ''),
+        optionC: isEssay ? '' : (q.options?.c || ''),
+        optionD: isEssay ? '' : (q.options?.d || ''),
+        correctAnswer: isEssay ? '' : (q.correctAnswer || 'a'),
+        type: q.type || 'pg',
+      };
+
+      const res = await mutateRow({ action: 'add', sheetName: 'Questions', row });
+      if (res.success) {
+        const cloned = {
+          id: String(res.id),
+          text: row.text,
+          options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
+          correctAnswer: row.correctAnswer,
+          type: row.type,
+          updatedAt: res.updatedAt,
+        };
+        setQuestions((prev) => ({
+          ...prev,
+          [physicalFolderId]: [...(prev[physicalFolderId] || []), cloned],
+        }));
+        setNotify({ type: 'success', title: 'Soal Diduplikasi', message: 'Salinan soal berhasil dibuat di posisi akhir.' });
+      } else {
+        setNotify({ type: 'error', title: 'Gagal Duplikasi', message: res.error || 'Gagal menyalin soal.' });
+      }
+    } catch (err) {
+      setNotify({ type: 'error', title: 'Kesalahan', message: String(err.message || err) });
     } finally {
       setIsSyncing(false);
       savingRef.current = false;
     }
   };
 
-  const handleDeleteFolder = async (id) => {
-    if (!confirm('Hapus folder ini dan semua soal di dalamnya?')) return;
-    // Soal yang TERLIHAT saat ini -> kalau guru lain baru menambah soal ke folder ini, server menolak hapus.
-    const seenIds = (questions[id] || []).map(q => q.id);
-    writeSeqRef.current += 1;
-    setExamTypes(prev => ({ ...prev, [activeGrade]: prev[activeGrade].filter(f => f.id !== id) }));
-    if (activeExamFolder === id) setActiveExamFolder(null);
-    const res = await mutateRow({ action: 'deleteFolder', sheetName: 'QuestionFolders', id, ids: seenIds });
-    if (!res.success) { setNotify({ type: 'error', title: 'Gagal menghapus folder', message: describeError(res) }); loadAllData(); return; }
-    setNotify({ type: 'success', title: 'Folder dihapus', message: 'Folder beserta soal di dalamnya dihapus.' });
-  };
-
+  // Simpan Soal (Tambah atau Update)
   const handleSaveQuestion = async () => {
-    if (!activeExamFolder) return;
-    if (savingRef.current) return; // cegah klik ganda selama proses simpan berlangsung
-    const wasEdit = !!editingQuestion;
-    const isEssay = (questionForm.type || 'pg') === 'essay';
-    if (!questionForm.text.trim()) { setNotify({ type: 'error', title: 'Belum lengkap', message: 'Isi pertanyaan wajib diisi.' }); return; }
-    const opts = questionForm.options || { a: '', b: '', c: '', d: '' };
-    const row = {
-      folderId: activeExamFolder,
-      text: questionForm.text,
-      optionA: isEssay ? '' : opts.a, optionB: isEssay ? '' : opts.b,
-      optionC: isEssay ? '' : opts.c, optionD: isEssay ? '' : opts.d,
-      correctAnswer: isEssay ? '' : (questionForm.correctAnswer || 'a'),
-      type: questionForm.type || 'pg',
-    };
+    if (!questionForm.text.trim()) {
+      setNotify({ type: 'error', title: 'Pertanyaan Kosong', message: 'Isi teks pertanyaan wajib diisi.' });
+      return;
+    }
 
+    if (savingRef.current) return;
     savingRef.current = true;
-    writeSeqRef.current += 1;
     setIsSyncing(true);
+
     try {
+      const physicalFolderId = activeExamFolder.startsWith('auto:')
+        ? await ensurePhysicalFolder(activeSubjectObj.nama)
+        : activeExamFolder;
+
+      if (activeExamFolder.startsWith('auto:')) {
+        setActiveExamFolder(physicalFolderId);
+      }
+
+      const wasEdit = !!editingQuestion;
+      const isEssay = (questionForm.type || 'pg') === 'essay';
+      const opts = questionForm.options || { a: '', b: '', c: '', d: '' };
+
+      const row = {
+        folderId: physicalFolderId,
+        text: questionForm.text.trim(),
+        optionA: isEssay ? '' : opts.a.trim(),
+        optionB: isEssay ? '' : opts.b.trim(),
+        optionC: isEssay ? '' : opts.c.trim(),
+        optionD: isEssay ? '' : opts.d.trim(),
+        correctAnswer: isEssay ? '' : (questionForm.correctAnswer || 'a'),
+        type: questionForm.type || 'pg',
+      };
+
       const res = wasEdit
         ? await mutateRow({ action: 'update', sheetName: 'Questions', id: editingQuestion.id, expectedUpdatedAt: editingQuestion.updatedAt ?? null, row })
         : await mutateRow({ action: 'add', sheetName: 'Questions', row });
 
-      if (res.conflict && res.current) {
-        // Guru lain menyimpan soal ini lebih dulu. Form & isian TIDAK ditutup/dibuang; versi dirujuk
-        // ulang ke yang terbaru -> klik Simpan sekali lagi = sadar memakai isian sendiri.
-        setEditingQuestion(q => ({ ...q, updatedAt: res.current.updatedAt }));
-        warnedRef.current = `${editingQuestion.id}:${res.current.updatedAt}`;
-        setTimeout(() => loadAllData(true), 0);
-        setNotify({ type: 'error', title: 'Belum disimpan — soal diubah guru lain', message: 'Soal ini baru saja disimpan oleh guru lain. Isian Anda masih ada di form: klik Simpan sekali lagi untuk memakai isian Anda, atau tutup form untuk melihat versi guru lain.' });
-        return;
-      }
-      if (res.notFound) {
-        // Soal dihapus guru lain saat sedang diedit -> isian dipertahankan, simpan berikutnya jadi soal baru.
-        setEditingQuestion(null);
-        setTimeout(() => loadAllData(true), 0);
-        setNotify({ type: 'error', title: 'Belum disimpan — soal sudah dihapus guru lain', message: 'Isian Anda masih ada di form. Klik Simpan untuk menyimpannya sebagai soal baru, atau tutup form.' });
-        return;
-      }
-      if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan soal', message: describeError(res) }); return; }
+      if (res.success) {
+        const item = {
+          id: String(wasEdit ? editingQuestion.id : res.id),
+          text: row.text,
+          options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
+          correctAnswer: row.correctAnswer,
+          type: row.type,
+          updatedAt: res.updatedAt,
+        };
 
-      const saved = {
-        id: String(wasEdit ? editingQuestion.id : res.id),
-        text: row.text,
-        options: { a: row.optionA, b: row.optionB, c: row.optionC, d: row.optionD },
-        correctAnswer: row.correctAnswer,
-        type: row.type,
-        updatedAt: res.updatedAt,
-      };
-      setQuestions(prev => {
-        const list = prev[activeExamFolder] || [];
-        const nextList = wasEdit ? list.map(q => q.id === editingQuestion.id ? saved : q) : [...list, saved];
-        return { ...prev, [activeExamFolder]: nextList };
-      });
-      setIsQuestionModalOpen(false);
-      setEditingQuestion(null);
-      setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' });
-      setNotify({ type: 'success', title: wasEdit ? 'Soal diperbarui' : 'Soal ditambahkan', message: 'Perubahan tersimpan ke server.' });
+        setQuestions((prev) => {
+          const list = prev[physicalFolderId] || [];
+          return {
+            ...prev,
+            [physicalFolderId]: wasEdit
+              ? list.map((x) => (x.id === item.id ? item : x))
+              : [...list, item],
+          };
+        });
+
+        setIsQuestionModalOpen(false);
+        setNotify({
+          type: 'success',
+          title: wasEdit ? 'Soal Diperbarui' : 'Soal Ditambahkan',
+          message: wasEdit ? 'Perubahan butir soal berhasil disimpan.' : 'Butir soal baru berhasil masuk ke bank soal.',
+        });
+      } else {
+        setNotify({ type: 'error', title: 'Gagal Menyimpan', message: res.error || 'Terjadi bentrok versi dengan guru lain.' });
+      }
+    } catch (err) {
+      setNotify({ type: 'error', title: 'Kesalahan Sistem', message: String(err.message || err) });
     } finally {
       setIsSyncing(false);
       savingRef.current = false;
     }
   };
 
-  const handleDeleteQuestion = async (id) => {
-    if (!confirm('Hapus soal ini?')) return;
-    const target = (questions[activeExamFolder] || []).find(q => q.id === id);
-    writeSeqRef.current += 1;
-    setQuestions(prev => ({ ...prev, [activeExamFolder]: (prev[activeExamFolder] || []).filter(q => q.id !== id) }));
-    // Versi yang terlihat -> kalau guru lain baru saja memperbaiki soal ini, hapus ditolak (kerjanya tidak hilang).
-    const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id, expectedUpdatedAt: target ? (target.updatedAt ?? null) : undefined });
-    if (!res.success) { setNotify({ type: 'error', title: 'Gagal menghapus soal', message: describeError(res) }); loadAllData(); return; }
-    setNotify({ type: 'success', title: 'Soal dihapus', message: 'Soal berhasil dihapus.' });
-  };
-
-  const openEditQuestion = (q) => {
-    setEditingQuestion(q);
-    setQuestionForm(q);
-    setIsQuestionModalOpen(true);
-  };
-
-  // ---- Atur urutan soal (konsep sama seperti admin: geser lokal, simpan sekali) ----
-  const enterReorder = () => { setOrderDraft([...(questions[activeExamFolder] || [])]); setReorderMode(true); };
-  const cancelReorder = () => { setReorderMode(false); setOrderDraft([]); };
-  const moveQuestion = (index, dir) => {
-    const j = dir === 'up' ? index - 1 : index + 1;
-    if (j < 0 || j >= orderDraft.length) return;
-    const next = [...orderDraft];
-    [next[index], next[j]] = [next[j], next[index]];
-    setOrderDraft(next);
-  };
-  const saveOrder = async () => {
+  // Hapus Soal
+  const handleDeleteQuestion = async (qId) => {
+    if (!confirm('Yakin ingin menghapus butir soal ini?')) return;
     if (savingRef.current) return;
-    savingRef.current = true; writeSeqRef.current += 1; setIsSyncing(true);
+    savingRef.current = true;
+    setIsSyncing(true);
+
     try {
-      const ids = orderDraft.map(q => q.id);
-      const res = await mutateRow({ action: 'reorderQuestions', sheetName: 'Questions', ids });
-      if (!res.success) { setNotify({ type: 'error', title: 'Gagal menyimpan urutan', message: describeError(res) }); return; }
-      setQuestions(prev => ({ ...prev, [activeExamFolder]: orderDraft }));
-      setReorderMode(false); setOrderDraft([]);
-      setTimeout(() => loadAllData(true), 0); // ikut tampilkan soal yang ditambah guru lain selama atur urutan
-      setNotify({ type: 'success', title: 'Urutan disimpan', message: 'Urutan soal diperbarui.' });
+      const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id: qId });
+      if (res.success) {
+        setQuestions((prev) => ({
+          ...prev,
+          [activeExamFolder]: (prev[activeExamFolder] || []).filter((x) => x.id !== qId),
+        }));
+        setNotify({ type: 'success', title: 'Soal Dihapus', message: 'Butir soal telah dihapus dari bank soal.' });
+      } else {
+        setNotify({ type: 'error', title: 'Gagal Menghapus', message: res.error || 'Soal gagal dihapus.' });
+      }
+    } catch (err) {
+      setNotify({ type: 'error', title: 'Kesalahan', message: String(err) });
     } finally {
-      setIsSyncing(false); savingRef.current = false;
+      setIsSyncing(false);
+      savingRef.current = false;
     }
   };
 
-  // PDF Export Logic
-  const handleExportPDF = async () => {
-    if (!activeExamFolder) return;
-    const folder = examTypes[activeGrade].find(f => f.id === activeExamFolder);
-    const folderQuestions = questions[activeExamFolder] || [];
-    if (folderQuestions.length === 0) { setNotify({ type: 'error', title: 'Tidak ada soal', message: 'Folder ini belum punya soal untuk diekspor.' }); return; }
+  // Fitur Reorder / Atur Urutan Soal
+  const enterReorderMode = () => {
+    setOrderDraft([...currentQuestions]);
+    setReorderMode(true);
+  };
 
-    const doc = new jsPDF();
-    const margin = 20;
-    let currentY = 20;
+  const moveOrder = (index, dir) => {
+    const nextIdx = index + dir;
+    if (nextIdx < 0 || nextIdx >= orderDraft.length) return;
+    const copy = [...orderDraft];
+    const temp = copy[index];
+    copy[index] = copy[nextIdx];
+    copy[nextIdx] = temp;
+    setOrderDraft(copy);
+  };
 
-    // ===== KOP SURAT =====
-    const isTK = activeGrade === 'TK';
-    const schoolName = isTK ? "TK QUR'AN IMAM SYAFI'I PERCUT" : "SD ISLAM IMAM SYAFI'I PERCUT";
-    const schoolEmail = isTK ? "tkquranimamsyafiipst@gmail.com" : "sdislamimamsyafiipst@gmail.com";
-    const PAGE_W = 210;
-    const contentW = PAGE_W - margin * 2;
+  const saveOrder = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setIsSyncing(true);
 
-    const loadImg = async (url) => {
-      try {
-        const r = await fetch(url);
-        if (!r.ok) return null;
-        const blob = await r.blob();
-        if (!/^image\//.test(blob.type)) return null;
-        return await new Promise((res) => { const fr = new FileReader(); fr.onloadend = () => res(fr.result); fr.readAsDataURL(blob); });
-      } catch (e) { return null; }
-    };
-    // TK pakai logo khusus; fallback ke logo umum bila belum ada.
-    let logoData = isTK ? await loadImg('/avatars/logo-tk.png') : null;
-    if (!logoData) logoData = await loadImg('/avatars/logo.png');
+    try {
+      const ids = orderDraft.map((q) => q.id);
+      const res = await mutateRow({
+        action: 'reorderQuestions',
+        sheetName: 'Questions',
+        id: activeExamFolder,
+        ids,
+      });
 
-    if (logoData) { try { doc.addImage(logoData, 'PNG', margin, 12, 22, 22); } catch (e) {} }
+      if (res.success) {
+        setQuestions((prev) => ({
+          ...prev,
+          [activeExamFolder]: orderDraft,
+        }));
+        setReorderMode(false);
+        setNotify({ type: 'success', title: 'Urutan Disimpan', message: 'Susunan urutan soal berhasil diperbarui.' });
+      } else {
+        setNotify({ type: 'error', title: 'Gagal Mengatur Urutan', message: res.error || 'Gagal menyimpan urutan.' });
+      }
+    } catch (err) {
+      setNotify({ type: 'error', title: 'Kesalahan', message: String(err) });
+    } finally {
+      setIsSyncing(false);
+      savingRef.current = false;
+    }
+  };
 
+  // ==========================================
+  // GENERATOR CETAK PDF MODULAR (SINGLE & MULTI)
+  // Mendukung: Lembar Siswa, Kunci Jawaban, dan Bundel Lengkap (Soal + Kunci)
+  // Menjaga struktur halaman tetap terisolasi dengan penomoran independen per mapel
+  // ==========================================
+
+  // Helper: Ambil logo sekolah
+  const fetchLogoBase64 = async () => {
+    try {
+      const res = await fetch('/avatars/logo.png');
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onloadend = () => resolve(fr.result);
+        fr.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper: Cetak Kop Resmi Sekolah
+  const drawOfficialHeader = (doc, { margin, PAGE_W, logoData, schoolName, subjectTitle, grade, modeTitle }) => {
+    if (logoData) {
+      try { doc.addImage(logoData, 'PNG', margin, 12, 22, 22); } catch (e) {}
+    }
     doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(90);
-    doc.text("YAYASAN IMAM SYAFI'I PERCUT", PAGE_W / 2, 15, { align: "center" });
-    doc.setFontSize(15); doc.setTextColor(20);
+    doc.text("YAYASAN NASHIRUS SUNNAH PERCUT", PAGE_W / 2, 15, { align: "center" });
+    doc.setFontSize(14); doc.setTextColor(20);
     doc.text(schoolName, PAGE_W / 2, 22, { align: "center" });
     doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90);
     doc.text("Jl. Lembaga Dusun II, Desa Tanjung Rejo, Kec. Percut Sei Tuan", PAGE_W / 2, 27, { align: "center" });
-    doc.text(`Email: ${schoolEmail}  |  WA: 0831-2575-5134`, PAGE_W / 2, 31, { align: "center" });
+    doc.text("Email: nashirussunnahpercut@gmail.com  |  Deli Serdang, Sumatera Utara", PAGE_W / 2, 31, { align: "center" });
     doc.setDrawColor(20); doc.setLineWidth(0.8); doc.line(margin, 35, PAGE_W - margin, 35);
     doc.setLineWidth(0.3); doc.line(margin, 36.3, PAGE_W - margin, 36.3);
 
-    // Judul lembar
+    // Judul Lembar
+    let y = 44;
     doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(20);
-    doc.text("LEMBAR SOAL UJIAN", PAGE_W / 2, 44, { align: "center" });
+    doc.text(modeTitle, PAGE_W / 2, y, { align: "center" });
     doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(80);
-    doc.text(`${folder.name}  •  Kelas ${activeGrade}`, PAGE_W / 2, 50, { align: "center" });
-    doc.setTextColor(20);
+    doc.text(`${subjectTitle}  •  Kelas ${grade}`, PAGE_W / 2, y + 6, { align: "center" });
+    return y + 14;
+  };
 
-    // Helper: header seksi dengan bar abu
-    const drawSectionHeader = (title, subtitle) => {
-      if (currentY > 262) { doc.addPage(); currentY = 20; }
-      doc.setFillColor(232); doc.rect(margin, currentY - 4.5, contentW, 7, 'F');
-      doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(20);
-      doc.text(title, margin + 2.5, currentY);
-      currentY += 6;
-      if (subtitle) {
-        doc.setFont("helvetica", "italic"); doc.setFontSize(8.5); doc.setTextColor(110);
-        doc.text(subtitle, margin + 2.5, currentY);
-        currentY += 5;
-      }
-      doc.setFont("helvetica", "normal"); doc.setTextColor(20);
-    };
+  // Helper: Render Lembar Soal Siswa (1 Mata Pelajaran)
+  const renderStudentQuestionsSheet = (doc, { subjectTitle, grade, questionsList, logoData, schoolName, isFirstPage }) => {
+    if (!isFirstPage) {
+      doc.addPage();
+    }
+    const startPage = doc.getNumberOfPages();
+    const PAGE_W = 210;
+    const margin = 15;
+    const contentW = PAGE_W - (margin * 2);
 
-    // ===== KOTAK IDENTITAS + NILAI =====
-    currentY = 56;
+    let currentY = drawOfficialHeader(doc, {
+      margin, PAGE_W, logoData, schoolName, subjectTitle, grade,
+      modeTitle: "LEMBAR SOAL UJIAN"
+    });
+
+    // Kotak Identitas & Nilai
     const nilaiW = 32;
     const idBoxW = contentW - nilaiW - 3;
-    const idBoxH = 24;
+    const idBoxH = 22;
     doc.setDrawColor(150); doc.setLineWidth(0.3);
     doc.rect(margin, currentY, idBoxW, idBoxH);
     doc.rect(PAGE_W - margin - nilaiW, currentY, nilaiW, idBoxH);
@@ -447,7 +548,7 @@ export default function TeacherSoal() {
     const colR = margin + idBoxW / 2 + 2;
     const rEnd = margin + idBoxW - 4;
     const field = (label, x, yy, endX, val) => {
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(40);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(40);
       doc.text(label + ":", x, yy);
       const lw = doc.getTextWidth(label + ": ");
       if (val) {
@@ -457,112 +558,381 @@ export default function TeacherSoal() {
         doc.setDrawColor(175); doc.setLineWidth(0.2); doc.line(x + lw, yy + 0.8, endX, yy + 0.8);
       }
     };
-    let fy = currentY + 6.5;
+
+    let fy = currentY + 5.5;
     field("Nama", colL, fy, colR - 4); field("Hari/Tgl", colR, fy, rEnd);
-    fy += 6;
-    field("Kelas", colL, fy, colR - 4, activeGrade); field("Mata Pelajaran", colR, fy, rEnd);
-    fy += 6;
+    fy += 5.5;
+    field("Kelas", colL, fy, colR - 4, grade); field("Mata Pelajaran", colR, fy, rEnd, subjectTitle);
+    fy += 5.5;
     field("No. Absen", colL, fy, colR - 4); field("Waktu", colR, fy, rEnd);
-    doc.setFont("helvetica", "normal"); doc.setTextColor(20);
+
     currentY += idBoxH + 8;
 
-    // 3. Render Questions by Section
-    const pgQuestions = folderQuestions.filter(q => (q.type || 'pg') === 'pg');
-    const essayQuestions = folderQuestions.filter(q => q.type === 'essay');
+    const pgQuestions = (questionsList || []).filter((q) => (q.type || 'pg') === 'pg');
+    const essayQuestions = (questionsList || []).filter((q) => q.type === 'essay');
 
-    // --- BAGIAN A: PILIHAN GANDA ---
+    // Bagian Pilihan Ganda
     if (pgQuestions.length > 0) {
-      drawSectionHeader("A. PILIHAN GANDA", "Berilah tanda silang (X) pada huruf jawaban yang paling tepat.");
-      currentY += 2;
+      doc.setFillColor(235); doc.rect(margin, currentY - 4, contentW, 6.5, 'F');
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20);
+      doc.text("A. PILIHAN GANDA", margin + 2.5, currentY);
+      currentY += 8;
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-
-      pgQuestions.forEach((q, index) => {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+      pgQuestions.forEach((q, idx) => {
         if (currentY > 260) { doc.addPage(); currentY = 20; }
-        
-        const questionLines = doc.splitTextToSize(`${index + 1}. ${q.text}`, 170);
-        doc.text(questionLines, margin, currentY);
-        currentY += (questionLines.length * 6);
+        const lines = doc.splitTextToSize(`${idx + 1}. ${q.text}`, contentW);
+        doc.text(lines, margin, currentY);
+        currentY += (lines.length * 5) + 1;
 
-        const options = [
-          `a. ${q.options.a}`, 
-          `b. ${q.options.b}`, 
-          `c. ${q.options.c}`, 
-          `d. ${q.options.d}`
+        const opts = [
+          `a. ${q.options?.a || '-'}`,
+          `b. ${q.options?.b || '-'}`,
+          `c. ${q.options?.c || '-'}`,
+          `d. ${q.options?.d || '-'}`,
         ];
 
-        doc.text(options[0], margin + 5, currentY);
-        doc.text(options[1], margin + 90, currentY);
-        currentY += 6;
-        doc.text(options[2], margin + 5, currentY);
-        doc.text(options[3], margin + 90, currentY);
-        currentY += 10;
+        doc.text(opts[0], margin + 5, currentY);
+        doc.text(opts[1], margin + 90, currentY);
+        currentY += 5;
+        doc.text(opts[2], margin + 5, currentY);
+        doc.text(opts[3], margin + 90, currentY);
+        currentY += 8;
       });
     }
 
-    // --- BAGIAN B: ESSAI / URAIAN ---
+    // Bagian Essay
     if (essayQuestions.length > 0) {
       if (currentY > 245) { doc.addPage(); currentY = 20; }
-      else { currentY += 6; }
+      else currentY += 4;
 
-      drawSectionHeader("B. ESSAI / URAIAN", "Jawablah pertanyaan berikut dengan jelas dan tepat.");
-      currentY += 2;
+      doc.setFillColor(235); doc.rect(margin, currentY - 4, contentW, 6.5, 'F');
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20);
+      doc.text("B. ESSAI / URAIAN", margin + 2.5, currentY);
+      currentY += 8;
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9.5);
+      const dots = "............................................................................................................................................................";
 
-      essayQuestions.forEach((q, index) => {
-        if (currentY > 260) { doc.addPage(); currentY = 20; }
-        
-        const fullDottedLine = "..........................................................................................................................................................................";
-        
-        // Step 1: Calculate how many lines the question text occupies without dots
-        const originalTextWrapped = doc.splitTextToSize(`${index + 1}. ${q.text}`, 170);
-        const textLineCount = originalTextWrapped.length;
+      essayQuestions.forEach((q, idx) => {
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        const lines = doc.splitTextToSize(`${idx + 1}. ${q.text}`, contentW);
+        doc.text(lines, margin, currentY);
+        currentY += (lines.length * 5) + 3;
 
-        // Step 2: Create a combined version with long dots appended
-        const combinedText = `${index + 1}. ${q.text} ${fullDottedLine}`;
-        const combinedWrapped = doc.splitTextToSize(combinedText, 170);
-        
-        // Step 3: Take only the lines required to show all text + fill the last line with dots
-        const questionWithFill = combinedWrapped.slice(0, textLineCount);
-        doc.text(questionWithFill, margin, currentY);
-        currentY += (questionWithFill.length * 6) + 4; // Add 4 units gap after text
-
-        // Step 4: Add EXACTLY 2 full dotted lines with extra padding for writing
-        doc.text(fullDottedLine, margin, currentY);
-        currentY += 10; // Increased spacing for handwriting
-        doc.text(fullDottedLine, margin, currentY);
-        currentY += 15; // final spacing before next question
+        doc.text(dots, margin, currentY);
+        currentY += 8;
+        doc.text(dots, margin, currentY);
+        currentY += 12;
       });
     }
 
-    // Penutup
-    if (currentY > 265) { doc.addPage(); currentY = 20; }
-    currentY += 4;
-    doc.setFont("helvetica", "bolditalic"); doc.setFontSize(10); doc.setTextColor(60);
-    doc.text("— Selamat Mengerjakan —", PAGE_W / 2, currentY, { align: "center" });
-    doc.setTextColor(20);
-
-    // Footer nomor halaman (semua halaman)
-    const totalPages = doc.getNumberOfPages();
-    for (let p = 1; p <= totalPages; p++) {
-      doc.setPage(p);
-      doc.setDrawColor(210); doc.setLineWidth(0.2); doc.line(margin, 288, PAGE_W - margin, 288);
-      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(150);
-      doc.text(schoolName, margin, 292);
-      doc.text(`Halaman ${p} dari ${totalPages}`, PAGE_W - margin, 292, { align: "right" });
-    }
-
-    doc.save(`Soal_${activeGrade}_${folder.name}.pdf`);
+    const endPage = doc.getNumberOfPages();
+    return { startPage, endPage, label: subjectTitle };
   };
 
-  const filteredQuestions = (questions[activeExamFolder] || []).filter(q => q.text.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Helper: Render Lembar Kunci Jawaban (1 Mata Pelajaran)
+  const renderSubjectAnswerKeySheet = (doc, { subjectTitle, grade, questionsList, logoData, schoolName, isFirstPage }) => {
+    if (!isFirstPage) {
+      doc.addPage();
+    }
+    const startPage = doc.getNumberOfPages();
+    const PAGE_W = 210;
+    const margin = 15;
+    const contentW = PAGE_W - (margin * 2);
+
+    let currentY = drawOfficialHeader(doc, {
+      margin, PAGE_W, logoData, schoolName, subjectTitle, grade,
+      modeTitle: "LEMBAR KUNCI JAWABAN & RUBRIK (PEGANGAN GURU)"
+    });
+
+    const pgs = (questionsList || []).filter((q) => (q.type || 'pg') === 'pg');
+    const essays = (questionsList || []).filter((q) => q.type === 'essay');
+
+    if (pgs.length > 0) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20);
+      doc.text("KUNCI JAWABAN PILIHAN GANDA", margin, currentY);
+      currentY += 4;
+
+      const tableBody = [];
+      for (let i = 0; i < pgs.length; i += 5) {
+        const row = [];
+        for (let j = 0; j < 5; j++) {
+          const item = pgs[i + j];
+          if (item) {
+            row.push(`No ${i + j + 1}`);
+            row.push(String(item.correctAnswer || '-').toUpperCase());
+          } else {
+            row.push('');
+            row.push('');
+          }
+        }
+        tableBody.push(row);
+      }
+
+      doc.autoTable({
+        startY: currentY,
+        margin: { left: margin, right: margin },
+        head: [['No', 'Kunci', 'No', 'Kunci', 'No', 'Kunci', 'No', 'Kunci', 'No', 'Kunci']],
+        body: tableBody,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, halign: 'center' },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
+      });
+
+      currentY = doc.lastAutoTable.finalY + 10;
+    }
+
+    if (essays.length > 0) {
+      if (currentY > 230) { doc.addPage(); currentY = 20; }
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(20);
+      doc.text("DAFTAR SOAL ESSAI / URAIAN", margin, currentY);
+      currentY += 6;
+
+      essays.forEach((eq, idx) => {
+        if (currentY > 260) { doc.addPage(); currentY = 20; }
+        doc.setFont("helvetica", "bold"); doc.setFontSize(9.5);
+        doc.text(`Soal Essai ${idx + 1}:`, margin, currentY);
+        currentY += 4.5;
+        doc.setFont("helvetica", "normal");
+        const qLines = doc.splitTextToSize(eq.text, contentW);
+        doc.text(qLines, margin, currentY);
+        currentY += (qLines.length * 5) + 6;
+      });
+    }
+
+    const endPage = doc.getNumberOfPages();
+    return { startPage, endPage, label: `Kunci ${subjectTitle}` };
+  };
+
+  // Helper: Pembubuhan Footer & Nomor Halaman Independen per Mata Pelajaran
+  const applyIndependentFooters = (doc, pageSpans, schoolName) => {
+    const PAGE_W = 210;
+    const margin = 15;
+    pageSpans.forEach((span) => {
+      const totalPagesInSubj = span.endPage - span.startPage + 1;
+      for (let p = span.startPage; p <= span.endPage; p++) {
+        doc.setPage(p);
+        const pageNumInSubj = p - span.startPage + 1;
+        doc.setDrawColor(210);
+        doc.setLineWidth(0.2);
+        doc.line(margin, 288, PAGE_W - margin, 288);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(140);
+        doc.text(schoolName, margin, 292);
+        doc.text(
+          `${span.label}  •  Halaman ${pageNumInSubj} dari ${totalPagesInSubj}`,
+          PAGE_W - margin,
+          292,
+          { align: "right" }
+        );
+      }
+    });
+  };
+
+  // Cetak 1 Mapel Aktif (dari modal single mapel)
+  const generateExamPdf = async (mode = 'STUDENT') => {
+    const folderQuestions = currentQuestions;
+    if (!folderQuestions.length) {
+      alert("Tidak ada butir soal dalam mata pelajaran ini untuk dicetak.");
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+      const logoData = await fetchLogoBase64();
+      const schoolName = activeGrade === 'TK'
+        ? "TAMAN KANAK-KANAK ISLAM IMAM SYAFI'I"
+        : "SEKOLAH DASAR ISLAM IMAM SYAFI'I";
+      const subjectTitle = activeSubjectObj?.nama || 'Mata Pelajaran';
+
+      const pageSpans = [];
+      if (mode === 'STUDENT') {
+        const span = renderStudentQuestionsSheet(doc, {
+          subjectTitle,
+          grade: activeGrade,
+          questionsList: folderQuestions,
+          logoData,
+          schoolName,
+          isFirstPage: true,
+        });
+        pageSpans.push(span);
+      } else if (mode === 'ANSWER_KEY') {
+        const span = renderSubjectAnswerKeySheet(doc, {
+          subjectTitle,
+          grade: activeGrade,
+          questionsList: folderQuestions,
+          logoData,
+          schoolName,
+          isFirstPage: true,
+        });
+        pageSpans.push(span);
+      }
+
+      applyIndependentFooters(doc, pageSpans, schoolName);
+
+      const prefix = mode === 'ANSWER_KEY' ? 'Kunci_Jawaban' : 'Soal';
+      doc.save(`${prefix}_${activeGrade}_${subjectTitle.replace(/\s+/g, '_')}.pdf`);
+      setIsPrintModalOpen(false);
+    } catch (err) {
+      console.error('generateExamPdf error:', err);
+      alert('Gagal membuat dokumen PDF: ' + String(err.message || err));
+    }
+  };
+
+  // Mapel kelas aktif beserta jumlah soalnya
+  const classSubjectsWithCounts = useMemo(() => {
+    return currentClassSubjects.map((subj) => {
+      const foundFolder = subjectFolders.get(subj.nama.trim().toLowerCase());
+      const qList = foundFolder ? (questions[foundFolder.id] || []) : [];
+      const pgCount = qList.filter(q => (q.type || 'pg') === 'pg').length;
+      const essayCount = qList.filter(q => q.type === 'essay').length;
+      return {
+        ...subj,
+        folderId: foundFolder?.id,
+        totalQuestions: qList.length,
+        pgCount,
+        essayCount,
+        questions: qList,
+      };
+    });
+  }, [currentClassSubjects, subjectFolders, questions]);
+
+  // Handler Modal Multi-Export
+  const handleOpenMultiExportModal = () => {
+    const available = classSubjectsWithCounts
+      .filter((s) => s.totalQuestions > 0)
+      .map((s) => s.nama);
+
+    if (available.length === 0) {
+      setNotify({
+        type: 'error',
+        title: 'Tidak Ada Soal',
+        message: `Belum ada mata pelajaran di Kelas ${activeGrade} yang memiliki butir soal untuk diexport.`,
+      });
+      return;
+    }
+
+    setSelectedSubjectsForExport(available);
+    setMultiExportMode('STUDENT');
+    setIsMultiExportModalOpen(true);
+  };
+
+  const toggleSubjectSelect = (nama) => {
+    setSelectedSubjectsForExport((prev) =>
+      prev.includes(nama) ? prev.filter((x) => x !== nama) : [...prev, nama]
+    );
+  };
+
+  const selectAllAvailable = () => {
+    const allValid = classSubjectsWithCounts
+      .filter((s) => s.totalQuestions > 0)
+      .map((s) => s.nama);
+    setSelectedSubjectsForExport(allValid);
+  };
+
+  const deselectAll = () => {
+    setSelectedSubjectsForExport([]);
+  };
+
+  // Eksekusi Export Multi-Soal (Bisa Semua / Sebagian / Soal / Kunci / Keduanya)
+  const handleExecuteMultiExport = async () => {
+    const targets = classSubjectsWithCounts.filter(
+      (s) => selectedSubjectsForExport.includes(s.nama) && s.totalQuestions > 0
+    );
+
+    if (targets.length === 0) {
+      alert('Pilih minimal 1 mata pelajaran yang memiliki butir soal untuk diexport.');
+      return;
+    }
+
+    setIsExportingPdf(true);
+
+    try {
+      const doc = new jsPDF({ format: 'a4', unit: 'mm' });
+      const logoData = await fetchLogoBase64();
+      const schoolName = activeGrade === 'TK'
+        ? "TAMAN KANAK-KANAK ISLAM IMAM SYAFI'I"
+        : "SEKOLAH DASAR ISLAM IMAM SYAFI'I";
+
+      const pageSpans = [];
+      let isFirstPage = true;
+
+      // 1. Render Lembar Soal Siswa (jika mode STUDENT atau BOTH)
+      if (multiExportMode === 'STUDENT' || multiExportMode === 'BOTH') {
+        for (const subj of targets) {
+          const span = renderStudentQuestionsSheet(doc, {
+            subjectTitle: subj.nama,
+            grade: activeGrade,
+            questionsList: subj.questions,
+            logoData,
+            schoolName,
+            isFirstPage,
+          });
+          pageSpans.push(span);
+          isFirstPage = false;
+        }
+      }
+
+      // 2. Render Lembar Kunci Jawaban Guru (jika mode ANSWER_KEY atau BOTH)
+      // Opsi B: Seluruh Kunci Jawaban dikumpulkan di bagian belakang dokumen
+      if (multiExportMode === 'ANSWER_KEY' || multiExportMode === 'BOTH') {
+        for (const subj of targets) {
+          const span = renderSubjectAnswerKeySheet(doc, {
+            subjectTitle: subj.nama,
+            grade: activeGrade,
+            questionsList: subj.questions,
+            logoData,
+            schoolName,
+            isFirstPage,
+          });
+          pageSpans.push(span);
+          isFirstPage = false;
+        }
+      }
+
+      // 3. Bubuhkan footer & nomor halaman independen per mata pelajaran
+      applyIndependentFooters(doc, pageSpans, schoolName);
+
+      // 4. Download file
+      let fileName = '';
+      if (targets.length === 1) {
+        const prefix = multiExportMode === 'ANSWER_KEY'
+          ? 'Kunci_Jawaban'
+          : (multiExportMode === 'BOTH' ? 'Soal_dan_Kunci' : 'Soal');
+        fileName = `${prefix}_${activeGrade}_${targets[0].nama.replace(/\s+/g, '_')}.pdf`;
+      } else {
+        const typeStr = multiExportMode === 'STUDENT'
+          ? 'Bundel_Soal'
+          : multiExportMode === 'ANSWER_KEY'
+          ? 'Bundel_Kunci_Jawaban'
+          : 'Bundel_Lengkap_Soal_dan_Kunci';
+        fileName = `${typeStr}_Kelas_${activeGrade.replace(/\s+/g, '_')}_(${targets.length}_Mapel).pdf`;
+      }
+
+      doc.save(fileName);
+      setIsMultiExportModalOpen(false);
+      setNotify({
+        type: 'success',
+        title: 'Export Berhasil',
+        message: `File PDF ${fileName} berhasil diunduh (${targets.length} mata pelajaran).`,
+      });
+    } catch (err) {
+      console.error('Multi-export error:', err);
+      setNotify({
+        type: 'error',
+        title: 'Gagal Export PDF',
+        message: String(err.message || err),
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in duration-500">
-      {/* Toast notifikasi sukses/gagal */}
+      {/* Toast Notifikasi */}
       <AnimatePresence>
         {notify && (
           <motion.div
@@ -577,40 +947,33 @@ export default function TeacherSoal() {
                 <p className={`font-black text-sm ${notify.type === 'success' ? 'text-emerald-800' : 'text-rose-800'}`}>{notify.title}</p>
                 {notify.message && <p className={`text-xs font-medium mt-0.5 leading-relaxed ${notify.type === 'success' ? 'text-emerald-700' : 'text-rose-700'}`}>{notify.message}</p>}
               </div>
-              <button onClick={() => setNotify(null)} className={`shrink-0 ${notify.type === 'success' ? 'text-emerald-400 hover:text-emerald-700' : 'text-rose-400 hover:text-rose-700'}`}><X size={16} /></button>
+              <button onClick={() => setNotify(null)} className="shrink-0 text-slate-400 hover:text-slate-700"><X size={16} /></button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Header Utama */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Soal</h2>
-            {!isSyncing && (
-              <button
-                onClick={() => loadAllData()}
-                className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full hover:bg-emerald-100 transition-colors"
-                title="Klik untuk memuat ulang data terbaru dari server"
-              >
-                <CheckCircle2 size={12} />
-                <span className="text-[10px] font-black uppercase tracking-widest">Tersinkron</span>
-              </button>
-            )}
-            {isSyncing && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-600 rounded-full animate-pulse">
-                <div className="w-1.5 h-1.5 bg-amber-600 rounded-full animate-bounce"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest">Sinking...</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+              <CheckCircle2 size={13} />
+              <span className="text-[10px] font-black uppercase tracking-wider">Tersinkron Master Mapel</span>
+            </div>
           </div>
-          <p className="text-slate-500 font-medium mt-1">Kelola bank soal digital dan cetak dokumen ujian.</p>
+          <p className="text-slate-500 font-medium text-xs mt-1">
+            Mata pelajaran otomatis terhubung dengan kurikulum resmi. Kelola bank soal dan cetak lembar ujian.
+          </p>
         </div>
+
+        {/* Tab Jenjang Kelas */}
         <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar">
           {GRADES.map(grade => (
             <button
               key={grade}
-              onClick={() => { setActiveGrade(grade); setActiveExamFolder(null); setReorderMode(false); }}
+              onClick={() => { setActiveGrade(grade); setSearchTerm(''); }}
               className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
                 activeGrade === grade ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
               }`}
@@ -621,282 +984,723 @@ export default function TeacherSoal() {
         </div>
       </header>
 
-      {/* Folder Section */}
+      {/* Seksi Tab Mata Pelajaran (Otomatis dari MasterSubjects) */}
       <section>
-        <div className="flex items-center justify-between mb-3 px-2">
-          <h3 className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-widest">Daftar Folder Ujian - {activeGrade}</h3>
-          <button 
-            onClick={() => setIsAddFolderModalOpen(true)}
-            className="text-[10px] md:text-xs font-black text-secondary flex items-center gap-2 hover:translate-x-1 transition-all"
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 px-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <BookOpen size={14} className="text-secondary" /> Mata Pelajaran — Kelas {activeGrade}
+            </h3>
+            <span className="text-[11px] text-slate-400 font-bold hidden sm:inline">
+              ({currentClassSubjects.length} Terdaftar)
+            </span>
+          </div>
+
+          {/* Tombol Export Multi-Soal di Header Kelas */}
+          <button
+            onClick={handleOpenMultiExportModal}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/20 text-xs font-black transition-all shadow-sm active:scale-95"
+            title="Export Lembar Soal / Kunci beberapa mata pelajaran sekaligus"
           >
-            <FolderPlus size={14} className="hidden md:block" /> TAMBAH TIPE UJIAN
+            <Layers size={15} />
+            <span>Export Multi-Soal ({activeGrade})</span>
           </button>
         </div>
-        
-        <div className="flex gap-3 overflow-x-auto pb-4 pt-1 px-2 -mx-2 hide-scrollbar">
-          {examTypes[activeGrade].map(folder => (
-            <div
-              key={folder.id}
-              onClick={() => { setActiveExamFolder(folder.id); setReorderMode(false); }}
-              className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl md:rounded-2xl border-2 shrink-0 transition-all cursor-pointer ${
-                activeExamFolder === folder.id 
-                ? 'bg-white border-secondary shadow-xl shadow-secondary/10 -translate-y-1' 
-                : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300'
-              }`}
-            >
-              <div className={`p-2 md:p-2.5 rounded-lg md:rounded-xl ${activeExamFolder === folder.id ? 'bg-secondary/10 text-secondary' : 'bg-slate-50 text-slate-400'}`}>
-                <FileText size={16} className="md:w-5 md:h-5" />
-              </div>
-              <div className="text-left flex-grow">
-                <p className={`text-xs md:text-sm font-black ${activeExamFolder === folder.id ? 'text-slate-900' : 'text-slate-500'}`}>{folder.name}</p>
-                <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">{(questions[folder.id] || []).length} Soal</p>
-              </div>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }}
-                className="ml-2 md:ml-3 p-1 text-slate-200 hover:text-rose-500 transition-colors"
-                title="Hapus Folder"
+
+        <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 px-1 -mx-1 hide-scrollbar">
+          {currentClassSubjects.map((subj) => {
+            const foundFolder = subjectFolders.get(subj.nama.trim().toLowerCase());
+            const count = foundFolder ? (questions[foundFolder.id] || []).length : 0;
+            const isSelected = activeSubjectObj?.nama.trim().toLowerCase() === subj.nama.trim().toLowerCase();
+
+            return (
+              <button
+                key={subj.id || subj.nama}
+                onClick={() => handleSelectSubject(subj)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 shrink-0 transition-all text-left ${
+                  isSelected
+                    ? 'bg-white border-secondary shadow-lg shadow-secondary/10 -translate-y-0.5'
+                    : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300'
+                }`}
               >
-                <Trash2 size={12} className="md:w-3.5 md:h-3.5" />
+                <div className={`p-2 rounded-xl ${isSelected ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400'}`}>
+                  <BookOpen size={16} />
+                </div>
+                <div>
+                  <p className={`font-black text-xs leading-tight ${isSelected ? 'text-slate-900' : 'text-slate-700'}`}>
+                    {subj.nama}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                    {count > 0 ? `${count} Butir Soal` : 'Belum Ada Soal'}
+                  </p>
+                </div>
               </button>
-            </div>
-          ))}
-          {examTypes[activeGrade].length === 0 && (
-            <div className="py-6 md:py-8 border-2 border-dashed border-slate-200 rounded-2xl md:rounded-3xl w-full text-center flex flex-col items-center gap-2">
-              <AlertCircle size={20} className="text-slate-300 md:w-6 md:h-6" />
-              <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Belum ada folder</p>
-            </div>
-          )}
+            );
+          })}
         </div>
       </section>
 
-      {/* Questions Area */}
-      {activeExamFolder ? (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-20">
-          <div className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm border border-slate-100 p-4 md:p-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 mb-6 md:mb-10">
-              <div className="relative flex-grow max-w-md">
-                <Search className="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Cari pertanyaan..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-50 border-none rounded-xl md:rounded-2xl py-2.5 md:py-4 pl-11 md:pl-14 pr-4 md:pr-6 text-xs md:text-sm font-bold focus:ring-2 focus:ring-secondary/20 transition-all placeholder:text-slate-300"
-                />
-              </div>
-              
-              <div className="flex items-center gap-2 md:gap-3">
-                {reorderMode ? (
-                  <>
-                    <button onClick={cancelReorder} disabled={isSyncing} className="flex-grow md:flex-none px-4 md:px-6 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs text-slate-400 hover:bg-slate-50 border border-slate-100 disabled:opacity-50">BATAL</button>
-                    <button onClick={saveOrder} disabled={isSyncing} className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20 disabled:opacity-60">
-                      {isSyncing ? 'MENYIMPAN…' : 'SIMPAN URUTAN'}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={enterReorder} disabled={(questions[activeExamFolder] || []).length < 2} className="flex-grow md:flex-none p-2.5 md:p-4 bg-slate-50 text-slate-600 rounded-xl md:rounded-2xl hover:bg-slate-100 transition-all border border-slate-100 flex items-center justify-center gap-2 font-black text-[10px] md:text-xs disabled:opacity-40" title="Atur urutan soal">
-                      <ArrowUpDown size={16} /> ATUR URUTAN
-                    </button>
-                    <button
-                      onClick={handleExportPDF}
-                      className="flex-grow md:flex-none p-2.5 md:p-4 bg-rose-50 text-rose-600 rounded-xl md:rounded-2xl hover:bg-rose-100 transition-all border border-rose-100 flex items-center justify-center gap-2 font-black text-[10px] md:text-xs"
-                    >
-                      <FileDown size={16} /> EXPORT PDF
-                    </button>
-                    <button
-                      onClick={() => { setEditingQuestion(null); setQuestionForm({ text: '', options: { a: '', b: '', c: '', d: '' }, correctAnswer: 'a' }); setIsQuestionModalOpen(true); }}
-                      className="flex-grow md:flex-none bg-secondary text-white px-4 md:px-8 py-2.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-secondary/20"
-                    >
-                      <Plus size={16} /> TAMBAH SOAL
-                    </button>
-                  </>
-                )}
-              </div>
+      {/* Seksi Bank Soal Aktif */}
+      <main className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-secondary uppercase tracking-wider mb-1">
+              <span>Kelas {activeGrade}</span>
+              <span>•</span>
+              <span>{activeSubjectObj?.nama}</span>
+            </div>
+            <h3 className="text-xl md:text-2xl font-black text-slate-900">
+              Bank Soal: {activeSubjectObj?.nama || 'Pilih Mata Pelajaran'}
+            </h3>
+            <p className="text-slate-400 text-xs font-medium mt-0.5">
+              Total {currentQuestions.length} soal ({keyDistribution.dist ? `${keyDistribution.total} Pilihan Ganda, ${keyDistribution.essayCount} Essai` : ''})
+            </p>
+          </div>
+
+          {/* Action Bar */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Input Cari */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari kata kunci soal…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all w-48 sm:w-56"
+              />
             </div>
 
-            <div className="overflow-x-auto -mx-4 md:mx-0">
-              <table className="w-full text-left min-w-[600px] md:min-w-0">
-                <thead>
-                  <tr className="text-[9px] md:text-[10px] uppercase font-black text-slate-400 tracking-[0.2em] border-b border-slate-50">
-                    <th className="pb-4 md:pb-6 px-4">#</th>
-                    <th className="pb-4 md:pb-6">Detail Soal</th>
-                    <th className="pb-4 md:pb-6 text-center">Kunci</th>
-                    <th className="pb-4 md:pb-6 text-right px-4">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {(reorderMode ? orderDraft : filteredQuestions).map((q, i) => (
-                    <tr key={q.id} className="group hover:bg-slate-50/40 transition-colors">
-                      <td className="py-4 md:py-6 px-4 text-xs md:text-sm font-black text-slate-300">{i + 1}</td>
-                      <td className="py-4 md:py-6 pr-4 md:pr-6">
-                        <div className="flex items-center gap-2 mb-2 md:mb-3">
-                          {q.type === 'essay' && (
-                            <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[8px] font-black rounded uppercase tracking-wider border border-amber-100 flex-shrink-0">
-                              ESSAI
-                            </span>
-                          )}
-                          <p className="text-xs md:text-sm font-bold text-slate-700 leading-relaxed line-clamp-2">{q.text}</p>
-                        </div>
-                        
-                        {q.type !== 'essay' && (
-                          <div className="grid grid-cols-2 gap-x-4 md:gap-x-6 gap-y-1">
-                            {['a', 'b', 'c', 'd'].map(opt => (
-                              <span key={opt} className={`text-[8px] md:text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 md:gap-2 ${q.correctAnswer === opt ? 'text-secondary' : 'text-slate-400'}`}>
-                                <span className={`w-3.5 h-3.5 md:w-4 md:h-4 rounded flex items-center justify-center text-[7px] md:text-[8px] ${q.correctAnswer === opt ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400'}`}>{opt}</span>
-                                {q.options[opt]}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {q.type === 'essay' && (
-                          <p className="text-[10px] text-slate-400 italic">Jawaban Essay Mandiri</p>
-                        )}
-                      </td>
-                      <td className="py-4 md:py-6 text-center">
-                        <span className={`inline-flex w-7 h-7 md:w-8 md:h-8 ${q.type === 'essay' ? 'bg-slate-100 text-slate-400' : 'bg-secondary/10 text-secondary'} rounded-lg md:rounded-xl items-center justify-center font-black text-xs uppercase`}>
-                          {q.type === 'essay' ? '-' : q.correctAnswer}
-                        </span>
-                      </td>
-                      <td className="py-4 md:py-6 text-right px-4">
-                        {reorderMode ? (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button onClick={() => moveQuestion(i, 'up')} disabled={i === 0} className="p-2 bg-slate-50 text-slate-500 rounded-lg hover:bg-secondary hover:text-white transition-all disabled:opacity-30" title="Naikkan"><ChevronUp size={16} /></button>
-                            <button onClick={() => moveQuestion(i, 'down')} disabled={i === orderDraft.length - 1} className="p-2 bg-slate-50 text-slate-500 rounded-lg hover:bg-secondary hover:text-white transition-all disabled:opacity-30" title="Turunkan"><ChevronDown size={16} /></button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-1.5 md:gap-2 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEditQuestion(q)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-secondary rounded-lg md:rounded-xl transition-all"><FileEdit size={14} className="md:w-4 md:h-4" /></button>
-                            <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 md:p-2.5 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-lg md:rounded-xl transition-all"><Trash2 size={14} className="md:w-4 md:h-4" /></button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Tombol Reorder */}
+            {currentQuestions.length > 1 && (
+              <button
+                onClick={reorderMode ? saveOrder : enterReorderMode}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                  reorderMode
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                <ArrowUpDown size={14} />
+                {reorderMode ? 'Simpan Urutan' : 'Atur Urutan'}
+              </button>
+            )}
+
+            {/* Tombol Cetak PDF Single Mapel */}
+            <button
+              onClick={() => setIsPrintModalOpen(true)}
+              disabled={!currentQuestions.length}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+            >
+              <FileDown size={15} /> Cetak PDF
+            </button>
+
+            {/* Tombol Export Multi-Soal */}
+            <button
+              onClick={handleOpenMultiExportModal}
+              className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95"
+              title="Export banyak mapel sekaligus"
+            >
+              <Layers size={14} className="text-secondary" /> Multi-Export
+            </button>
+
+            {/* Tombol Buat Soal Baru */}
+            <button
+              onClick={handleOpenNewQuestion}
+              className="px-4 py-2 rounded-xl bg-secondary hover:brightness-95 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-secondary/20 transition-all active:scale-95"
+            >
+              <Plus size={16} /> Tambah Soal
+            </button>
+          </div>
+        </div>
+
+        {/* Analisis Sebaran Kunci Jawaban (Next-Level Analysis Widget) */}
+        {keyDistribution.total > 0 && !reorderMode && (
+          <div className="mt-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">
+              Distribusi Kunci Jawaban:
+            </span>
+            <div className="flex items-center gap-2">
+              {['a', 'b', 'c', 'd'].map((k) => (
+                <span key={k} className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 font-bold text-slate-700 text-[11px]">
+                  <strong className="text-secondary uppercase">{k}</strong>: {keyDistribution.dist[k]}
+                </span>
+              ))}
             </div>
           </div>
-        </motion.div>
-      ) : (
-        <div className="text-center py-24 bg-white rounded-[3rem] border border-dashed border-slate-100 flex flex-col items-center">
-           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 text-slate-200">
-             <BookOpen size={40} />
-           </div>
-           <h4 className="text-lg font-black text-slate-900 mb-2">Pilih Tipe Ujian</h4>
-           <p className="text-slate-400 text-sm max-w-xs font-medium">Klik salah satu folder ujian di atas untuk mulai mengelola bank soal.</p>
-        </div>
-      )}
+        )}
 
-      {/* Modals with Back-Button Protection & Scroll Fixes */}
+        {/* List Butir Soal */}
+        <div className="mt-6 space-y-3.5">
+          {reorderMode ? (
+            /* Mode Atur Urutan */
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-slate-500 mb-2">
+                Gunakan tombol panah naik/turun untuk memindahkan posisi nomor soal, lalu klik "Simpan Urutan":
+              </p>
+              {orderDraft.map((q, idx) => (
+                <div key={q.id} className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center gap-3 min-w-0 pr-4">
+                    <span className="font-black text-secondary text-sm w-6">#{idx + 1}</span>
+                    <p className="text-xs font-bold text-slate-800 truncate">{q.text}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => moveOrder(idx, -1)}
+                      disabled={idx === 0}
+                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                    >
+                      <ChevronUp size={16} />
+                    </button>
+                    <button
+                      onClick={() => moveOrder(idx, 1)}
+                      disabled={idx === orderDraft.length - 1}
+                      className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                    >
+                      <ChevronDown size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredQuestions.length === 0 ? (
+            /* Kondisi Kosong */
+            <div className="text-center py-16 text-slate-400 space-y-2">
+              <BookOpen size={40} className="mx-auto text-slate-300" />
+              <p className="font-bold text-sm text-slate-600">
+                {searchTerm ? 'Tidak ada butir soal yang cocok dengan pencarian.' : `Belum ada soal untuk mata pelajaran ${activeSubjectObj?.nama}.`}
+              </p>
+              <p className="text-xs text-slate-400">
+                Klik tombol <b>"Tambah Soal"</b> di atas untuk mulai membuat butir soal ujian.
+              </p>
+            </div>
+          ) : (
+            /* Tampilan Normal Butir Soal */
+            filteredQuestions.map((q, idx) => {
+              const isEssay = (q.type || 'pg') === 'essay';
+              return (
+                <div
+                  key={q.id}
+                  className="group p-5 rounded-2xl border border-slate-100 hover:border-slate-200 bg-white hover:shadow-sm transition-all space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className="w-7 h-7 rounded-lg bg-secondary/10 text-secondary font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            isEssay ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}>
+                            {isEssay ? 'Essai / Uraian' : 'Pilihan Ganda'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-800 leading-relaxed whitespace-pre-wrap">
+                          {q.text}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Tombol Aksi */}
+                    <div className="flex items-center gap-1.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleDuplicateQuestion(q)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-secondary hover:bg-slate-100 transition-all"
+                        title="Salin / Duplikat Soal Ini"
+                      >
+                        <Copy size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditQuestion(q)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-secondary hover:bg-slate-100 transition-all"
+                        title="Edit Soal"
+                      >
+                        <FileEdit size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteQuestion(q.id)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-slate-100 transition-all"
+                        title="Hapus Soal"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tampilan Pilihan Ganda */}
+                  {!isEssay && q.options && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-10 text-xs font-medium text-slate-600">
+                      {['a', 'b', 'c', 'd'].map((k) => {
+                        const isCorrect = String(q.correctAnswer).toLowerCase() === k;
+                        return (
+                          <div
+                            key={k}
+                            className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${
+                              isCorrect
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-bold'
+                                : 'bg-slate-50 border-slate-100 text-slate-600'
+                            }`}
+                          >
+                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black uppercase shrink-0 ${
+                              isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'
+                            }`}>
+                              {k}
+                            </span>
+                            <span className="truncate">{q.options[k] || '-'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </main>
+
+      {/* ======================================================== */}
+      {/* MODAL 1: INPUT / EDIT SOAL (KEYBOARD FRIENDLY & INTUITIF) */}
+      {/* ======================================================== */}
       <AnimatePresence>
-        {isAddFolderModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-[200] bg-slate-950/40 backdrop-blur-sm flex items-start md:items-center justify-center p-6 overflow-y-auto"
+        {isQuestionModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
           >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} 
-              animate={{ scale: 1, y: 0 }} 
-              className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-3xl my-auto relative max-h-[90vh] overflow-y-auto"
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-2xl rounded-3xl p-6 md:p-8 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto space-y-6"
             >
-              <button 
-                onClick={() => setIsAddFolderModalOpen(false)}
-                className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-900 transition-colors"
-              >
-                <X size={24} />
-              </button>
-              <h3 className="text-2xl font-black text-slate-900 mb-2">Buat Tipe Ujian</h3>
-              <p className="text-slate-500 text-sm font-medium mb-8">Tipe ujian akan menjadi folder di kelas {activeGrade}.</p>
-              <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
-                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-2">Nama Folder</label>
-                  <input autoFocus type="text" placeholder="Contoh: PTS Ganjil 2026" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all outline-none" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-secondary">
+                    {activeSubjectObj?.nama} • Kelas {activeGrade}
+                  </span>
+                  <h3 className="text-xl font-black text-slate-900">
+                    {editingQuestion ? 'Edit Butir Soal' : 'Tambah Soal Baru'}
+                  </h3>
                 </div>
-                <div className="flex gap-4 pt-2">
-                  <button onClick={() => setIsAddFolderModalOpen(false)} disabled={isSyncing} className="flex-grow py-4 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50 disabled:opacity-50">BATAL</button>
-                  <button onClick={handleAddFolder} disabled={isSyncing} className="flex-grow py-4 bg-secondary text-white rounded-2xl font-black text-xs shadow-xl shadow-secondary/20 disabled:opacity-60 disabled:cursor-not-allowed">{isSyncing ? 'MENYIMPAN…' : 'SIMPAN FOLDER'}</button>
+                <button onClick={() => setIsQuestionModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-700">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Tipe Soal (Pilihan Ganda vs Essai) */}
+              <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
+                <button
+                  type="button"
+                  onClick={() => setQuestionForm((f) => ({ ...f, type: 'pg' }))}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    questionForm.type === 'pg' ? 'bg-white text-secondary shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Pilihan Ganda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuestionForm((f) => ({ ...f, type: 'essay' }))}
+                  className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                    questionForm.type === 'essay' ? 'bg-white text-secondary shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Soal Essai / Uraian
+                </button>
+              </div>
+
+              {/* Form Teks Soal */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1.5">
+                    Teks Pertanyaan
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Tuliskan butir soal pertanyaan di sini…"
+                    value={questionForm.text}
+                    onChange={(e) => setQuestionForm((f) => ({ ...f, text: e.target.value }))}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-xs font-semibold text-slate-800 outline-none focus:border-secondary transition-all"
+                  />
                 </div>
+
+                {/* Form Opsi Pilihan Ganda */}
+                {questionForm.type === 'pg' ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                      Pilihan Jawaban & Kunci
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {['a', 'b', 'c', 'd'].map((k) => {
+                        const isCorrect = questionForm.correctAnswer === k;
+                        return (
+                          <div key={k} className="relative">
+                            <div className="flex items-center gap-2 mb-1">
+                              <button
+                                type="button"
+                                onClick={() => setQuestionForm((f) => ({ ...f, correctAnswer: k }))}
+                                className={`w-5 h-5 rounded-full text-[10px] font-black uppercase flex items-center justify-center transition-all ${
+                                  isCorrect ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                                }`}
+                                title="Klik untuk jadikan kunci jawaban"
+                              >
+                                {k}
+                              </button>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                Pilihan {k.toUpperCase()} {isCorrect && <span className="text-emerald-600 font-black">(KUNCI)</span>}
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              placeholder={`Isi pilihan ${k.toUpperCase()}`}
+                              value={questionForm.options[k] || ''}
+                              onChange={(e) => setQuestionForm((f) => ({
+                                ...f,
+                                options: { ...f.options, [k]: e.target.value },
+                              }))}
+                              className={`w-full bg-slate-50 border-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none transition-all ${
+                                isCorrect ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-100 focus:border-secondary'
+                              }`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-500 leading-relaxed italic">
+                    * Soal essai tidak memerlukan opsi pilihan berganda. Dokumen cetak PDF akan secara otomatis menyediakan garis titik-titik untuk tempat siswa menuliskan jawaban.
+                  </div>
+                )}
+              </div>
+
+              {/* Action Modal */}
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestionModalOpen(false)}
+                  disabled={isSyncing}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveQuestion}
+                  disabled={isSyncing}
+                  className="px-6 py-2.5 rounded-xl bg-secondary text-white font-black text-xs uppercase tracking-wider hover:brightness-95 shadow-md shadow-secondary/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSyncing ? <><Loader2 size={14} className="animate-spin" /> Menyimpan…</> : 'Simpan Soal'}
+                </button>
               </div>
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {isQuestionModalOpen && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
-            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-start md:items-center justify-center p-4 overflow-y-auto"
+      {/* ======================================================== */}
+      {/* MODAL 2: PILIHAN CETAK PDF (LEMBAR SISWA vs KUNCI JAWABAN) */}
+      {/* ======================================================== */}
+      <AnimatePresence>
+        {isPrintModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
           >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} 
-              animate={{ scale: 1, y: 0 }} 
-              className="bg-white w-full max-w-3xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 shadow-3xl relative my-6 md:my-8 max-h-[90vh] overflow-y-auto"
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-md rounded-3xl p-6 md:p-8 shadow-2xl relative space-y-5"
             >
-              {/* Close Button X */}
-              <button 
-                onClick={() => setIsQuestionModalOpen(false)}
-                className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-900 transition-colors"
-              >
-                <X size={24} />
-              </button>
-
-              {/* Toggle Tipe Soal */}
-              <div className="flex bg-slate-50 p-1.5 rounded-2xl mb-8 w-fit">
-                {['pg', 'essay'].map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setQuestionForm({...questionForm, type: type})}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                      (questionForm.type || 'pg') === type 
-                      ? 'bg-white text-secondary shadow-sm ring-1 ring-slate-100' 
-                      : 'text-slate-400 hover:text-slate-600'
-                    }`}
-                  >
-                    {type === 'pg' ? 'Pilihan Ganda' : 'Soal Essai'}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-black text-lg text-slate-900">Pilih Dokumen PDF</h3>
+                <button onClick={() => setIsPrintModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-700">
+                  <X size={18} />
+                </button>
               </div>
 
-              <h3 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">{editingQuestion ? 'Edit Soal' : 'Soal Baru'}</h3>
-              
-              <div className="space-y-8 mt-10">
+              <p className="text-xs text-slate-500">
+                Pilih format dokumen PDF yang ingin diunduh untuk <b>{activeSubjectObj?.nama}</b> ({activeGrade}):
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => generateExamPdf('STUDENT')}
+                  className="w-full p-4 rounded-2xl border border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all flex items-center justify-between text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
+                      <FileDown size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-slate-900 group-hover:text-secondary">
+                        1. Lembar Soal Siswa
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Lengkap dengan kop resmi, kotak nilai & nama murid
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400 group-hover:text-secondary" />
+                </button>
+
+                <button
+                  onClick={() => generateExamPdf('ANSWER_KEY')}
+                  className="w-full p-4 rounded-2xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30 transition-all flex items-center justify-between text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                      <FileCheck size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-slate-900 group-hover:text-emerald-700">
+                        2. Lembar Kunci Jawaban (Pegangan Guru)
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Tabel rekap kunci pilihan ganda untuk koreksi cepat
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-700" />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ======================================================== */}
+      {/* MODAL 3: EXPORT MULTI-SOAL (SEMUA / SEBAGIAN, SOAL / KUNCI) */}
+      {/* ======================================================== */}
+      <AnimatePresence>
+        {isMultiExportModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-2xl rounded-3xl p-6 md:p-8 shadow-2xl relative space-y-6 max-h-[90vh] flex flex-col"
+            >
+              {/* Header Modal */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-4 shrink-0">
                 <div>
-                  <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Isi Pertanyaan {(questionForm.type || 'pg') === 'essay' && '(Essai)'}</label>
-                  <textarea rows="4" value={questionForm.text} onChange={(e) => setQuestionForm({...questionForm, text: e.target.value})} placeholder="Tuliskan pertanyaan ujian..." className="w-full bg-slate-50 border-2 border-slate-50 rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-6 text-sm font-bold focus:border-secondary transition-all outline-none resize-none" />
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-secondary/10 text-secondary">
+                      <Layers size={18} />
+                    </div>
+                    <h3 className="font-black text-lg text-slate-900">
+                      Export Multi-Soal — Kelas {activeGrade}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Gabungkan lembar soal beberapa mata pelajaran menjadi satu dokumen PDF tanpa merusak struktur halaman.
+                  </p>
+                </div>
+                <button
+                  onClick={() => !isExportingPdf && setIsMultiExportModalOpen(false)}
+                  disabled={isExportingPdf}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 disabled:opacity-40"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Konten Scrollable */}
+              <div className="space-y-6 overflow-y-auto pr-1 flex-grow">
+                {/* 1. Pilihan Mode Dokumen */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                    1. Pilih Format Dokumen PDF:
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                    {/* Mode A: Hanya Soal */}
+                    <button
+                      type="button"
+                      onClick={() => setMultiExportMode('STUDENT')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                        multiExportMode === 'STUDENT'
+                          ? 'border-secondary bg-secondary/5 text-secondary shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-black text-xs">Lembar Soal Siswa</span>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          multiExportMode === 'STUDENT' ? 'border-secondary bg-secondary' : 'border-slate-300'
+                        }`}>
+                          {multiExportMode === 'STUDENT' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Hanya lembar soal ujian untuk dibagikan ke siswa
+                      </p>
+                    </button>
+
+                    {/* Mode B: Hanya Kunci */}
+                    <button
+                      type="button"
+                      onClick={() => setMultiExportMode('ANSWER_KEY')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                        multiExportMode === 'ANSWER_KEY'
+                          ? 'border-emerald-600 bg-emerald-50/50 text-emerald-800 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-black text-xs">Kunci Jawaban</span>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          multiExportMode === 'ANSWER_KEY' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                        }`}>
+                          {multiExportMode === 'ANSWER_KEY' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Rekap grid kunci pilihan ganda untuk pegangan koreksi guru
+                      </p>
+                    </button>
+
+                    {/* Mode C: Bundel Lengkap (Soal + Kunci) */}
+                    <button
+                      type="button"
+                      onClick={() => setMultiExportMode('BOTH')}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all flex flex-col justify-between ${
+                        multiExportMode === 'BOTH'
+                          ? 'border-amber-600 bg-amber-50/50 text-amber-900 shadow-sm'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-black text-xs">Soal + Kunci Lengkap</span>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          multiExportMode === 'BOTH' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'
+                        }`}>
+                          {multiExportMode === 'BOTH' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Lembar soal di depan untuk siswa, rekap kunci di belakang untuk guru
+                      </p>
+                    </button>
+                  </div>
                 </div>
 
-                {(questionForm.type || 'pg') === 'pg' ? (
-                  <>
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {['a', 'b', 'c', 'd'].map(opt => (
-                        <div key={opt}>
-                          <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-2">Pilihan {opt.toUpperCase()}</label>
-                          <input type="text" value={questionForm.options[opt]} onChange={(e) => setQuestionForm({...questionForm, options: { ...questionForm.options, [opt]: e.target.value }})} placeholder={`Jawaban ${opt}`} className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl p-4 text-sm font-bold focus:border-secondary transition-all outline-none" />
-                        </div>
-                      ))}
+                {/* 2. Pemilihan Mata Pelajaran */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                      2. Pilih Mata Pelajaran:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={selectAllAvailable}
+                        className="text-[11px] font-bold text-secondary hover:underline"
+                      >
+                        Pilih Semua
+                      </button>
+                      <span className="text-slate-300 text-xs">•</span>
+                      <button
+                        type="button"
+                        onClick={deselectAll}
+                        className="text-[11px] font-bold text-slate-400 hover:text-slate-600"
+                      >
+                        Kosongkan
+                      </button>
                     </div>
-                    <div className="pt-4">
-                      <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest block mb-3">Kunci Jawaban</label>
-                      <div className="flex gap-3">
-                        {['a', 'b', 'c', 'd'].map(opt => (
-                          <button key={opt} onClick={() => setQuestionForm({...questionForm, correctAnswer: opt})} className={`w-12 h-12 rounded-xl font-black text-xs transition-all ${questionForm.correctAnswer === opt ? 'bg-secondary text-white shadow-lg shadow-secondary/20 scale-110' : 'bg-slate-50 text-slate-400'}`}>{opt.toUpperCase()}</button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div>
-                    <p className="mt-4 text-[11px] text-slate-400 italic">* Soal tipe essai tidak memerlukan pilihan jawaban. Siswa akan menjawab langsung pada dokumen cetak.</p>
                   </div>
-                )}
 
-                <div className="flex gap-4 pt-10 border-t border-slate-50">
-                  <button onClick={() => setIsQuestionModalOpen(false)} disabled={isSyncing} className="flex-grow py-5 rounded-2xl font-black text-xs text-slate-400 hover:bg-slate-50 disabled:opacity-50">BATAL</button>
-                  <button onClick={handleSaveQuestion} disabled={isSyncing} className="flex-grow py-5 bg-primary text-white rounded-2xl font-black text-xs shadow-xl shadow-primary/20 hover:bg-slate-800 transition-all disabled:opacity-60 disabled:cursor-not-allowed">{isSyncing ? 'MENYIMPAN…' : 'SIMPAN DATA SOAL'}</button>
+                  {/* List Mata Pelajaran */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {classSubjectsWithCounts.map((subj) => {
+                      const hasQuestions = subj.totalQuestions > 0;
+                      const isChecked = selectedSubjectsForExport.includes(subj.nama);
+
+                      return (
+                        <div
+                          key={subj.id || subj.nama}
+                          onClick={() => hasQuestions && toggleSubjectSelect(subj.nama)}
+                          className={`p-3 rounded-2xl border transition-all flex items-center justify-between ${
+                            !hasQuestions
+                              ? 'bg-slate-50/70 border-slate-100 opacity-50 cursor-not-allowed'
+                              : isChecked
+                              ? 'bg-secondary/5 border-secondary text-slate-900 cursor-pointer shadow-sm'
+                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={!hasQuestions}
+                              onChange={() => hasQuestions && toggleSubjectSelect(subj.nama)}
+                              className="rounded border-slate-300 text-secondary focus:ring-secondary w-4 h-4 cursor-pointer"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs truncate">
+                                {subj.nama}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                {hasQuestions
+                                  ? `${subj.pgCount} PG, ${subj.essayCount} Essai`
+                                  : '0 Soal (Kosong)'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                            !hasQuestions
+                              ? 'bg-slate-200 text-slate-500'
+                              : isChecked
+                              ? 'bg-secondary text-white'
+                              : 'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {subj.totalQuestions} Soal
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Modal & Tombol Download */}
+              <div className="border-t border-slate-100 pt-4 flex items-center justify-between shrink-0">
+                <div className="text-xs">
+                  <span className="font-bold text-slate-500">Terpilih: </span>
+                  <span className="font-black text-secondary">
+                    {selectedSubjectsForExport.length} Mata Pelajaran
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsMultiExportModalOpen(false)}
+                    disabled={isExportingPdf}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all disabled:opacity-40"
+                  >
+                    Batal
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExecuteMultiExport}
+                    disabled={isExportingPdf || selectedSubjectsForExport.length === 0}
+                    className="px-5 py-2 rounded-xl bg-secondary text-white font-black text-xs uppercase tracking-wider hover:brightness-95 shadow-md shadow-secondary/20 transition-all flex items-center gap-2 disabled:opacity-40"
+                  >
+                    {isExportingPdf ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Menyusun Bundel PDF…</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileDown size={15} />
+                        <span>Download PDF ({selectedSubjectsForExport.length})</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </motion.div>

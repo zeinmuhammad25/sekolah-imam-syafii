@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Search, Plus, Pencil, Trash2, ArrowLeft, Loader2, AlertTriangle, FileBarChart2, FileDown, RefreshCw, Sparkles } from 'lucide-react';
+import {
+  Search, Plus, Pencil, Trash2, ArrowLeft, Loader2, AlertTriangle,
+  FileBarChart2, FileDown, RefreshCw, Sparkles, ChevronRight, ChevronLeft,
+  Users, CheckCircle2, Copy, Check, Grid, List, Table, Award, BookOpen, HeartHandshake
+} from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch, formatSheetDate } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Field } from './ModalKit';
 
@@ -237,6 +241,21 @@ export default function TeacherEraport() {
   const [exportingId, setExportingId] = useState(null);
   const rowKeyRef = useRef(0);
 
+  // Filter status progres: 'ALL' | 'DONE' | 'PROGRESS' | 'EMPTY'
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Modal Setup Semester Massal Se-Kelas (Batch Setup)
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchForm, setBatchForm] = useState({
+    tahunAjaran: '2025/2026',
+    semester: '1',
+    tanggalRapor: '',
+    tanggalIdentitas: '',
+    tempatRapor: 'Tanjung Rejo',
+    namaWaliKelas: '',
+  });
+  const [savingBatch, setSavingBatch] = useState(false);
+
   const load = async () => {
     const d = await fetchSchoolData();
     const sub = {
@@ -253,15 +272,63 @@ export default function TeacherEraport() {
   };
   useEffect(() => { load(); }, []);
 
+  // Peta progres nilai untuk setiap siswa di kelas ini
+  const studentStatsMap = useMemo(() => {
+    const map = new Map();
+    if (!students) return map;
+
+    const isTK = activeGrade === 'TK';
+    const classStudents = students.filter((s) => s.kelas === activeGrade);
+
+    classStudents.forEach((stu) => {
+      const stuPeriods = periods.filter((p) => String(p.studentId) === String(stu.id));
+      if (stuPeriods.length === 0) {
+        map.set(String(stu.id), { status: 'EMPTY', label: 'Belum Ada Semester', count: 0, latestPeriod: null });
+        return;
+      }
+      // Ambil periode terbaru
+      const latest = [...stuPeriods].sort((a, b) =>
+        String(b.tahunAjaran || '').localeCompare(String(a.tahunAjaran || '')) || (Number(b.semester) || 0) - (Number(a.semester) || 0)
+      )[0];
+
+      let filledCount = 0;
+      if (isTK) {
+        const aspects = (subData.ReportAspects || []).filter(
+          (a) => String(a.reportPeriodId) === String(latest.id) && String(a.deskripsi || '').trim() !== ''
+        );
+        filledCount = aspects.length;
+      } else {
+        const grades = (subData.ReportGrades || []).filter(
+          (g) => String(g.reportPeriodId) === String(latest.id) && String(g.nilaiAngka || '').trim() !== ''
+        );
+        filledCount = grades.length;
+      }
+
+      if (filledCount >= (isTK ? 3 : 8)) {
+        map.set(String(stu.id), { status: 'DONE', label: `Lengkap (${filledCount} ${isTK ? 'aspek' : 'mapel'})`, count: filledCount, latestPeriod: latest });
+      } else if (filledCount > 0) {
+        map.set(String(stu.id), { status: 'PROGRESS', label: `Sebagian (${filledCount} ${isTK ? 'aspek' : 'mapel'})`, count: filledCount, latestPeriod: latest });
+      } else {
+        map.set(String(stu.id), { status: 'EMPTY', label: 'Belum Ada Nilai', count: 0, latestPeriod: latest });
+      }
+    });
+
+    return map;
+  }, [students, periods, subData, activeGrade]);
+
   const filteredStudents = useMemo(() => {
     if (!students) return [];
     const q = query.trim().toLowerCase();
     return students.filter((s) => {
       if (s.kelas !== activeGrade) return false;
+      if (statusFilter !== 'ALL') {
+        const stats = studentStatsMap.get(String(s.id));
+        if (!stats || stats.status !== statusFilter) return false;
+      }
       if (!q) return true;
       return String(s.nama_siswa || '').toLowerCase().includes(q);
     });
-  }, [students, activeGrade, query]);
+  }, [students, activeGrade, query, statusFilter, studentStatsMap]);
 
   const studentPeriods = useMemo(() => {
     if (!selectedStudent) return [];
@@ -519,12 +586,166 @@ export default function TeacherEraport() {
     setRemoved({});
     setDrafts(draftsFrom(activePeriod.form.kelas, activePeriod.id, local, masterSubjects));
     setSubEditMode(false);
-    load();
+    await load();
+    return true;
+  };
+
+  // Navigasi cepat antar siswa se-kelas tanpa bolak-balik modal
+  const currentStudentIndex = useMemo(() => {
+    if (!selectedStudent) return -1;
+    return filteredStudents.findIndex((s) => String(s.id) === String(selectedStudent.id));
+  }, [selectedStudent, filteredStudents]);
+
+  const hasNextStudent = currentStudentIndex >= 0 && currentStudentIndex < filteredStudents.length - 1;
+  const hasPrevStudent = currentStudentIndex > 0;
+
+  const navigateToStudent = async (direction) => {
+    const nextIdx = direction === 'next' ? currentStudentIndex + 1 : currentStudentIndex - 1;
+    if (nextIdx < 0 || nextIdx >= filteredStudents.length) return;
+
+    // Jika sedang dalam subEditMode, tanyakan simpan dulu
+    if (subEditMode) {
+      const ok = await saveDraftSub();
+      if (!ok) return;
+    }
+
+    const nextStudent = filteredStudents[nextIdx];
+    setSelectedStudent(nextStudent);
+
+    // Cari apakah siswa berikutnya ini punya periode untuk tahun ajaran & semester yang sama
+    const matchPeriod = activePeriod
+      ? periods.find(
+          (p) =>
+            String(p.studentId) === String(nextStudent.id) &&
+            String(p.tahunAjaran) === String(activePeriod.form.tahunAjaran) &&
+            String(p.semester) === String(activePeriod.form.semester)
+        )
+      : null;
+
+    if (matchPeriod) {
+      openEditPeriod(matchPeriod);
+    } else {
+      setActivePeriod(null);
+      resetSub();
+    }
+  };
+
+  // Eksekusi Pembuatan Periode Semester Massal Se-Kelas (Batch Setup)
+  const handleApplyBatchSemester = async () => {
+    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
+    if (!classStudents.length) {
+      alert(`Tidak ada siswa di kelas ${activeGrade}.`);
+      return;
+    }
+
+    setSavingBatch(true);
+    setError('');
+
+    try {
+      const ops = [];
+      const newPeriodsTemp = [];
+
+      classStudents.forEach((stu) => {
+        // Cek apakah siswa ini sudah punya periode semester yang sama
+        const existing = periods.find(
+          (p) =>
+            String(p.studentId) === String(stu.id) &&
+            String(p.tahunAjaran) === String(batchForm.tahunAjaran) &&
+            String(p.semester) === String(batchForm.semester)
+        );
+
+        if (existing) {
+          // Update data semester yang ada (tanggal, wali kelas, tempat rapor)
+          ops.push({
+            action: 'update',
+            sheetName: 'ReportPeriods',
+            id: existing.id,
+            expectedUpdatedAt: existing.updatedAt ?? null,
+            row: {
+              ...batchForm,
+              kelas: activeGrade,
+            },
+          });
+        } else {
+          // Buat periode baru
+          ops.push({
+            action: 'add',
+            sheetName: 'ReportPeriods',
+            row: {
+              studentId: stu.id,
+              kelas: activeGrade,
+              ...batchForm,
+            },
+          });
+        }
+      });
+
+      if (!ops.length) {
+        setSavingBatch(false);
+        setShowBatchModal(false);
+        return;
+      }
+
+      const res = await mutateBatch(ops);
+      setSavingBatch(false);
+
+      if (!res.success) {
+        alert('Gagal menerapkan semester massal: ' + describeError(res));
+        return;
+      }
+
+      setShowBatchModal(false);
+      await load();
+      alert(`Berhasil menerapkan semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${classStudents.length} siswa kelas ${activeGrade}!`);
+    } catch (err) {
+      setSavingBatch(false);
+      alert('Terjadi kesalahan: ' + String(err));
+    }
+  };
+
+  // Template Saran Cepat Capaian Kompetensi Kurikulum Merdeka
+  const QUICK_TEMPLATES = {
+    capaian: [
+      { label: 'Sangat Baik (≥ 90)', text: 'Menunjukkan penguasaan materi yang sangat baik dalam memahami dan menerapkan seluruh tujuan pembelajaran.' },
+      { label: 'Baik (75–89)', text: 'Menunjukkan pemahaman yang baik dan aktif dalam mencapai tujuan pembelajaran yang ditetapkan.' },
+      { label: 'Cukup (65–74)', text: 'Mulai menunjukkan pemahaman materi dengan baik sesuai capaian pembelajaran.' },
+      { label: 'Tahfidz Lancar', text: 'Mampu menghafal dengan mutqin, tajwid yang tepat, dan makhraj huruf yang fasih.' },
+    ],
+    bimbingan: [
+      { label: 'Konsistensi', text: 'Perlu bimbingan dan pembiasaan agar lebih teliti dan konsisten dalam menyelesaikan tugas.' },
+      { label: 'Pendampingan', text: 'Perlu pendampingan khusus dan bimbingan orang tua dalam mengulang materi di rumah.' },
+      { label: 'Tahfidz Murajaah', text: 'Perlu meningkatkan murajaah rutin di rumah agar hafalan semakin mutqin.' },
+      { label: 'Fokus', text: 'Perlu dimotivasi untuk lebih fokus dan aktif bertanya saat proses pembelajaran di kelas.' },
+    ],
   };
 
   const renderEditCell = (t, row, f) => {
     const common = { value: row[f.name], onChange: (e) => updateDraftCell(t.key, row._key, f.name, e.target.value) };
-    if (f.type === 'textarea') return <textarea rows={f.rows || 1} {...common} className={`${cellBase} ${f.w || ''}`} />;
+    if (f.type === 'textarea') {
+      const isCapaian = f.name === 'deskripsiCapaian';
+      const isBimbingan = f.name === 'capaianBimbingan';
+
+      return (
+        <div className="space-y-1">
+          <textarea rows={f.rows || 1} {...common} className={`${cellBase} ${f.w || ''}`} />
+          {(isCapaian || isBimbingan) && (
+            <div className="flex flex-wrap gap-1">
+              {(isCapaian ? QUICK_TEMPLATES.capaian : QUICK_TEMPLATES.bimbingan).map((qt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => updateDraftCell(t.key, row._key, f.name, qt.text)}
+                  className="text-[9px] font-semibold bg-slate-100 hover:bg-secondary/15 hover:text-secondary text-slate-500 px-1.5 py-0.5 rounded transition-all"
+                  title={qt.text}
+                >
+                  + {qt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
     if (f.type === 'select') {
       return (
         <select {...common} className={`${cellBase} ${f.w || ''}`}>
@@ -573,6 +794,16 @@ export default function TeacherEraport() {
             {students === null ? 'Memuat…' : `${filteredStudents.length} siswa • Kelas ${activeGrade}`}
           </p>
         </div>
+
+        {/* Tombol Aksi Massal / Batch Setup */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBatchModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white hover:bg-black font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+          >
+            <Users size={16} /> Setup Semester Se-Kelas
+          </button>
+        </div>
       </div>
 
       {/* Tab kelas */}
@@ -590,39 +821,82 @@ export default function TeacherEraport() {
         ))}
       </div>
 
-      {/* Cari siswa */}
-      <div className="relative mb-6">
-        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Cari nama siswa…"
-          className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-11 pr-4 py-3.5 font-bold text-slate-800 outline-none focus:border-secondary transition-all"
-        />
+      {/* Filter Status Progres & Pencarian Siswa */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
+        <div className="relative flex-grow">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cari nama siswa…"
+            className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-11 pr-4 py-3 font-bold text-slate-800 text-xs outline-none focus:border-secondary transition-all"
+          />
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shrink-0 text-xs font-bold text-slate-500 overflow-x-auto">
+          {[
+            { key: 'ALL', label: 'Semua' },
+            { key: 'DONE', label: '✓ Lengkap' },
+            { key: 'PROGRESS', label: '◷ Sebagian' },
+            { key: 'EMPTY', label: 'Belum Ada' },
+          ].map((flt) => (
+            <button
+              key={flt.key}
+              onClick={() => setStatusFilter(flt.key)}
+              className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap text-[11px] font-black ${
+                statusFilter === flt.key ? 'bg-slate-900 text-white' : 'hover:text-slate-900'
+              }`}
+            >
+              {flt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Daftar siswa */}
       {students === null ? (
         <div className="flex justify-center py-20 text-slate-300"><Loader2 className="animate-spin" size={32} /></div>
       ) : filteredStudents.length === 0 ? (
-        <div className="text-center py-20 text-slate-400 font-bold">Tidak ada siswa di kelas {activeGrade}.</div>
+        <div className="text-center py-20 text-slate-400 font-bold">Tidak ada siswa yang sesuai filter.</div>
       ) : (
         <div className="grid gap-3">
           {filteredStudents.map((s) => {
             const count = periods.filter((p) => String(p.studentId) === String(s.id)).length;
+            const stats = studentStatsMap.get(String(s.id));
+
             return (
               <button
                 key={s.id}
                 onClick={() => openStudent(s)}
-                className="w-full flex items-center gap-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:border-secondary/40 hover:shadow-md transition-all text-left"
+                className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:border-secondary/40 hover:shadow-md transition-all text-left"
               >
-                <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                  <FileBarChart2 size={18} />
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                    <FileBarChart2 size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-900 truncate">{s.nama_siswa || '(tanpa nama)'}</p>
+                    <p className="text-slate-400 font-bold text-xs truncate">
+                      NISN: {s.nisn || '-'} • {count} semester tercatat
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-grow">
-                  <p className="font-black text-slate-900 truncate">{s.nama_siswa || '(tanpa nama)'}</p>
-                  <p className="text-slate-400 font-bold text-xs truncate">{count} semester tercatat</p>
-                </div>
+
+                {/* Badge Status Pengisian Nilai */}
+                {stats && (
+                  <span
+                    className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black border transition-all ${
+                      stats.status === 'DONE'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : stats.status === 'PROGRESS'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-slate-50 text-slate-400 border-slate-100'
+                    }`}
+                  >
+                    {stats.label}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -885,15 +1159,40 @@ export default function TeacherEraport() {
                   </datalist>
                 </div>
                 <ModalFooter>
-                  <div className="flex gap-3">
-                    <button onClick={backToPeriodList} className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-600 font-black text-sm hover:bg-slate-200 transition-all">
-                      Kembali
-                    </button>
-                    {activePeriod.id && (
-                      <button onClick={() => exportRaporPdf(activePeriod.id)} disabled={exportingId === activePeriod.id || subEditMode} title={subEditMode ? 'Simpan/Batal tabel nilai dulu' : 'Unduh Rapor (PDF)'} className="flex-1 py-3.5 rounded-2xl bg-emerald-600 text-white font-black text-sm hover:bg-emerald-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                        {exportingId === activePeriod.id ? <><Loader2 className="animate-spin" size={16} /> Membuat PDF…</> : <><FileDown size={16} /> Unduh Rapor (PDF)</>}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    {/* Tombol Navigasi Siswa Sebelumnya & Berikutnya */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => navigateToStudent('prev')}
+                        disabled={!hasPrevStudent || savingSub}
+                        className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs transition-all disabled:opacity-30 disabled:pointer-events-none"
+                        title="Pindah ke siswa sebelumnya di kelas ini"
+                      >
+                        <ChevronLeft size={16} /> Siswa Sebelumnya
                       </button>
-                    )}
+
+                      <button
+                        type="button"
+                        onClick={() => navigateToStudent('next')}
+                        disabled={!hasNextStudent || savingSub}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-secondary text-white hover:brightness-95 font-black text-xs transition-all shadow-md shadow-secondary/20 disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                        title="Simpan & Lanjut ke siswa berikutnya di kelas ini"
+                      >
+                        Siswa Berikutnya <ChevronRight size={16} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button onClick={backToPeriodList} className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-black text-xs hover:bg-slate-200 transition-all">
+                        Kembali ke Daftar
+                      </button>
+                      {activePeriod.id && (
+                        <button onClick={() => exportRaporPdf(activePeriod.id)} disabled={exportingId === activePeriod.id || subEditMode} title={subEditMode ? 'Simpan/Batal tabel nilai dulu' : 'Unduh Rapor (PDF)'} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-500 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
+                          {exportingId === activePeriod.id ? <><Loader2 className="animate-spin" size={14} /> Membuat PDF…</> : <><FileDown size={14} /> Unduh PDF</>}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </ModalFooter>
               </>
@@ -913,6 +1212,116 @@ export default function TeacherEraport() {
             onCancel={() => !deleting && setConfirmingDeletePeriod(null)}
             onConfirm={confirmDeletePeriod}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Modal Setup Semester Massal Se-Kelas (Batch Setup) */}
+      <AnimatePresence>
+        {showBatchModal && (
+          <Modal
+            title={`Setup Semester Massal — Kelas ${activeGrade}`}
+            onClose={() => !savingBatch && setShowBatchModal(false)}
+            maxWidthClass="max-w-lg"
+          >
+            <div className="p-6 md:p-8 space-y-4">
+              <div className="p-3.5 rounded-2xl bg-secondary/10 border border-secondary/20 text-xs text-secondary-dark flex items-start gap-2.5">
+                <Users size={16} className="text-secondary shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Fitur ini akan membuat atau memperbarui periode rapor semester untuk <b>seluruh siswa kelas {activeGrade}</b> sekaligus. Guru tidak perlu lagi mengetik Tahun Ajaran, Semester, Wali Kelas, dan Tanggal Rapor satu per satu ke setiap murid!
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Tahun Ajaran</label>
+                    <input
+                      type="text"
+                      placeholder="mis. 2025/2026"
+                      value={batchForm.tahunAjaran}
+                      onChange={(e) => setBatchForm((f) => ({ ...f, tahunAjaran: e.target.value }))}
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Semester</label>
+                    <select
+                      value={batchForm.semester}
+                      onChange={(e) => setBatchForm((f) => ({ ...f, semester: e.target.value }))}
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
+                    >
+                      <option value="1">1 (Ganjil)</option>
+                      <option value="2">2 (Genap)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Nama Wali Kelas / Guru Kelas</label>
+                  <input
+                    type="text"
+                    placeholder="mis. Muhammad Khaidir, S.Pd."
+                    value={batchForm.namaWaliKelas}
+                    onChange={(e) => setBatchForm((f) => ({ ...f, namaWaliKelas: e.target.value }))}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Tanggal Rapor</label>
+                    <input
+                      type="date"
+                      value={batchForm.tanggalRapor}
+                      onChange={(e) => setBatchForm((f) => ({ ...f, tanggalRapor: e.target.value }))}
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Tanggal TTD Kepsek</label>
+                    <input
+                      type="date"
+                      value={batchForm.tanggalIdentitas}
+                      onChange={(e) => setBatchForm((f) => ({ ...f, tanggalIdentitas: e.target.value }))}
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Diberikan di (Tempat)</label>
+                  <input
+                    type="text"
+                    placeholder="mis. Tanjung Rejo"
+                    value={batchForm.tempatRapor}
+                    onChange={(e) => setBatchForm((f) => ({ ...f, tempatRapor: e.target.value }))}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-secondary"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <ModalFooter>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchModal(false)}
+                  disabled={savingBatch}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs hover:bg-slate-200 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBatchSemester}
+                  disabled={savingBatch}
+                  className="px-5 py-2.5 rounded-xl bg-secondary text-white font-black text-xs uppercase tracking-wider hover:brightness-95 transition-all shadow-md shadow-secondary/20 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingBatch ? <><Loader2 size={14} className="animate-spin" /> Menerapkan…</> : <><Check size={14} /> Terapkan ke Semua Siswa Kelas {activeGrade}</>}
+                </button>
+              </div>
+            </ModalFooter>
+          </Modal>
         )}
       </AnimatePresence>
     </div>

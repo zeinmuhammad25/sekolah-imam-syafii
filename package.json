@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:pages": "wrangler pages dev -- npm run dev",
+    "dev:pages": "wrangler pages dev --remote -- npm run dev",
     "build": "vite build",
     "preview": "vite preview"
   },

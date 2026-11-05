@@ -1,5 +1,6 @@
 name = "official-imam-syafii"
 compatibility_date = "2026-09-29"
+pages_build_output_dir = "dist"
 
 # CATATAN PENTING (dari pengalaman nyata, bukan dugaan):
 # Build git-integrated di dashboard Cloudflare TETAP MEMBACA file ini untuk
