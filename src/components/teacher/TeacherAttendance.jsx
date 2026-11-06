@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Clock, MapPin, CheckCircle2, AlertTriangle, UserCheck, ShieldCheck,
   RefreshCw, Navigation, AlertCircle, Calendar, Sparkles, LogIn, LogOut,
-  FileText, Send, ChevronDown, Check, Info, Phone, Lock, ExternalLink,
+  FileText, Send, ChevronDown, ChevronRight, Check, Info, Phone, Lock, ExternalLink,
   Search, ArrowLeft, User, UserX
 } from 'lucide-react';
 import {
