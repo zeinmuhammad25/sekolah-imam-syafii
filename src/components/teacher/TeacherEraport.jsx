@@ -1048,41 +1048,43 @@ export default function TeacherEraport() {
   const periodTitle = (p) => `${KELAS_ROMAWI[p.kelas] ? `Kelas ${KELAS_ROMAWI[p.kelas]}` : p.kelas} • Semester ${SEMESTER_LABEL[p.semester] || p.semester}`;
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+    <div className="w-full">
+      {/* Header — Ringkas & Fit Kanan-Kiri */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
         <div>
-          <h2 className="text-2xl md:text-3xl font-black text-slate-900">E-Raport</h2>
-          <p className="text-slate-400 font-bold text-sm mt-1">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">E-Raport</h2>
+          <p className="text-slate-400 font-bold text-xs sm:text-sm mt-0.5">
             {students === null ? 'Memuat…' : `${filteredStudents.length} siswa • Kelas ${activeGrade}`}
           </p>
         </div>
 
-        {/* Tombol Aksi Massal / Batch Setup & Multi-Export */}
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        {/* Tombol Aksi Massal: di mobile berdampingan 2 kolom proporsional */}
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={openMultiExportModal}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-secondary text-white hover:brightness-95 font-black text-xs uppercase tracking-wider transition-all shadow-md shadow-secondary/20 active:scale-95"
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-secondary text-white hover:brightness-95 font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-secondary/20 active:scale-95 text-center"
           >
-            <FileDown size={16} /> Unduh E-Raport Kelas
+            <FileDown size={15} className="shrink-0" />
+            <span className="truncate">Unduh Rapor</span>
           </button>
           <button
             onClick={() => setShowBatchModal(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white hover:bg-black font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-slate-900 text-white hover:bg-black font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 text-center"
           >
-            <Users size={16} /> Setup Semester Se-Kelas
+            <Users size={15} className="shrink-0" />
+            <span className="truncate">Setup Kelas</span>
           </button>
         </div>
       </div>
 
-      {/* Tab kelas */}
-      <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar mb-4 w-fit max-w-full [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+      {/* Tab kelas — Full width membentang pas kanan-kiri */}
+      <div className="w-full bg-white p-1 sm:p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar mb-3 sm:mb-4 flex gap-1">
         {GRADES.map((grade) => (
           <button
             key={grade}
             onClick={() => setActiveGrade(grade)}
-            className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap active:scale-95 ${
-              activeGrade === grade ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
+            className={`flex-1 min-w-[56px] sm:min-w-[62px] py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all text-center whitespace-nowrap active:scale-95 ${
+              activeGrade === grade ? 'bg-secondary text-white shadow-md shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             {grade}
@@ -1091,30 +1093,30 @@ export default function TeacherEraport() {
       </div>
 
       {/* Filter Status Progres & Pencarian Siswa */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
-        <div className="relative flex-grow">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+      <div className="space-y-2.5 mb-4 sm:mb-6">
+        <div className="relative w-full">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cari nama siswa…"
-            className="w-full bg-white border-2 border-slate-100 rounded-2xl pl-11 pr-4 py-3 font-bold text-slate-800 text-xs outline-none focus:border-secondary transition-all"
+            className="w-full bg-white border-2 border-slate-100 rounded-xl sm:rounded-2xl pl-10 pr-4 py-2.5 sm:py-3 font-bold text-slate-800 text-xs outline-none focus:border-secondary transition-all"
           />
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shrink-0 text-xs font-bold text-slate-500 overflow-x-auto hide-scrollbar [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
+        {/* Filter Pills — Full width grid 4 kolom pas di layar mobile */}
+        <div className="w-full grid grid-cols-4 bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-100 gap-1 text-center">
           {[
             { key: 'ALL', label: 'Semua' },
-            { key: 'DONE', label: '✓ Lengkap' },
-            { key: 'PROGRESS', label: '◷ Sebagian' },
+            { key: 'DONE', label: 'Lengkap' },
+            { key: 'PROGRESS', label: 'Sebagian' },
             { key: 'EMPTY', label: 'Belum Ada' },
           ].map((flt) => (
             <button
               key={flt.key}
               onClick={() => setStatusFilter(flt.key)}
-              className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap text-[11px] font-black active:scale-95 ${
-                statusFilter === flt.key ? 'bg-slate-900 text-white' : 'hover:text-slate-900'
+              className={`py-1.5 rounded-lg text-[10px] sm:text-xs font-black transition-all truncate ${
+                statusFilter === flt.key ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               {flt.label}
@@ -1123,13 +1125,13 @@ export default function TeacherEraport() {
         </div>
       </div>
 
-      {/* Daftar siswa */}
+      {/* Daftar siswa — Fit Kanan-Kiri & Bebas Terpotong */}
       {students === null ? (
         <div className="flex justify-center py-20 text-slate-300"><Loader2 className="animate-spin" size={32} /></div>
       ) : filteredStudents.length === 0 ? (
         <div className="text-center py-20 text-slate-400 font-bold">Tidak ada siswa yang sesuai filter.</div>
       ) : (
-        <div className="grid gap-3 [touch-action:pan-y]">
+        <div className="space-y-2 sm:space-y-2.5">
           {filteredStudents.map((s) => {
             const count = periods.filter((p) => String(p.studentId) === String(s.id)).length;
             const stats = studentStatsMap.get(String(s.id));
@@ -1138,29 +1140,31 @@ export default function TeacherEraport() {
               <button
                 key={s.id}
                 onClick={() => openStudent(s)}
-                className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:border-secondary/40 hover:shadow-md active:scale-[0.99] transition-all text-left [touch-action:pan-y]"
+                className="w-full flex items-center justify-between gap-2.5 bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-sm hover:border-secondary/40 hover:shadow-md active:scale-[0.99] transition-all text-left group"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
-                    <FileBarChart2 size={18} />
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0 group-hover:bg-secondary group-hover:text-white transition-colors">
+                    <FileBarChart2 size={16} />
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-black text-slate-900 truncate">{s.nama_siswa || '(tanpa nama)'}</p>
-                    <p className="text-slate-400 font-bold text-xs truncate">
-                      NISN: {s.nisn || '-'} • {count} semester tercatat
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black text-slate-900 text-xs sm:text-sm truncate leading-snug group-hover:text-secondary transition-colors">
+                      {s.nama_siswa || '(tanpa nama)'}
+                    </p>
+                    <p className="text-slate-400 font-semibold text-[10px] sm:text-xs truncate mt-0.5">
+                      NISN: {s.nisn || '-'} • {count} semester
                     </p>
                   </div>
                 </div>
 
-                {/* Badge Status Pengisian Nilai */}
+                {/* Badge Status Pengisian Nilai: proporsional di kanan, tidak tertekan */}
                 {stats && (
                   <span
-                    className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black border transition-all ${
+                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-full text-[9px] sm:text-[10px] font-black border transition-all whitespace-nowrap text-center ${
                       stats.status === 'DONE'
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : stats.status === 'PROGRESS'
                         ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-slate-50 text-slate-400 border-slate-100'
+                        : 'bg-slate-50 text-slate-400 border-slate-200'
                     }`}
                   >
                     {stats.label}

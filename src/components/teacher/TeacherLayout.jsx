@@ -438,8 +438,8 @@ export default function TeacherLayout({ children }) {
         )}
       </AnimatePresence>
 
-      {/* Content Area — Aman dari horizontal blowout di mobile & smooth touch scrolling */}
-      <main className="flex-grow flex flex-col min-h-0 min-w-0 max-w-full overflow-x-clip [touch-action:pan-y] [-webkit-overflow-scrolling:touch] pt-0 md:pt-0">
+      {/* Content Area — Natural document flow agar vertical scroll bebas bergerak */}
+      <main className="flex-1 min-w-0 w-full pt-0 md:pt-0">
         {/* Top Header Bar (PC) */}
         <header className="hidden md:flex bg-white h-20 items-center justify-between px-10 border-b border-slate-100 sticky top-0 z-40">
            <div className="text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">
@@ -465,8 +465,8 @@ export default function TeacherLayout({ children }) {
            </div>
         </header>
 
-        {/* Padding responsif: nyaman di HP (3 = 12px) dan lapang di PC (10 = 40px), safe bottom space */}
-        <div className="p-3 sm:p-6 md:p-10 w-full max-w-full min-w-0 pb-28 md:pb-12">
+        {/* Padding responsif: pas kanan-kiri di HP (px-3 py-4 = 12px) dan lapang di PC (10 = 40px), safe bottom space */}
+        <div className="px-3 py-4 sm:p-6 md:p-10 w-full max-w-5xl mx-auto min-w-0 pb-28 md:pb-12">
           {!isCurrentPageAllowed ? (
             <div className="max-w-xl mx-auto my-12 bg-white p-8 rounded-3xl border border-rose-100 shadow-sm text-center">
               <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 shadow-inner">

@@ -29,6 +29,8 @@ import "jspdf-autotable";
 
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
 
+const normGrade = (g) => String(g || '').trim().replace(/^sd\s*(\d+)$/i, 'SD $1').toUpperCase();
+
 export default function TeacherSoal() {
   const [activeGrade, setActiveGrade] = useState('SD 1');
   
@@ -105,14 +107,41 @@ export default function TeacherSoal() {
         let qMap = {};
         let fList = [];
 
-        if (data.QuestionFolders) {
+        if (Array.isArray(data.QuestionFolders) && data.QuestionFolders.length > 0) {
           fList = data.QuestionFolders;
         }
 
         if (data.TeacherQuestions && Array.isArray(data.TeacherQuestions)) {
           data.TeacherQuestions.forEach(tq => {
+            const gr = tq.grade;
+            const examTypes = tq?.data?.examTypes?.[gr];
+            if (Array.isArray(examTypes)) {
+              examTypes.forEach(et => {
+                if (et && et.id && !fList.some(existing => String(existing.id) === String(et.id))) {
+                  fList.push({ id: String(et.id), grade: gr, name: et.name, updatedAt: et.updatedAt });
+                }
+              });
+            }
             if (tq && tq.data && tq.data.questions) {
               Object.assign(qMap, tq.data.questions);
+            }
+          });
+        }
+
+        if (Array.isArray(data.Questions)) {
+          data.Questions.forEach(q => {
+            const fid = String(q.folderId);
+            if (!qMap[fid]) qMap[fid] = [];
+            if (!qMap[fid].some(x => String(x.id) === String(q.id))) {
+              qMap[fid].push({
+                id: String(q.id),
+                text: q.text,
+                options: { a: q.optionA, b: q.optionB, c: q.optionC, d: q.optionD },
+                correctAnswer: q.correctAnswer,
+                type: q.type || 'pg',
+                updatedAt: q.updatedAt,
+                order: q.order
+              });
             }
           });
         }
@@ -148,39 +177,58 @@ export default function TeacherSoal() {
       .sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0));
   }, [masterSubjects, activeGrade]);
 
-  // Map nama mapel -> folder terdaftar di database
+  // Map nama mapel -> folder terdaftar di database (toleran huruf besar-kecil, spasi & format grade)
   const subjectFolders = useMemo(() => {
-    const list = allFolders.filter((f) => f.grade === activeGrade);
+    const list = allFolders.filter((f) => normGrade(f.grade) === normGrade(activeGrade));
     const map = new Map();
     list.forEach((f) => {
-      map.set(f.name.trim().toLowerCase(), f);
+      if (f && f.name) {
+        map.set(f.name.trim().toLowerCase(), f);
+      }
     });
     return map;
   }, [allFolders, activeGrade]);
 
-  // Otomatis pilih mapel pertama jika belum ada yang terpilih saat ganti tab kelas
+  // Auto-upgrade: jika activeExamFolder masih bertipe 'auto:NamaMapel' dan folder fisiknya ditemukan,
+  // langsung switch ke ID fisik agar seluruh butir soal yang sudah ada tampil instan
+  useEffect(() => {
+    if (activeExamFolder && activeExamFolder.startsWith('auto:')) {
+      const subjectName = activeExamFolder.replace('auto:', '').trim().toLowerCase();
+      const foundFolder = subjectFolders.get(subjectName);
+      if (foundFolder && foundFolder.id) {
+        setActiveExamFolder(String(foundFolder.id));
+      }
+    }
+  }, [activeExamFolder, subjectFolders]);
+
+  // Otomatis pilih mapel saat pertama kali atau saat ganti tab jenjang
   useEffect(() => {
     if (currentClassSubjects.length > 0) {
-      const firstSubject = currentClassSubjects[0];
-      const foundFolder = subjectFolders.get(firstSubject.nama.trim().toLowerCase());
-      if (foundFolder) {
-        setActiveExamFolder(foundFolder.id);
+      // Pertahankan mapel dengan nama sama jika ada di jenjang baru, atau default ke yang pertama
+      const currentSubjName = activeSubjectObj?.nama?.trim().toLowerCase();
+      const matchedSubject = currentSubjName
+        ? currentClassSubjects.find(s => s.nama.trim().toLowerCase() === currentSubjName)
+        : null;
+      const targetSubj = matchedSubject || currentClassSubjects[0];
+
+      const foundFolder = subjectFolders.get(targetSubj.nama.trim().toLowerCase());
+      if (foundFolder && foundFolder.id) {
+        setActiveExamFolder(String(foundFolder.id));
       } else {
-        // Jika folder fisik di database belum ada, kita simpan penanda nama mapel
-        setActiveExamFolder(`auto:${firstSubject.nama}`);
+        setActiveExamFolder(`auto:${targetSubj.nama}`);
       }
     } else {
       setActiveExamFolder(null);
     }
     setReorderMode(false);
-  }, [activeGrade, currentClassSubjects.length]);
+  }, [activeGrade]);
 
   // Menentukan subject aktif dan folder aktif saat ini
   const activeSubjectObj = useMemo(() => {
     if (!activeExamFolder) return null;
     if (activeExamFolder.startsWith('auto:')) {
-      const name = activeExamFolder.replace('auto:', '');
-      return currentClassSubjects.find((s) => s.nama === name) || { nama: name };
+      const name = activeExamFolder.replace('auto:', '').trim();
+      return currentClassSubjects.find((s) => s.nama.trim().toLowerCase() === name.toLowerCase()) || { nama: name };
     }
     const f = allFolders.find((x) => String(x.id) === String(activeExamFolder));
     if (!f) return null;
@@ -189,22 +237,62 @@ export default function TeacherSoal() {
 
   // Cari ID folder fisik riil di D1 (atau buat jika belum ada)
   const ensurePhysicalFolder = async (subjectName) => {
-    const existing = subjectFolders.get(subjectName.trim().toLowerCase());
-    if (existing) return existing.id;
+    const cleanName = (subjectName || '').trim();
+    const existing = subjectFolders.get(cleanName.toLowerCase()) ||
+                     allFolders.find(f => normGrade(f.grade) === normGrade(activeGrade) && f.name.trim().toLowerCase() === cleanName.toLowerCase());
+    if (existing && existing.id) return String(existing.id);
 
     // Buat folder fisik otomatis di D1
     const res = await mutateRow({
       action: 'add',
       sheetName: 'QuestionFolders',
-      row: { grade: activeGrade, name: subjectName.trim() },
+      row: { grade: activeGrade, name: cleanName },
     });
 
     if (res.success && res.id) {
-      const newF = { id: String(res.id), grade: activeGrade, name: subjectName.trim() };
-      setAllFolders((prev) => [...prev, newF]);
-      setQuestions((prev) => ({ ...prev, [newF.id]: [] }));
-      return newF.id;
+      const folderId = String(res.id);
+      const newF = { id: folderId, grade: activeGrade, name: cleanName, updatedAt: res.updatedAt };
+      setAllFolders((prev) => {
+        const already = prev.some(x => String(x.id) === folderId);
+        return already ? prev : [...prev, newF];
+      });
+      setQuestions((prev) => ({ ...prev, [folderId]: prev[folderId] || [] }));
+      return folderId;
     }
+
+    // Jika terjadi duplikasi (sudah ada di D1) atau state lokal belum sinkron,
+    // fetch data terbaru dari server secara proaktif untuk mengambil ID-nya
+    try {
+      const freshData = await fetchSchoolData();
+      let matchedId = null;
+      if (freshData) {
+        const serverFolders = Array.isArray(freshData.QuestionFolders) ? freshData.QuestionFolders : [];
+        const found = serverFolders.find(f => normGrade(f.grade) === normGrade(activeGrade) && f.name.trim().toLowerCase() === cleanName.toLowerCase());
+        if (found && found.id) matchedId = String(found.id);
+
+        if (!matchedId && Array.isArray(freshData.TeacherQuestions)) {
+          freshData.TeacherQuestions.forEach(tq => {
+            if (normGrade(tq.grade) === normGrade(activeGrade)) {
+              const types = tq?.data?.examTypes?.[tq.grade] || [];
+              const f = types.find(x => x.name.trim().toLowerCase() === cleanName.toLowerCase());
+              if (f && f.id) matchedId = String(f.id);
+            }
+          });
+        }
+      }
+
+      if (matchedId) {
+        const recoveredF = { id: matchedId, grade: activeGrade, name: cleanName };
+        setAllFolders((prev) => {
+          const list = prev.filter(x => String(x.id) !== matchedId);
+          return [...list, recoveredF];
+        });
+        return matchedId;
+      }
+    } catch (e) {
+      console.warn("Folder recovery error:", e);
+    }
+
     throw new Error(res.error || 'Gagal menyiapkan folder mapel.');
   };
 
@@ -212,7 +300,7 @@ export default function TeacherSoal() {
   const handleSelectSubject = (subj) => {
     const found = subjectFolders.get(subj.nama.trim().toLowerCase());
     if (found) {
-      setActiveExamFolder(found.id);
+      setActiveExamFolder(String(found.id));
     } else {
       setActiveExamFolder(`auto:${subj.nama}`);
     }
@@ -226,7 +314,8 @@ export default function TeacherSoal() {
       // Belum ada soal
       return [];
     }
-    return questions[activeExamFolder] || [];
+    const key = String(activeExamFolder);
+    return questions[key] || questions[activeExamFolder] || [];
   }, [activeExamFolder, questions]);
 
   const filteredQuestions = useMemo(() => {
@@ -284,9 +373,14 @@ export default function TeacherSoal() {
     setIsSyncing(true);
 
     try {
-      const physicalFolderId = activeExamFolder.startsWith('auto:')
-        ? await ensurePhysicalFolder(activeSubjectObj.nama)
-        : activeExamFolder;
+      const subjectName = activeSubjectObj?.nama || currentClassSubjects[0]?.nama || '';
+      const physicalFolderId = (!activeExamFolder || activeExamFolder.startsWith('auto:'))
+        ? await ensurePhysicalFolder(subjectName)
+        : String(activeExamFolder);
+
+      if (activeExamFolder !== physicalFolderId) {
+        setActiveExamFolder(physicalFolderId);
+      }
 
       const isEssay = (q.type || 'pg') === 'essay';
       const row = {
@@ -338,11 +432,12 @@ export default function TeacherSoal() {
     setIsSyncing(true);
 
     try {
-      const physicalFolderId = activeExamFolder.startsWith('auto:')
-        ? await ensurePhysicalFolder(activeSubjectObj.nama)
-        : activeExamFolder;
+      const subjectName = activeSubjectObj?.nama || currentClassSubjects[0]?.nama || '';
+      const physicalFolderId = (!activeExamFolder || activeExamFolder.startsWith('auto:'))
+        ? await ensurePhysicalFolder(subjectName)
+        : String(activeExamFolder);
 
-      if (activeExamFolder.startsWith('auto:')) {
+      if (activeExamFolder !== physicalFolderId) {
         setActiveExamFolder(physicalFolderId);
       }
 
@@ -800,12 +895,13 @@ export default function TeacherSoal() {
   const classSubjectsWithCounts = useMemo(() => {
     return currentClassSubjects.map((subj) => {
       const foundFolder = subjectFolders.get(subj.nama.trim().toLowerCase());
-      const qList = foundFolder ? (questions[foundFolder.id] || []) : [];
+      const fId = foundFolder ? String(foundFolder.id) : null;
+      const qList = fId ? (questions[fId] || questions[foundFolder.id] || []) : [];
       const pgCount = qList.filter(q => (q.type || 'pg') === 'pg').length;
       const essayCount = qList.filter(q => q.type === 'essay').length;
       return {
         ...subj,
-        folderId: foundFolder?.id,
+        folderId: fId,
         totalQuestions: qList.length,
         pgCount,
         essayCount,
@@ -1029,8 +1125,9 @@ export default function TeacherSoal() {
         <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 px-1 -mx-1 hide-scrollbar">
           {currentClassSubjects.map((subj) => {
             const foundFolder = subjectFolders.get(subj.nama.trim().toLowerCase());
-            const count = foundFolder ? (questions[foundFolder.id] || []).length : 0;
-            const isSelected = activeSubjectObj?.nama.trim().toLowerCase() === subj.nama.trim().toLowerCase();
+            const fId = foundFolder ? String(foundFolder.id) : null;
+            const count = fId ? (questions[fId] || questions[foundFolder.id] || []).length : 0;
+            const isSelected = activeSubjectObj?.nama?.trim().toLowerCase() === subj.nama?.trim().toLowerCase();
 
             return (
               <button

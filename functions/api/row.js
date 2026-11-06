@@ -20,7 +20,17 @@ const readRow = (db, cfg, id) => db.prepare(`SELECT * FROM ${cfg.table} WHERE id
 async function singleAdd(db, cfg, row) {
   const [res] = await db.batch([buildAdd(db, cfg, row, Date.now()), bumpVersion(db)]);
   const out = res.results && res.results[0];
-  if (!out) return { success: false, duplicate: true, error: (cfg.unique && cfg.unique.message) || 'Data duplikat.' };
+  if (!out) {
+    if (cfg.table === 'question_folders') {
+      const existing = await db.prepare(
+        "SELECT id, updated_at FROM question_folders WHERE lower(trim(grade)) = lower(trim(?)) AND lower(trim(name)) = lower(trim(?))"
+      ).bind(row.grade || '', row.name || '').first();
+      if (existing) {
+        return { success: true, id: String(existing.id), updatedAt: existing.updated_at, alreadyExists: true };
+      }
+    }
+    return { success: false, duplicate: true, error: (cfg.unique && cfg.unique.message) || 'Data duplikat.' };
+  }
   return { success: true, id: String(out.id), updatedAt: out.updated_at };
 }
 

@@ -462,7 +462,7 @@ export default function TeacherAttendance() {
       {/* LAYAR 1: PILIH PROFIL GURU (GATE SCREEN — LIST 1 KOLOM MOBILE, RAMAH JEMPOL & SMOOTH SCROLL) */}
       {/* ========================================================================= */}
       {viewStep === 'list' && (
-        <div className="space-y-3.5 [touch-action:pan-y]">
+        <div className="space-y-3.5">
           {/* Header Ringkas Pilih Guru */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100">
             <div className="flex items-center gap-3">
@@ -505,7 +505,7 @@ export default function TeacherAttendance() {
               <p className="text-xs text-slate-400 mt-0.5">Silakan cek kembali kata kunci pencarian.</p>
             </div>
           ) : (
-            <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
+            <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               {filteredTeachers.map((teacher) => {
                 const rec = (allTodayAttendances || []).find((a) => a.teacher_id === teacher.id);
                 const hasIn = rec && rec.check_in_time;
@@ -517,7 +517,7 @@ export default function TeacherAttendance() {
                     key={teacher.id}
                     type="button"
                     onClick={() => handleSelectTeacher(teacher)}
-                    className="w-full bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-100 hover:border-secondary/40 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left flex items-center justify-between gap-3 group [touch-action:pan-y]"
+                    className="w-full bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-100 hover:border-secondary/40 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left flex items-center justify-between gap-3 group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-secondary/15 to-forest/15 text-secondary group-hover:from-secondary group-hover:to-forest group-hover:text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm transition-all">

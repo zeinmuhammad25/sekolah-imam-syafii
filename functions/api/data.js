@@ -14,6 +14,8 @@ import { TABLES, READONLY_TABLES, GRADES, rowToJson } from '../_lib/tables.js';
 const orderBy = (cfg) => (cfg.orderCol === 'rowid' ? 'rowid' : `${cfg.orderCol}, rowid`);
 
 // Bentuk ulang QuestionFolders + Questions -> TeacherQuestions (persis buildTeacherQuestions di Code.gs lama).
+const normGrade = (g) => String(g || '').trim().replace(/^sd\s*(\d+)$/i, 'SD $1').toUpperCase();
+
 function buildTeacherQuestions(folders, questions) {
   const byFolder = {};
   questions.forEach((q) => {
@@ -28,7 +30,9 @@ function buildTeacherQuestions(folders, questions) {
   Object.values(byFolder).forEach((arr) => arr.sort((a, b) => orderNum(a.order) - orderNum(b.order)));
 
   return GRADES.map((grade) => {
-    const gradeFolders = folders.filter((f) => String(f.grade) === grade).map((f) => ({ id: String(f.id), name: f.name, updatedAt: f.updatedAt }));
+    const gradeFolders = (folders || [])
+      .filter((f) => normGrade(f.grade) === normGrade(grade))
+      .map((f) => ({ id: String(f.id), name: f.name, grade: f.grade, updatedAt: f.updatedAt }));
     const questionsObj = {};
     gradeFolders.forEach((f) => { questionsObj[f.id] = byFolder[f.id] || []; });
     return { grade, data: { updatedAt: Date.now(), examTypes: { [grade]: gradeFolders }, questions: questionsObj } };
@@ -43,9 +47,10 @@ async function buildSnapshot(db, version) {
 
   const result = {};
   for (const [name] of entries) {
-    if (name === 'QuestionFolders' || name === 'Questions') continue; // diekspos lewat TeacherQuestions
     result[name] = rowsOf[name];
   }
+  result.QuestionFolders = rowsOf.QuestionFolders || [];
+  result.Questions = rowsOf.Questions || [];
   result.TeacherQuestions = buildTeacherQuestions(rowsOf.QuestionFolders, rowsOf.Questions);
   result._version = version; // dipakai frontend untuk tahu ada perubahan dari guru lain
   return result;
