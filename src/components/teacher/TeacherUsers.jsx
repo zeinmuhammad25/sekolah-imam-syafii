@@ -258,11 +258,12 @@ export default function TeacherUsers() {
       return;
     }
 
+    if (!form.username.trim() || form.username.length < 3) {
+      showToast('Username minimal 3 karakter.', 'error', 'Validasi');
+      return;
+    }
+
     if (!editingUser) {
-      if (!form.username.trim() || form.username.length < 3) {
-        showToast('Username minimal 3 karakter.', 'error', 'Validasi');
-        return;
-      }
       if (!form.password || form.password.length < 6) {
         showToast('Password minimal 6 karakter.', 'error', 'Validasi');
         return;
@@ -279,6 +280,7 @@ export default function TeacherUsers() {
     if (editingUser) {
       res = await updateAuthUser({
         id: editingUser.id,
+        username: form.username.trim().toLowerCase(),
         name: form.name,
         role: form.role,
         permissions: form.role === 'superadmin' ? ['all'] : form.permissions,
@@ -287,7 +289,7 @@ export default function TeacherUsers() {
       });
     } else {
       res = await addAuthUser({
-        username: form.username,
+        username: form.username.trim().toLowerCase(),
         name: form.name,
         password: form.password,
         role: form.role,
@@ -298,6 +300,17 @@ export default function TeacherUsers() {
     setSubmitting(false);
 
     if (res.success) {
+      if (currentSessionUser && editingUser && (currentSessionUser.username === editingUser.username || currentSessionUser.id === editingUser.id)) {
+        const updatedSession = {
+          ...currentSessionUser,
+          username: form.username.trim().toLowerCase(),
+          name: form.name,
+          role: form.role,
+        };
+        localStorage.setItem('teacherUser', JSON.stringify(updatedSession));
+        sessionStorage.setItem('teacherUser', JSON.stringify(updatedSession));
+        setCurrentSessionUser(updatedSession);
+      }
       showToast(
         editingUser
           ? `Data pengguna "${form.name}" berhasil diperbarui.`
@@ -540,11 +553,10 @@ export default function TeacherUsers() {
                     <input
                       type="text"
                       required
-                      disabled={editingUser && (editingUser.username === 'admin' || editingUser.username === 'guru')}
                       value={form.username}
                       onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/\s+/g, '') })}
                       placeholder="Contoh: ustadz_ahmad"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-secondary transition-all disabled:opacity-50"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-secondary transition-all"
                     />
                   </div>
 

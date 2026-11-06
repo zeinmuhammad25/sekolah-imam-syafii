@@ -104,7 +104,25 @@ export async function onRequestPost({ request, env }) {
       const target = await env.DB.prepare('SELECT * FROM teacher_users WHERE id = ?').bind(id).first();
       if (!target) return json({ success: false, error: 'Data pengguna tidak ditemukan.' }, { status: 404 });
 
-      const isRootAdmin = target.username === 'admin';
+      let newUsername = target.username;
+      if (body.username && String(body.username).trim()) {
+        const u = String(body.username).trim().toLowerCase();
+        if (u.length < 3) {
+          return json({ success: false, error: 'Username minimal 3 karakter.' }, { status: 400 });
+        }
+        if (!/^[a-z0-9_.-]+$/.test(u)) {
+          return json({ success: false, error: 'Username hanya boleh berisi huruf kecil, angka, titik, atau garis bawah.' }, { status: 400 });
+        }
+        if (u !== target.username) {
+          const duplicate = await env.DB.prepare('SELECT id FROM teacher_users WHERE username = ? AND id != ?').bind(u, id).first();
+          if (duplicate) {
+            return json({ success: false, error: `Username "${u}" sudah digunakan oleh pengguna lain.` }, { status: 400 });
+          }
+          newUsername = u;
+        }
+      }
+
+      const isRootAdmin = target.username === 'admin' || target.username === 'guru';
       const name = String(body.name || target.name || '').trim();
       const password = String(body.password || '');
       let role = isRootAdmin ? 'superadmin' : String(body.role || target.role || 'guru').toLowerCase();
@@ -127,6 +145,7 @@ export async function onRequestPost({ request, env }) {
 
       await env.DB.prepare(`
         UPDATE teacher_users SET
+          username = ?,
           name = ?,
           password_hash = ?,
           role = ?,
@@ -134,7 +153,7 @@ export async function onRequestPost({ request, env }) {
           is_active = ?,
           updated_at = ?
         WHERE id = ?
-      `).bind(name, passwordHash, role, permissions, isActive, epoch, id).run();
+      `).bind(newUsername, name, passwordHash, role, permissions, isActive, epoch, id).run();
 
       // Jika password diubah atau dinonaktifkan, hapus sesi login lama user tersebut agar wajib re-login
       if (password || isActive === 0) {

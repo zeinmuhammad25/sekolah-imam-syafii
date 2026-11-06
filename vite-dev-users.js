@@ -118,7 +118,7 @@ export function devAuthUsersPlugin() {
               }
 
               if (action === 'update_user') {
-                const { id, name, role, permissions, is_active, password } = body;
+                const { id, username, name, role, permissions, is_active, password } = body;
                 if (!id) {
                   res.statusCode = 400;
                   return res.end(JSON.stringify({ success: false, error: 'ID pengguna wajib disertakan.' }));
@@ -126,6 +126,14 @@ export function devAuthUsersPlugin() {
 
                 const escapeSql = (str) => String(str).replace(/'/g, "''");
                 const updates = [];
+                if (username && String(username).trim()) {
+                  const u = String(username).trim().toLowerCase();
+                  if (u.length < 3) {
+                    res.statusCode = 400;
+                    return res.end(JSON.stringify({ success: false, error: 'Username minimal 3 karakter.' }));
+                  }
+                  updates.push(`username = '${escapeSql(u)}'`);
+                }
                 if (name != null) updates.push(`name = '${escapeSql(String(name).trim())}'`);
                 if (role != null) updates.push(`role = '${escapeSql(String(role).trim().toLowerCase())}'`);
                 if (permissions != null) {

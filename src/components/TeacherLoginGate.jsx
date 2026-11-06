@@ -185,3 +185,4 @@ export default function TeacherLoginGate({ onSuccess }) {
     </div>
   );
 }
+
