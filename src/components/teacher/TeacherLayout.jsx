@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   BookOpen,
@@ -9,6 +9,7 @@ import {
   Bell,
   User,
   ChevronRight,
+  ChevronDown,
   Image,
   Users,
   Newspaper,
@@ -16,7 +17,16 @@ import {
   Contact,
   FileBarChart2,
   Award,
-  BookMarked
+  BookMarked,
+  GraduationCap,
+  Globe,
+  CalendarCheck,
+  Clock,
+  ClipboardCheck,
+  SlidersHorizontal,
+  KeyRound,
+  ShieldAlert,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -26,31 +36,306 @@ export default function TeacherLayout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const menuItems = [
-    { name: 'Dashboard Utama', icon: LayoutDashboard, path: '/dashboard-guru' },
-    { name: 'Data Siswa (KK)', icon: Contact, path: '/dashboard-guru/siswa' },
-    { name: 'Mata Pelajaran', icon: BookMarked, path: '/dashboard-guru/mapel' },
-    { name: 'E-Raport', icon: FileBarChart2, path: '/dashboard-guru/eraport' },
-    { name: 'Publikasi Nilai', icon: Award, path: '/dashboard-guru/nilai' },
-    { name: 'Dashboard Soal', icon: BookOpen, path: '/dashboard-guru/soal' },
-    { name: 'Galeri Siswa', icon: Image, path: '/dashboard-guru/galeri' },
-    { name: 'Tim Pengajar', icon: Users, path: '/dashboard-guru/pengajar' },
-    { name: 'Warta Terbaru', icon: Newspaper, path: '/dashboard-guru/warta' },
-    { name: 'Galeri Video', icon: Youtube, path: '/dashboard-guru/video' },
-    { name: 'Pengaturan', icon: Settings, path: '/dashboard-guru/settings' },
-  ];
+  // Pengguna aktif saat ini
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('teacherUser') || sessionStorage.getItem('teacherUser');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Sinkronisasi data user aktif dari backend
+  useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.loggedIn && data.user) {
+          setCurrentUser(data.user);
+          sessionStorage.setItem('teacherUser', JSON.stringify(data.user));
+          localStorage.setItem('teacherUser', JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Helper cek izin akses
+  const hasPermission = (permKey) => {
+    if (!currentUser) return true; // toleran saat sesi dimuat
+    if (currentUser.role === 'superadmin') return true;
+
+    let perms = [];
+    if (Array.isArray(currentUser.permissions)) {
+      perms = currentUser.permissions;
+    } else if (typeof currentUser.permissions === 'string') {
+      try {
+        perms = JSON.parse(currentUser.permissions);
+      } catch {
+        perms = [];
+      }
+    }
+    if (perms.includes('all')) return true;
+    return perms.includes(permKey);
+  };
+
+  // Struktur navigasi pohon (Tree Hierarchy) dengan hak akses RBAC
+  const rawNavigationConfig = useMemo(() => [
+    {
+      type: 'item',
+      id: 'dashboard',
+      name: 'Dashboard Utama',
+      icon: LayoutDashboard,
+      path: '/dashboard-guru',
+      perm: 'dashboard',
+    },
+    {
+      type: 'group',
+      id: 'akademik',
+      name: 'Akademik & Nilai',
+      icon: GraduationCap,
+      items: [
+        { name: 'Data Siswa (KK)', icon: Contact, path: '/dashboard-guru/siswa', perm: 'siswa' },
+        { name: 'Mata Pelajaran', icon: BookMarked, path: '/dashboard-guru/mapel', perm: 'mapel' },
+        { name: 'Bank Soal', icon: BookOpen, path: '/dashboard-guru/soal', perm: 'soal' },
+        { name: 'E-Raport', icon: FileBarChart2, path: '/dashboard-guru/eraport', perm: 'eraport' },
+        { name: 'Publikasi Nilai', icon: Award, path: '/dashboard-guru/nilai', perm: 'nilai' },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'absensi',
+      name: 'Absensi Guru',
+      icon: CalendarCheck,
+      items: [
+        { name: 'Absen Harian', icon: Clock, path: '/dashboard-guru/absensi', perm: 'absensi_harian' },
+        { name: 'Data Guru & Jadwal', icon: Users, path: '/dashboard-guru/absensi-guru', perm: 'absensi_guru' },
+        { name: 'Rekap Presensi', icon: ClipboardCheck, path: '/dashboard-guru/absensi-rekap', perm: 'absensi_rekap' },
+        { name: 'Pengaturan Presensi', icon: SlidersHorizontal, path: '/dashboard-guru/absensi-settings', perm: 'absensi_settings' },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'konten',
+      name: 'Konten Web Sekolah',
+      icon: Globe,
+      items: [
+        { name: 'Galeri Siswa', icon: Image, path: '/dashboard-guru/galeri', perm: 'galeri' },
+        { name: 'Tim Pengajar', icon: Users, path: '/dashboard-guru/pengajar', perm: 'pengajar' },
+        { name: 'Warta Terbaru', icon: Newspaper, path: '/dashboard-guru/warta', perm: 'warta' },
+        { name: 'Galeri Video', icon: Youtube, path: '/dashboard-guru/video', perm: 'video' },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'pengaturan',
+      name: 'Pengaturan',
+      icon: Settings,
+      items: [
+        { name: 'Ganti Password', icon: KeyRound, path: '/dashboard-guru/settings', perm: 'password' },
+        { name: 'Kelola Pengguna', icon: Users, path: '/dashboard-guru/users', perm: 'kelola_pengguna' },
+      ],
+    },
+  ], []);
+
+  // Filter navigasi berdasarkan izin user yang aktif
+  const navigationConfig = useMemo(() => {
+    return rawNavigationConfig
+      .map((node) => {
+        if (node.type === 'item') {
+          return hasPermission(node.perm) ? node : null;
+        }
+        if (node.type === 'group') {
+          const visibleItems = node.items.filter((item) => hasPermission(item.perm));
+          if (visibleItems.length === 0) return null;
+          return { ...node, items: visibleItems };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [rawNavigationConfig, currentUser]);
+
+  // Cek apakah halaman saat ini diizinkan untuk dibuka
+  const isCurrentPageAllowed = useMemo(() => {
+    if (!currentUser) return true;
+    if (currentUser.role === 'superadmin') return true;
+
+    // Cari item yang cocok dengan path aktif
+    for (const node of rawNavigationConfig) {
+      if (node.type === 'item' && node.path === location.pathname) {
+        return hasPermission(node.perm);
+      }
+      if (node.type === 'group') {
+        const found = node.items.find((it) => it.path === location.pathname);
+        if (found) {
+          return hasPermission(found.perm);
+        }
+      }
+    }
+    return true;
+  }, [location.pathname, rawNavigationConfig, currentUser]);
+
+  // State Accordion Eksklusif: Default tertutup semua (null)
+  const [activeExpandedGroup, setActiveExpandedGroup] = useState(null);
+
+  // Buka group secara otomatis jika anak menu di dalamnya sedang aktif
+  useEffect(() => {
+    for (const node of navigationConfig) {
+      if (node.type === 'group' && node.items.some((it) => it.path === location.pathname)) {
+        setActiveExpandedGroup(node.id);
+        break;
+      }
+    }
+  }, [location.pathname, navigationConfig]);
+
+  // Toggle: jika parent yang diklik sedang terbuka, maka tutup. Jika belum, buka parent ini dan tutup yang lain
+  const toggleGroup = (groupId) => {
+    setActiveExpandedGroup((current) => (current === groupId ? null : groupId));
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem('isTeacherAuthenticated');
+    sessionStorage.removeItem('teacherUser');
+    localStorage.removeItem('isTeacherAuthenticated');
+    localStorage.removeItem('teacherUser');
     fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
     navigate('/');
   };
+
+  // Label Peran yang Ramah
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'superadmin':
+        return 'Super Admin';
+      case 'tu':
+        return 'Staf Tata Usaha';
+      case 'humas':
+        return 'Tim Humas';
+      case 'guru':
+        return 'Guru Pengajar';
+      default:
+        return role ? role.toUpperCase() : 'Guru Pengajar';
+    }
+  };
+
+  // Renderer Navigasi Tree (Dipakai bersama di Desktop & Mobile)
+  const renderNavItems = (isMobile = false) => (
+    <div className="space-y-1.5">
+      {navigationConfig.map((node) => {
+        if (node.type === 'item') {
+          const isActive = location.pathname === node.path;
+          return (
+            <Link
+              key={node.path}
+              to={node.path}
+              onClick={() => isMobile && setIsMobileMenuOpen(false)}
+              className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all group ${
+                isActive
+                  ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <node.icon
+                  size={18}
+                  className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-secondary transition-colors'}
+                />
+                <span className="truncate">{node.name}</span>
+              </div>
+              {isActive && <ChevronRight size={14} className="shrink-0" />}
+            </Link>
+          );
+        }
+
+        if (node.type === 'group') {
+          const isGroupActive = node.items.some((it) => location.pathname === it.path);
+          const isExpanded = activeExpandedGroup === node.id;
+
+          return (
+            <div key={node.id} className="pt-1">
+              {/* Tombol Parent Accordion */}
+              <button
+                type="button"
+                onClick={() => toggleGroup(node.id)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs sm:text-sm font-black transition-all ${
+                  isGroupActive
+                    ? 'text-white bg-white/10 border border-secondary/30 shadow-sm'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <node.icon
+                    size={18}
+                    className={isGroupActive ? 'text-secondary' : 'text-slate-400'}
+                  />
+                  <span className="truncate">{node.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300">
+                    {node.items.length}
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    className={`transition-transform duration-200 ${
+                      isExpanded ? 'rotate-180 text-secondary' : 'text-slate-500'
+                    }`}
+                  />
+                </div>
+              </button>
+
+              {/* Child Menu Tree (Animasi Expand-Collapse) */}
+              <AnimatePresence initial={false}>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="ml-5 pl-2.5 sm:pl-3 border-l-2 border-white/10 space-y-1 my-1.5">
+                      {node.items.map((child) => {
+                        const isChildActive = location.pathname === child.path;
+                        return (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            onClick={() => isMobile && setIsMobileMenuOpen(false)}
+                            className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all group ${
+                              isChildActive
+                                ? 'bg-secondary text-white shadow-md shadow-secondary/20'
+                                : 'text-slate-400 hover:text-slate-100 hover:bg-white/5'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <child.icon
+                                size={16}
+                                className={isChildActive ? 'text-white' : 'text-slate-500 group-hover:text-secondary transition-colors'}
+                              />
+                              <span className="truncate">{child.name}</span>
+                            </div>
+                            {isChildActive && <ChevronRight size={13} className="shrink-0" />}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        }
+
+        return null;
+      })}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-72 bg-slate-950 text-white flex-col border-r border-white/5 shrink-0">
-        <div className="p-8">
+        <div className="p-8 pb-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-secondary/20">IS</div>
             <div>
@@ -60,39 +345,32 @@ export default function TeacherLayout({ children }) {
           </div>
         </div>
 
-        <nav className="flex-grow px-4 space-y-1 overflow-y-auto">
-          <p className="text-[10px] uppercase font-black text-slate-600 tracking-[0.2em] mb-4 px-4">Menu Utama</p>
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-bold transition-all group ${
-                  isActive 
-                  ? 'bg-secondary text-white shadow-xl shadow-secondary/20' 
-                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon size={18} className={isActive ? 'text-white' : 'text-slate-500 group-hover:text-secondary transition-colors'} />
-                  {item.name}
-                </div>
-                {isActive && <ChevronRight size={14} />}
-              </Link>
-            );
-          })}
+        <nav className="flex-grow px-4 overflow-y-auto">
+          <p className="text-[10px] uppercase font-black text-slate-600 tracking-[0.2em] mb-3 px-4">Menu Navigasi</p>
+          {renderNavItems(false)}
         </nav>
 
         <div className="p-4 mt-auto">
           <div className="bg-white/5 rounded-3xl p-4 mb-4">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold border-2 border-white/10 overflow-hidden">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold border-2 border-white/10 overflow-hidden shrink-0">
                 <User size={20} />
               </div>
-              <div>
-                <p className="text-xs font-black">Admin Sekolah</p>
-                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Guru Pengajar</p>
+              <div className="min-w-0">
+                <p className="text-xs font-black truncate">{currentUser?.name || 'Pengguna Guru'}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    currentUser?.role === 'superadmin'
+                      ? 'bg-amber-500/20 text-amber-300'
+                      : currentUser?.role === 'tu'
+                      ? 'bg-blue-500/20 text-blue-300'
+                      : currentUser?.role === 'humas'
+                      ? 'bg-purple-500/20 text-purple-300'
+                      : 'bg-emerald-500/20 text-emerald-300'
+                  }`}>
+                    {getRoleLabel(currentUser?.role)}
+                  </span>
+                </div>
               </div>
             </div>
             <button 
@@ -120,7 +398,7 @@ export default function TeacherLayout({ children }) {
         </button>
       </header>
 
-      {/* Mobile Menu Overlay — Scrollable agar 11 menu tidak terpotong di mobile */}
+      {/* Mobile Menu Overlay — Scrollable dengan collapsible tree */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
@@ -130,30 +408,24 @@ export default function TeacherLayout({ children }) {
             transition={{ type: 'tween', duration: 0.25 }}
             className="fixed inset-0 z-[90] bg-slate-950 pt-16 flex flex-col md:hidden overflow-y-auto"
           >
-            <nav className="p-4 sm:p-6 space-y-1.5 pb-10 flex-grow">
+            <nav className="p-4 sm:p-6 pb-10 flex-grow">
+              <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-white/5 mb-4">
+                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white font-bold shrink-0">
+                  <User size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-white truncate">{currentUser?.name || 'Pengguna Guru'}</p>
+                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                    {getRoleLabel(currentUser?.role)}
+                  </p>
+                </div>
+              </div>
+
               <p className="text-[10px] uppercase font-black text-slate-500 tracking-[0.2em] mb-3 px-3">
                 Menu Utama Guru
               </p>
-              {menuItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center justify-between px-4 py-3 rounded-2xl font-bold text-sm transition-all ${
-                      isActive ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-300 hover:bg-white/5 active:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon size={18} className={isActive ? 'text-white' : 'text-slate-400'} />
-                      <span>{item.name}</span>
-                    </div>
-                    {isActive && <ChevronRight size={14} />}
-                  </Link>
-                );
-              })}
-              <div className="pt-4 border-t border-white/10 mt-4">
+              {renderNavItems(true)}
+              <div className="pt-4 border-t border-white/10 mt-6">
                 <button 
                   onClick={handleLogout}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm text-rose-400 hover:bg-rose-500/10 active:bg-rose-500/20 transition-all"
@@ -181,8 +453,10 @@ export default function TeacherLayout({ children }) {
              <div className="h-8 w-px bg-slate-100"></div>
              <div className="flex items-center gap-3">
                <div className="text-right">
-                 <p className="text-xs font-black text-slate-900">Admin Sekolah</p>
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Super Admin</p>
+                 <p className="text-xs font-black text-slate-900">{currentUser?.name || 'Admin Sekolah'}</p>
+                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">
+                   {getRoleLabel(currentUser?.role)}
+                 </p>
                </div>
                <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center text-slate-400 border border-slate-200">
                  <User size={20} />
@@ -193,7 +467,27 @@ export default function TeacherLayout({ children }) {
 
         {/* Padding responsif: nyaman di HP (3.5 = 14px) dan lapang di PC (10 = 40px) */}
         <div className="p-3.5 sm:p-6 md:p-10 w-full max-w-full min-w-0">
-          {children}
+          {!isCurrentPageAllowed ? (
+            <div className="max-w-xl mx-auto my-12 bg-white p-8 rounded-3xl border border-rose-100 shadow-sm text-center">
+              <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 shadow-inner">
+                <ShieldAlert size={32} />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 mb-2">Akses Halaman Dibatasi</h2>
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed mb-6">
+                Akun Anda (<span className="font-black text-slate-700">{currentUser?.name || 'Pengguna'}</span>) dengan peran{' '}
+                <span className="font-black text-rose-600">[{getRoleLabel(currentUser?.role)}]</span> tidak memiliki hak akses untuk membuka modul ini. Silakan hubungi Super Admin jika membutuhkan wewenang akses tambahan.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard-guru')}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-secondary text-white text-xs font-black hover:bg-forest transition-all shadow-md shadow-secondary/20 active:scale-95"
+              >
+                <ArrowLeft size={16} /> Kembali ke Dashboard
+              </button>
+            </div>
+          ) : (
+            children
+          )}
         </div>
       </main>
     </div>

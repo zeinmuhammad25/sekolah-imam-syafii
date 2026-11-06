@@ -13,11 +13,18 @@ export async function requireSession(request, env) {
   const token = getCookie(request, COOKIE);
   if (!token) return null;
   const row = await env.DB.prepare(
-    'SELECT s.token, s.expires_at, u.id AS user_id, u.username, u.name FROM teacher_sessions s JOIN teacher_users u ON u.id = s.user_id WHERE s.token = ?'
+    'SELECT s.token, s.expires_at, u.id AS user_id, u.username, u.name, u.role, u.permissions, u.is_active FROM teacher_sessions s JOIN teacher_users u ON u.id = s.user_id WHERE s.token = ?'
   ).bind(token).first();
   if (!row) return null;
   if (Number(row.expires_at) < Date.now()) return null;
-  return { userId: row.user_id, username: row.username, name: row.name };
+  if (row.is_active != null && Number(row.is_active) === 0) return null;
+  return {
+    userId: row.user_id,
+    username: row.username,
+    name: row.name,
+    role: row.role || (row.username === 'admin' ? 'superadmin' : 'guru'),
+    permissions: row.permissions || '["all"]',
+  };
 }
 
 export function sessionCookie(token, maxAgeSeconds) {

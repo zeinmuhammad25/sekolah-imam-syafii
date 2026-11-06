@@ -45,7 +45,16 @@ export default function TeacherHome() {
 
   const modules = [
     {
-      title: 'Dashboard Soal',
+      title: 'Presensi Guru Mandiri',
+      description: 'Absensi harian datang & pulang dengan validasi radius lokasi GPS sekolah.',
+      path: '/dashboard-guru/absensi',
+      icon: Clock,
+      color: 'text-amber-500',
+      bg: 'bg-amber-500/10',
+      tag: 'Fitur Baru'
+    },
+    {
+      title: 'Bank Soal',
       description: 'Kelola bank soal digital, kategori kelas, dan ekspor ke format Microsoft Word.',
       path: '/dashboard-guru/soal',
       icon: BookOpen,
@@ -103,8 +112,14 @@ export default function TeacherHome() {
           </motion.p>
           <div className="flex flex-wrap gap-4">
             <Link 
+              to="/dashboard-guru/absensi"
+              className="bg-emerald-600 text-white px-6 py-3.5 rounded-xl font-black text-xs flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-emerald-600/20"
+            >
+              <Clock size={16} /> Absen Sekarang
+            </Link>
+            <Link 
               to="/dashboard-guru/soal"
-              className="bg-secondary text-white px-6 py-3.5 rounded-xl font-black text-xs flex items-center gap-2 hover:scale-105 transition-all shadow-lg shadow-secondary/20"
+              className="bg-white/10 hover:bg-white/20 text-white px-6 py-3.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all border border-white/10"
             >
               Mulai Input Soal <ArrowRight size={16} />
             </Link>

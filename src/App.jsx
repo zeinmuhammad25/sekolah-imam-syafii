@@ -1,6 +1,7 @@
-import React, { Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './Home'; // eager: landing page harus tampil instan
+import TeacherLoginGate from './components/TeacherLoginGate';
 
 // Lazy: berita & seluruh panel guru dipecah agar tidak membebani home publik.
 // TeacherSoal menarik jspdf/jspdf-autotable (~ratusan KB) — wajib on-demand.
@@ -16,12 +17,23 @@ const TeacherStudents = lazy(() => import('./components/teacher/TeacherStudents'
 const TeacherSubjects = lazy(() => import('./components/teacher/TeacherSubjects'));
 const TeacherEraport = lazy(() => import('./components/teacher/TeacherEraport'));
 const TeacherSettings = lazy(() => import('./components/teacher/TeacherSettings'));
+const TeacherUsers = lazy(() => import('./components/teacher/TeacherUsers'));
+const TeacherAttendance = lazy(() => import('./components/teacher/TeacherAttendance'));
+const TeacherAttendanceMembers = lazy(() => import('./components/teacher/TeacherAttendanceMembers'));
+const TeacherAttendanceRecap = lazy(() => import('./components/teacher/TeacherAttendanceRecap'));
+const TeacherAttendanceSettings = lazy(() => import('./components/teacher/TeacherAttendanceSettings'));
 
-// Simple Route Protection
+// Route Protection dengan Direct Login Gate & Sesi Persisten
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = sessionStorage.getItem('isTeacherAuthenticated') === 'true';
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return (
+      localStorage.getItem('isTeacherAuthenticated') === 'true' ||
+      sessionStorage.getItem('isTeacherAuthenticated') === 'true'
+    );
+  });
+
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <TeacherLoginGate onSuccess={() => setIsAuthenticated(true)} />;
   }
   return children;
 };
@@ -105,8 +117,28 @@ export default function App() {
             element={<ProtectedRoute><TeacherLayout><TeacherEraport /></TeacherLayout></ProtectedRoute>}
           />
           <Route
+            path="/dashboard-guru/absensi"
+            element={<ProtectedRoute><TeacherLayout><TeacherAttendance /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/absensi-guru"
+            element={<ProtectedRoute><TeacherLayout><TeacherAttendanceMembers /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/absensi-rekap"
+            element={<ProtectedRoute><TeacherLayout><TeacherAttendanceRecap /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/absensi-settings"
+            element={<ProtectedRoute><TeacherLayout><TeacherAttendanceSettings /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
             path="/dashboard-guru/settings"
             element={<ProtectedRoute><TeacherLayout><TeacherSettings /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/users"
+            element={<ProtectedRoute><TeacherLayout><TeacherUsers /></TeacherLayout></ProtectedRoute>}
           />
 
           {/* Fallback to Home */}

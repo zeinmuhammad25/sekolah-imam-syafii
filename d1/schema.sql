@@ -213,7 +213,11 @@ CREATE TABLE IF NOT EXISTS teacher_users (
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,   -- hash (PBKDF2/scrypt via Web Crypto), JANGAN plaintext
   name          TEXT,
-  created_at    INTEGER
+  role          TEXT DEFAULT 'guru', -- 'superadmin' | 'guru' | 'tu' | 'humas' | 'custom'
+  permissions   TEXT DEFAULT '["all"]', -- JSON array of module keys
+  is_active     INTEGER DEFAULT 1,
+  created_at    INTEGER,
+  updated_at    INTEGER
 );
 
 -- Sesi login sederhana (token acak) supaya API bisa memverifikasi request tanpa
@@ -296,3 +300,55 @@ CREATE TABLE IF NOT EXISTS grade_publications (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_grade_pub_unique ON grade_publications(grade, academic_year, semester);
 CREATE INDEX IF NOT EXISTS idx_grade_pub_status ON grade_publications(grade, is_published);
+
+-- ---------- Presensi / Absensi Guru & Staf (GPS & Waktu Kerja Individual) ----------
+
+CREATE TABLE IF NOT EXISTS attendance_settings (
+  id                  TEXT PRIMARY KEY,  -- 'default'
+  work_start_time     TEXT NOT NULL DEFAULT '07:15',
+  late_threshold_time TEXT NOT NULL DEFAULT '07:30',
+  work_end_time       TEXT NOT NULL DEFAULT '15:00',
+  school_latitude     REAL NOT NULL DEFAULT 3.662972,
+  school_longitude    REAL NOT NULL DEFAULT 98.719222,
+  max_distance_meters INTEGER NOT NULL DEFAULT 100,
+  is_geofence_enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at          INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS teacher_attendance_members (
+  id                  TEXT PRIMARY KEY,
+  name                TEXT NOT NULL,
+  nip                 TEXT,
+  role                TEXT,
+  work_start_time     TEXT NOT NULL DEFAULT '07:15',
+  late_threshold_time TEXT NOT NULL DEFAULT '07:30',
+  work_end_time       TEXT NOT NULL DEFAULT '15:00',
+  work_days           TEXT DEFAULT '["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"]',
+  is_active           INTEGER DEFAULT 1,
+  created_at          INTEGER NOT NULL,
+  updated_at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_att_members_active ON teacher_attendance_members(is_active);
+
+CREATE TABLE IF NOT EXISTS teacher_attendances (
+  id                  TEXT PRIMARY KEY,
+  teacher_id          TEXT NOT NULL,
+  teacher_name        TEXT NOT NULL,
+  date                TEXT NOT NULL,
+  status              TEXT NOT NULL DEFAULT 'hadir',
+  check_in_time       TEXT,
+  check_in_status     TEXT,
+  late_minutes        INTEGER DEFAULT 0,
+  check_in_distance   INTEGER,
+  check_in_lat        REAL,
+  check_in_lng        REAL,
+  check_out_time      TEXT,
+  check_out_status    TEXT,
+  early_minutes       INTEGER DEFAULT 0,
+  check_out_distance  INTEGER,
+  notes               TEXT,
+  updated_at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_teacher_att_date ON teacher_attendances(date);
+CREATE INDEX IF NOT EXISTS idx_teacher_att_tid ON teacher_attendances(teacher_id);
+

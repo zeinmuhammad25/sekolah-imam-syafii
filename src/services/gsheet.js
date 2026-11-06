@@ -244,3 +244,268 @@ export const lookupParentStudent = async ({ q, studentId, action, kelas, authCod
     return { success: false, message: String(err) };
   }
 };
+
+// ==================== Presensi / Absensi Guru ====================
+
+export const getAttendanceToday = async (teacherId) => {
+  try {
+    const p = teacherId ? `?action=today&teacherId=${encodeURIComponent(teacherId)}` : '?action=today';
+    const res = await fetch(`/api/attendance${p}`);
+    return await res.json();
+  } catch (err) {
+    console.error('getAttendanceToday error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const getAttendanceRecap = async ({ month, teacherId, startDate, endDate } = {}) => {
+  try {
+    const params = new URLSearchParams({ action: 'recap' });
+    if (startDate && endDate) {
+      params.set('startDate', startDate);
+      params.set('endDate', endDate);
+    } else if (month) {
+      params.set('month', month);
+    }
+    if (teacherId && teacherId !== 'ALL') {
+      params.set('teacherId', teacherId);
+    }
+    const res = await fetch(`/api/attendance?${params.toString()}`);
+    return await res.json();
+  } catch (err) {
+    console.error('getAttendanceRecap error:', err);
+    return { success: false, error: err.message, attendances: [] };
+  }
+};
+
+export const getAttendanceSettings = async () => {
+  try {
+    const res = await fetch('/api/attendance?action=settings');
+    return await res.json();
+  } catch (err) {
+    console.error('getAttendanceSettings error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const getAttendanceTeachers = async () => {
+  try {
+    const res = await fetch('/api/attendance?action=teachers');
+    return await res.json();
+  } catch (err) {
+    console.error('getAttendanceTeachers error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const submitAttendance = async (data) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('submitAttendance error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const updateAttendanceSettings = async (settings) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('updateAttendanceSettings error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ==================== MASTER GURU ABSENSI ====================
+export const getAttendanceMembers = async () => {
+  try {
+    const res = await fetch('/api/attendance?action=members');
+    return await res.json();
+  } catch (err) {
+    console.error('getAttendanceMembers error:', err);
+    return { success: false, error: err.message, members: [] };
+  }
+};
+
+export const addAttendanceMember = async (data) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_member', ...data }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('addAttendanceMember error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const updateAttendanceMember = async (data) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_member', ...data }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('updateAttendanceMember error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const deleteAttendanceMember = async (id) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_member', id }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('deleteAttendanceMember error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ==================== ADMIN KOREKSI, RESET & INPUT MANUAL PRESENSI ====================
+export const adminAddAttendanceRecord = async (data) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_add_record', ...data }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('adminAddAttendanceRecord error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const adminUpdateAttendanceRecord = async (data) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_update_record', ...data }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('adminUpdateAttendanceRecord error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const adminResetAttendanceRecord = async (item) => {
+  try {
+    const payload = typeof item === 'string' ? { id: item } : { id: item.id, item };
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_reset_record', ...payload }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('adminResetAttendanceRecord error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const adminDeleteAttendanceRecords = async (items) => {
+  try {
+    const res = await fetch('/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'admin_delete_records', items }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('adminDeleteAttendanceRecords error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ==================== MANAJEMEN USER & RBAC ====================
+
+const safeJsonParse = async (res) => {
+  try {
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { success: false, error: 'Respons server tidak berformat JSON valid.' };
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+};
+
+export const getAuthUsers = async () => {
+  try {
+    const res = await fetch('/api/auth/users');
+    const data = await safeJsonParse(res);
+    if (!data.users) data.users = [];
+    return data;
+  } catch (err) {
+    console.error('getAuthUsers error:', err);
+    return { success: false, error: err.message, users: [] };
+  }
+};
+
+export const addAuthUser = async (data) => {
+  try {
+    const res = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_user', ...data }),
+    });
+    return await safeJsonParse(res);
+  } catch (err) {
+    console.error('addAuthUser error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const updateAuthUser = async (data) => {
+  try {
+    const res = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_user', ...data }),
+    });
+    return await safeJsonParse(res);
+  } catch (err) {
+    console.error('updateAuthUser error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const deleteAuthUser = async (id) => {
+  try {
+    const res = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_user', id }),
+    });
+    return await safeJsonParse(res);
+  } catch (err) {
+    console.error('deleteAuthUser error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+
+
+

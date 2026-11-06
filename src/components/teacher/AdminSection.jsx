@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { fetchSchoolData, mutateRow, uploadImage, extractYoutubeId, describeMutationError } from '../../services/gsheet';
-import { Modal, ModalFooter, ConfirmDialog, Thumb, Field } from './ModalKit';
+import { Modal, ModalFooter, ConfirmDialog, Thumb, Field, ToastNotification } from './ModalKit';
 
 // Konfigurasi tiap section. Semua CRUD pakai komponen ini.
 const CONFIGS = {
@@ -81,6 +81,11 @@ export default function AdminSection({ section }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success', title: '' });
+
+  const showToast = (message, type = 'success', title = '') => {
+    setToast({ show: true, message, type, title });
+  };
 
   const load = () => fetchSchoolData().then((d) => setItems((d && d[cfg.sheetName]) || []));
   useEffect(() => { setItems(null); setEditMode(false); setDirty(false); load(); }, [section]);
@@ -92,7 +97,7 @@ export default function AdminSection({ section }) {
     const res = await mutateRow({ action: 'reorder', sheetName: cfg.sheetName, ids: items.map((i) => i.id) });
     setSavingOrder(false);
     if (res.success) { setDirty(false); return true; }
-    window.alert('Gagal menyimpan urutan: ' + (res.error || 'tidak diketahui'));
+    showToast('Gagal menyimpan urutan: ' + (res.error || 'tidak diketahui'), 'error', 'Gagal Simpan Urutan');
     return false;
   };
 
@@ -145,7 +150,7 @@ export default function AdminSection({ section }) {
       setEditing(null);
       setItems(null);
       await load();
-      window.alert(describeMutationError(res));
+      showToast(describeMutationError(res), 'warning', 'Pembaruan Data');
     } else {
       setError('Gagal menyimpan: ' + describeMutationError(res));
     }
@@ -166,8 +171,8 @@ export default function AdminSection({ section }) {
     const res = await mutateRow({ action: 'delete', sheetName: cfg.sheetName, id: confirming.id, expectedUpdatedAt: confirming.updatedAt ?? null });
     setDeleting(false);
     if (res.success) { setConfirming(null); setItems(null); await load(); }
-    else if (res.conflict) { setConfirming(null); setItems(null); await load(); window.alert(describeMutationError(res)); }
-    else { setConfirming(null); window.alert('Gagal menghapus: ' + describeMutationError(res)); }
+    else if (res.conflict) { setConfirming(null); setItems(null); await load(); showToast(describeMutationError(res), 'warning', 'Pembaruan Data'); }
+    else { setConfirming(null); showToast('Gagal menghapus: ' + describeMutationError(res), 'error', 'Gagal Hapus'); }
   };
 
   return (
@@ -283,6 +288,16 @@ export default function AdminSection({ section }) {
               </button>
             </ModalFooter>
           </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast.show && (
+          <ToastNotification
+            toast={toast}
+            onClose={() => setToast({ show: false, message: '', type: 'success', title: '' })}
+          />
         )}
       </AnimatePresence>
 

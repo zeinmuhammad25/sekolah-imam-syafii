@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, Send, CheckCircle2 } from 'lucide-react';
+import { X, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { submitPPDBForm } from '../services/gsheet';
 
 export default function PPDBForm({ isOpen, onClose }) {
   const [step, setStep] = useState('form'); // form, loading, success
+  const [errorMessage, setErrorMessage] = useState('');
   const [formData, setFormData] = useState({
     parent_name: '',
     student_name: '',
@@ -14,6 +15,7 @@ export default function PPDBForm({ isOpen, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
     setStep('loading');
     
     const result = await submitPPDBForm(formData);
@@ -21,7 +23,7 @@ export default function PPDBForm({ isOpen, onClose }) {
     if (result.success) {
       setStep('success');
     } else {
-      alert('Terjadi kesalahan. Silakan coba lagi.');
+      setErrorMessage(result.error || 'Terjadi kesalahan saat mengirim formulir. Silakan coba lagi.');
       setStep('form');
     }
   };
@@ -59,6 +61,12 @@ export default function PPDBForm({ isOpen, onClose }) {
                 <p className="text-slate-500 font-medium">Lengkapi formulir untuk memulai pendaftaran anak Anda.</p>
               </div>
 
+              {errorMessage && (
+                <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2.5">
+                  <AlertCircle size={18} className="shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Nama Lengkap Orang Tua</label>

@@ -7,6 +7,8 @@ import {
   GraduationCap, Eye, Search, LayoutDashboard
 } from 'lucide-react';
 import { lookupParentStudent, fetchSchoolData } from './services/gsheet';
+import { ToastNotification } from './components/teacher/ModalKit';
+import { AnimatePresence } from 'framer-motion';
 
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
 
@@ -235,7 +237,7 @@ export default function ParentPortal() {
 
       doc.save(raporFileName(student, period));
     } catch (err) {
-      alert('Gagal mengunduh PDF rapor: ' + err.message);
+      setToast({ show: true, message: 'Gagal mengunduh PDF rapor: ' + err.message, type: 'error', title: 'Unduh Rapor Gagal' });
     } finally {
       setDownloadingPdf(null);
     }

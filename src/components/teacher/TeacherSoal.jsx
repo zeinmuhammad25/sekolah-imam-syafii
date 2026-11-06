@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mutateRow, fetchSchoolData } from '../../services/gsheet';
+import { ConfirmDialog } from './ModalKit';
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 
@@ -62,7 +63,9 @@ export default function TeacherSoal() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [notify, setNotify] = useState(null); // { type: 'success' | 'error', title, message }
+  const [notify, setNotify] = useState(null); // { type: 'success' | 'error' | 'warning', title, message }
+  const [confirmingDeleteQuestionId, setConfirmingDeleteQuestionId] = useState(null);
+  const [deletingQuestion, setDeletingQuestion] = useState(false);
   const savingRef = useRef(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [orderDraft, setOrderDraft] = useState([]);
@@ -399,15 +402,17 @@ export default function TeacherSoal() {
     }
   };
 
-  // Hapus Soal
-  const handleDeleteQuestion = async (qId) => {
-    if (!confirm('Yakin ingin menghapus butir soal ini?')) return;
-    if (savingRef.current) return;
+  // Hapus Soal (Eksekusi setelah konfirmasi custom dialog)
+  const executeDeleteQuestion = async (qId) => {
+    if (!qId || savingRef.current) return;
     savingRef.current = true;
+    setDeletingQuestion(true);
     setIsSyncing(true);
 
     try {
       const res = await mutateRow({ action: 'delete', sheetName: 'Questions', id: qId });
+      setDeletingQuestion(false);
+      setConfirmingDeleteQuestionId(null);
       if (res.success) {
         setQuestions((prev) => ({
           ...prev,
@@ -418,6 +423,8 @@ export default function TeacherSoal() {
         setNotify({ type: 'error', title: 'Gagal Menghapus', message: res.error || 'Soal gagal dihapus.' });
       }
     } catch (err) {
+      setDeletingQuestion(false);
+      setConfirmingDeleteQuestionId(null);
       setNotify({ type: 'error', title: 'Kesalahan', message: String(err) });
     } finally {
       setIsSyncing(false);
@@ -735,7 +742,11 @@ export default function TeacherSoal() {
   const generateExamPdf = async (mode = 'STUDENT') => {
     const folderQuestions = currentQuestions;
     if (!folderQuestions.length) {
-      alert("Tidak ada butir soal dalam mata pelajaran ini untuk dicetak.");
+      setNotify({
+        type: 'warning',
+        title: 'Belum Ada Soal',
+        message: 'Tidak ada butir soal dalam mata pelajaran ini untuk dicetak.',
+      });
       return;
     }
 
@@ -777,7 +788,11 @@ export default function TeacherSoal() {
       setIsPrintModalOpen(false);
     } catch (err) {
       console.error('generateExamPdf error:', err);
-      alert('Gagal membuat dokumen PDF: ' + String(err.message || err));
+      setNotify({
+        type: 'error',
+        title: 'Gagal Cetak',
+        message: 'Gagal membuat dokumen PDF: ' + String(err.message || err),
+      });
     }
   };
 
@@ -843,7 +858,11 @@ export default function TeacherSoal() {
     );
 
     if (targets.length === 0) {
-      alert('Pilih minimal 1 mata pelajaran yang memiliki butir soal untuk diexport.');
+      setNotify({
+        type: 'warning',
+        title: 'Pilih Mapel',
+        message: 'Pilih minimal 1 mata pelajaran yang memiliki butir soal untuk diexport.',
+      });
       return;
     }
 
@@ -957,7 +976,7 @@ export default function TeacherSoal() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Dashboard Soal</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Bank Soal</h2>
             <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
               <CheckCircle2 size={13} />
               <span className="text-[10px] font-black uppercase tracking-wider">Tersinkron Master Mapel</span>
@@ -1219,7 +1238,7 @@ export default function TeacherSoal() {
                         <FileEdit size={15} />
                       </button>
                       <button
-                        onClick={() => handleDeleteQuestion(q.id)}
+                        onClick={() => setConfirmingDeleteQuestionId(q.id)}
                         className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-slate-100 transition-all"
                         title="Hapus Soal"
                       >
@@ -1705,6 +1724,22 @@ export default function TeacherSoal() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Konfirmasi Hapus Soal */}
+      <AnimatePresence>
+        {confirmingDeleteQuestionId && (
+          <ConfirmDialog
+            title="Hapus Butir Soal?"
+            message="Apakah Anda yakin ingin menghapus butir soal ini? Tindakan ini tidak dapat dibatalkan."
+            confirmLabel="Ya, Hapus"
+            cancelLabel="Batal"
+            danger
+            loading={deletingQuestion}
+            onConfirm={() => executeDeleteQuestion(confirmingDeleteQuestionId)}
+            onCancel={() => !deletingQuestion && setConfirmingDeleteQuestionId(null)}
+          />
         )}
       </AnimatePresence>
     </div>

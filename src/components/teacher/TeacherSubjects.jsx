@@ -5,7 +5,7 @@ import {
   Loader2, AlertTriangle, Check, BookMarked, Sparkles, RefreshCw, Copy
 } from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch } from '../../services/gsheet';
-import { Modal, ModalFooter, ConfirmDialog } from './ModalKit';
+import { Modal, ModalFooter, ConfirmDialog, ToastNotification } from './ModalKit';
 
 const ALL_GRADES = [
   { key: 'TK', label: 'TK', fase: 'Fondasi' },
@@ -96,6 +96,7 @@ export default function TeacherSubjects() {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingResetDefaults, setConfirmingResetDefaults] = useState(false);
 
   // Modal Salin ke Kelas Lain
   const [copyModalOpen, setCopyModalOpen] = useState(false);
@@ -104,7 +105,6 @@ export default function TeacherSubjects() {
 
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3500);
   };
 
   const load = async () => {
@@ -314,8 +314,8 @@ export default function TeacherSubjects() {
     }
   };
 
-  const handleResetDefaults = async () => {
-    if (!window.confirm(`Muat ulang susunan standar mata pelajaran untuk ${activeGrade}? Mapel yang belum ada akan ditambahkan.`)) return;
+  const executeResetDefaults = async () => {
+    setConfirmingResetDefaults(false);
     setLoading(true);
     const defaults = getStandardDefaultsForGrade(activeGrade);
     const existingNames = new Set(
@@ -403,16 +403,14 @@ export default function TeacherSubjects() {
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
-      {toast.show && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-bold text-white transition-all transform animate-bounce ${
-            toast.type === 'error' ? 'bg-rose-500' : 'bg-secondary'
-          }`}
-        >
-          {toast.type === 'error' ? <AlertTriangle size={18} /> : <Check size={18} />}
-          <span>{toast.message}</span>
-        </div>
-      )}
+      <AnimatePresence>
+        {toast.show && (
+          <ToastNotification
+            toast={toast}
+            onClose={() => setToast({ show: false, message: '', type: 'success' })}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -447,7 +445,7 @@ export default function TeacherSubjects() {
           )}
 
           <button
-            onClick={handleResetDefaults}
+            onClick={() => setConfirmingResetDefaults(true)}
             disabled={loading}
             className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-black text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
             title="Pulihkan paket standar bila ada yang terhapus"
@@ -862,6 +860,21 @@ export default function TeacherSubjects() {
             loading={deleting}
             onCancel={() => !deleting && setConfirmDelete(null)}
             onConfirm={handleDelete}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Confirm Reset Defaults */}
+      <AnimatePresence>
+        {confirmingResetDefaults && (
+          <ConfirmDialog
+            type="primary"
+            title={`Muat Standar Mapel ${activeGrade}?`}
+            message={`Muat ulang susunan standar mata pelajaran untuk ${activeGrade}? Mata pelajaran yang belum terdaftar akan otomatis ditambahkan ke kelas ini.`}
+            confirmLabel="Ya, Muat Standar"
+            loading={loading}
+            onCancel={() => !loading && setConfirmingResetDefaults(false)}
+            onConfirm={executeResetDefaults}
           />
         )}
       </AnimatePresence>

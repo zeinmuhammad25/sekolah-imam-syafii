@@ -6,7 +6,7 @@ import {
   Users, CheckCircle2, Copy, Check, Grid, List, Table, Award, BookOpen, HeartHandshake
 } from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch, formatSheetDate } from '../../services/gsheet';
-import { Modal, ModalFooter, ConfirmDialog, Field } from './ModalKit';
+import { Modal, ModalFooter, ConfirmDialog, ToastNotification, Field } from './ModalKit';
 
 // Taksonomi kelas — sama dengan Data Siswa.
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6', 'Tamat'];
@@ -266,6 +266,12 @@ export default function TeacherEraport() {
   const [exportFormat, setExportFormat] = useState('bundle'); // 'bundle' | 'separate'
   const [exportingMulti, setExportingMulti] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, currentName: '' });
+  const [toast, setToast] = useState(null); // { message, type: 'success'|'error'|'warning', title }
+  const [confirmingMultiExportSkip, setConfirmingMultiExportSkip] = useState(null);
+
+  const showToast = (message, type = 'success', title = '') => {
+    setToast({ message, type, title });
+  };
 
   const load = async () => {
     const d = await fetchSchoolData();
@@ -645,7 +651,7 @@ export default function TeacherEraport() {
   const handleApplyBatchSemester = async () => {
     const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
     if (!classStudents.length) {
-      alert(`Tidak ada siswa di kelas ${activeGrade}.`);
+      showToast(`Tidak ada siswa di kelas ${activeGrade}.`, 'warning', 'Data Kosong');
       return;
     }
 
@@ -654,7 +660,6 @@ export default function TeacherEraport() {
 
     try {
       const ops = [];
-      const newPeriodsTemp = [];
 
       classStudents.forEach((stu) => {
         // Cek apakah siswa ini sudah punya periode semester yang sama
@@ -701,16 +706,16 @@ export default function TeacherEraport() {
       setSavingBatch(false);
 
       if (!res.success) {
-        alert('Gagal menerapkan semester massal: ' + describeError(res));
+        showToast('Gagal menerapkan semester massal: ' + describeError(res), 'error', 'Gagal Simpan');
         return;
       }
 
       setShowBatchModal(false);
       await load();
-      alert(`Berhasil menerapkan semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${classStudents.length} siswa kelas ${activeGrade}!`);
+      showToast(`Berhasil menerapkan semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${classStudents.length} siswa kelas ${activeGrade}!`, 'success', 'Berhasil Diterapkan');
     } catch (err) {
       setSavingBatch(false);
-      alert('Terjadi kesalahan: ' + String(err));
+      showToast('Terjadi kesalahan: ' + String(err), 'error', 'Error');
     }
   };
 
@@ -766,17 +771,17 @@ export default function TeacherEraport() {
       setConfirmingDeleteBatchSemester(false);
 
       if (!res.success) {
-        alert('Gagal menghapus semester massal: ' + describeError(res));
+        showToast('Gagal menghapus semester massal: ' + describeError(res), 'error', 'Gagal Hapus');
         return;
       }
 
       setShowBatchModal(false);
       await load();
-      alert(`Berhasil menghapus seluruh periode semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${matchingBatchPeriods.length} siswa kelas ${activeGrade}!`);
+      showToast(`Berhasil menghapus seluruh periode semester ${batchForm.semester === '1' ? 'Ganjil' : 'Genap'} TP ${batchForm.tahunAjaran} untuk ${matchingBatchPeriods.length} siswa kelas ${activeGrade}!`, 'success', 'Berhasil Dihapus');
     } catch (err) {
       setDeletingBatch(false);
       setConfirmingDeleteBatchSemester(false);
-      alert('Terjadi kesalahan saat menghapus: ' + String(err));
+      showToast('Terjadi kesalahan saat menghapus: ' + String(err), 'error', 'Error');
     }
   };
 
@@ -829,44 +834,7 @@ export default function TeacherEraport() {
     setSelectedExportStudentIds([]);
   };
 
-  const handleExecuteMultiExport = async () => {
-    if (!selectedExportStudentIds.length) {
-      alert('Pilih minimal 1 murid untuk diunduh rapornya.');
-      return;
-    }
-
-    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
-    const targetStudents = classStudents.filter((s) => selectedExportStudentIds.includes(String(s.id)));
-
-    const readyTargets = [];
-    const missingNames = [];
-
-    targetStudents.forEach((stu) => {
-      const p = (periods || []).find(
-        (period) =>
-          String(period.studentId) === String(stu.id) &&
-          String(period.tahunAjaran) === String(exportYear) &&
-          String(period.semester) === String(exportSemester)
-      );
-      if (p) {
-        readyTargets.push({ student: stu, period: p });
-      } else {
-        missingNames.push(stu.nama_siswa);
-      }
-    });
-
-    if (!readyTargets.length) {
-      alert(`Tidak ada siswa terpilih yang memiliki data rapor semester ${exportSemester === '1' ? 'Ganjil' : 'Genap'} TP ${exportYear}. Silakan pastikan data semester sudah di-setup.`);
-      return;
-    }
-
-    if (missingNames.length > 0) {
-      const proceed = confirm(
-        `${missingNames.length} murid (${missingNames.slice(0, 3).join(', ')}${missingNames.length > 3 ? '...' : ''}) belum memiliki periode rapor pada Semester ${exportSemester === '1' ? 'Ganjil' : 'Genap'} TP ${exportYear} dan akan dilewati.\n\nLanjutkan mengunduh ${readyTargets.length} murid lainnya?`
-      );
-      if (!proceed) return;
-    }
-
+  const startGeneratingMultiRapor = async (readyTargets) => {
     setExportingMulti(true);
     setExportProgress({ current: 0, total: readyTargets.length, currentName: 'Menyiapkan berkas…' });
 
@@ -935,10 +903,50 @@ export default function TeacherEraport() {
 
       setExportingMulti(false);
       setShowMultiExportModal(false);
+      showToast(`Berhasil mengekspor ${readyTargets.length} rapor siswa kelas ${activeGrade}!`, 'success', 'Unduhan Berhasil');
     } catch (err) {
       setExportingMulti(false);
-      alert('Gagal mengekspor rapor massal: ' + String((err && err.message) || err));
+      showToast('Gagal mengekspor rapor massal: ' + String((err && err.message) || err), 'error', 'Gagal Ekspor');
     }
+  };
+
+  const handleExecuteMultiExport = async () => {
+    if (!selectedExportStudentIds.length) {
+      showToast('Pilih minimal 1 murid untuk diunduh rapornya.', 'warning', 'Pilih Murid');
+      return;
+    }
+
+    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
+    const targetStudents = classStudents.filter((s) => selectedExportStudentIds.includes(String(s.id)));
+
+    const readyTargets = [];
+    const missingNames = [];
+
+    targetStudents.forEach((stu) => {
+      const p = (periods || []).find(
+        (period) =>
+          String(period.studentId) === String(stu.id) &&
+          String(period.tahunAjaran) === String(exportYear) &&
+          String(period.semester) === String(exportSemester)
+      );
+      if (p) {
+        readyTargets.push({ student: stu, period: p });
+      } else {
+        missingNames.push(stu.nama_siswa);
+      }
+    });
+
+    if (!readyTargets.length) {
+      showToast(`Tidak ada siswa terpilih yang memiliki data rapor semester ${exportSemester === '1' ? 'Ganjil' : 'Genap'} TP ${exportYear}. Silakan pastikan data semester sudah di-setup.`, 'warning', 'Data Belum Ada');
+      return;
+    }
+
+    if (missingNames.length > 0) {
+      setConfirmingMultiExportSkip({ readyTargets, missingNames });
+      return;
+    }
+
+    startGeneratingMultiRapor(readyTargets);
   };
 
   // Template Saran Cepat Capaian Kompetensi Kurikulum Merdeka
@@ -1849,6 +1857,35 @@ export default function TeacherEraport() {
               </div>
             </ModalFooter>
           </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Konfirmasi Murid Dilewati saat Ekspor Rapor Multi */}
+      <AnimatePresence>
+        {confirmingMultiExportSkip && (
+          <ConfirmDialog
+            type="warning"
+            title="Sebagian Murid Dilewati"
+            message={`${confirmingMultiExportSkip.missingNames.length} murid (${confirmingMultiExportSkip.missingNames.slice(0, 3).join(', ')}${confirmingMultiExportSkip.missingNames.length > 3 ? '...' : ''}) belum memiliki periode rapor pada Semester ${exportSemester === '1' ? 'Ganjil' : 'Genap'} TP ${exportYear}.\n\nApakah Anda ingin tetap melanjutkan mengunduh ${confirmingMultiExportSkip.readyTargets.length} murid yang sudah memiliki data rapor?`}
+            confirmLabel="Lanjutkan Unduh"
+            cancelLabel="Batal"
+            onConfirm={() => {
+              const targets = confirmingMultiExportSkip.readyTargets;
+              setConfirmingMultiExportSkip(null);
+              startGeneratingMultiRapor(targets);
+            }}
+            onCancel={() => setConfirmingMultiExportSkip(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notifikasi Modern (Tengah Atas) */}
+      <AnimatePresence>
+        {toast && (
+          <ToastNotification
+            toast={toast}
+            onClose={() => setToast(null)}
+          />
         )}
       </AnimatePresence>
     </div>

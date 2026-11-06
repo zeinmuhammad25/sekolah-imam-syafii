@@ -6,7 +6,7 @@ import {
   FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown,
 } from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch, moveKKFile, formatSheetDate, formatSheetDateDMY, describeMutationError } from '../../services/gsheet';
-import { Modal, ModalFooter, ConfirmDialog, Thumb, Field } from './ModalKit';
+import { Modal, ModalFooter, ConfirmDialog, Thumb, Field, ToastNotification } from './ModalKit';
 
 // Taksonomi kelas — "Tamat" mengikuti SD 6, dipakai sebagai tab tersendiri untuk siswa yang sudah lulus.
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6', 'Tamat'];
@@ -228,6 +228,11 @@ export default function TeacherStudents() {
   const [promoting, setPromoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success', title: '' });
+
+  const showToast = (message, type = 'success', title = '') => {
+    setToast({ show: true, message, type, title });
+  };
 
   // ---- Mode edit di halaman list: Edit-field & Hapus ditahan sampai Simpan; Naik Kelas & Pindah langsung jalan ----
   const [listEditMode, setListEditMode] = useState(false);
@@ -330,7 +335,7 @@ export default function TeacherStudents() {
         // Guru lain lebih dulu mengubah/menghapus siswa ini -> tampilkan data terbaru.
         setEditing(null);
         await load();
-        window.alert(describeMutationError(res));
+        showToast(describeMutationError(res), 'warning', 'Pemberitahuan');
         return;
       }
       setError('Gagal memindahkan tahap: ' + describeMutationError(res));
@@ -348,7 +353,11 @@ export default function TeacherStudents() {
     setPromoting(false);
     setConfirmingPromote(false);
     setEditing(null);
-    if (photoWarning) window.alert(photoWarning);
+    if (photoWarning) {
+      showToast(photoWarning, 'warning', 'Perhatian Foto KK');
+    } else {
+      showToast(`Siswa berhasil dipindahkan ke tahap ${next}.`, 'success', 'Berhasil');
+    }
   };
 
   const handleSave = async () => {
@@ -406,7 +415,9 @@ export default function TeacherStudents() {
     if (results.some((r) => r.stale)) await load(); // ada yang diubah guru lain -> tampilkan versi terbaru
     const failed = results.filter((r) => !r.success);
     if (failed.length) {
-      window.alert(`${results.length - failed.length} berhasil, ${failed.length} gagal:\n` + failed.map((f) => `- ${f.label}: ${f.error || 'tidak diketahui'}`).join('\n'));
+      showToast(`${results.length - failed.length} berhasil, ${failed.length} gagal: ` + failed.map((f) => `${f.label} (${f.error || 'gagal'})`).join(', '), 'warning', 'Hasil Proses');
+    } else {
+      showToast(`${results.length} siswa berhasil diperbarui.`, 'success', 'Selesai');
     }
   };
 
@@ -470,7 +481,9 @@ export default function TeacherStudents() {
 
     const failed = results.filter((r) => !r.success);
     if (failed.length) {
-      window.alert(`${results.length - failed.length} berhasil, ${failed.length} gagal:\n` + failed.map((f) => `- ${f.label}: ${f.error || 'tidak diketahui'}`).join('\n'));
+      showToast(`${results.length - failed.length} berhasil, ${failed.length} gagal: ` + failed.map((f) => `${f.label} (${f.error || 'gagal'})`).join(', '), 'warning', 'Hasil Proses');
+    } else {
+      showToast(`${results.length} siswa berhasil diperbarui.`, 'success', 'Selesai');
     }
   };
 
@@ -1362,6 +1375,16 @@ export default function TeacherStudents() {
               </div>
             </ModalFooter>
           </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast.show && (
+          <ToastNotification
+            toast={toast}
+            onClose={() => setToast({ show: false, message: '', type: 'success', title: '' })}
+          />
         )}
       </AnimatePresence>
     </div>
