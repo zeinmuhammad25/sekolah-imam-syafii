@@ -3,7 +3,8 @@ import { AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, Pencil, Trash2, ArrowLeft, Loader2, AlertTriangle,
   FileBarChart2, FileDown, RefreshCw, Sparkles, ChevronRight, ChevronLeft,
-  Users, CheckCircle2, Copy, Check, Grid, List, Table, Award, BookOpen, HeartHandshake
+  Users, CheckCircle2, Copy, Check, Grid, List, Table, Award, BookOpen, HeartHandshake,
+  ChevronDown, FileText
 } from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch, formatSheetDate } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, ToastNotification, Field } from './ModalKit';
@@ -264,6 +265,8 @@ export default function TeacherEraport() {
   const [exportSemester, setExportSemester] = useState('1');
   const [selectedExportStudentIds, setSelectedExportStudentIds] = useState([]);
   const [exportFormat, setExportFormat] = useState('bundle'); // 'bundle' | 'separate'
+  const [exportPageRange, setExportPageRange] = useState('rapor_only'); // 'rapor_only' | 'full'
+  const [openPdfMenuId, setOpenPdfMenuId] = useState(null);
   const [exportingMulti, setExportingMulti] = useState(false);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, currentName: '' });
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error'|'warning', title }
@@ -815,6 +818,7 @@ export default function TeacherEraport() {
     setExportSemester(targetSem);
     setSelectedExportStudentIds(classStudents.map((s) => String(s.id)));
     setExportFormat('bundle');
+    setExportPageRange('rapor_only');
     setShowMultiExportModal(true);
   };
 
@@ -851,6 +855,8 @@ export default function TeacherEraport() {
           })
         : null;
 
+      const isFull = exportPageRange === 'full';
+
       if (exportFormat === 'bundle') {
         let bundleDoc = null;
         for (let i = 0; i < readyTargets.length; i++) {
@@ -871,11 +877,12 @@ export default function TeacherEraport() {
               literasi: rowsOf(subData, TABLES.aspekLiterasi, target.period.id),
             },
             existingDoc: bundleDoc,
+            includeCover: isFull,
           });
         }
 
         if (bundleDoc) {
-          bundleDoc.save(multiRaporFileName(activeGrade, exportSemester, exportYear));
+          bundleDoc.save(multiRaporFileName(activeGrade, exportSemester, exportYear, isFull));
         }
       } else {
         for (let i = 0; i < readyTargets.length; i++) {
@@ -894,9 +901,10 @@ export default function TeacherEraport() {
               jatidiri: rowsOf(subData, TABLES.aspekJatiDiri, target.period.id),
               literasi: rowsOf(subData, TABLES.aspekLiterasi, target.period.id),
             },
+            includeCover: isFull,
           });
 
-          doc.save(raporFileName(target.student, target.period));
+          doc.save(raporFileName(target.student, target.period, isFull));
           await new Promise((r) => setTimeout(r, 400));
         }
       }
@@ -1003,8 +1011,8 @@ export default function TeacherEraport() {
     return <input {...common} list={listAttr} placeholder={f.placeholder} inputMode={f.score ? 'decimal' : undefined} className={`${cellBase} ${f.w || ''}`} />;
   };
 
-  // Unduh rapor PDF (format sama dengan rapor sekolah) — memakai data TERSIMPAN, bukan isian form yang belum disimpan.
-  const exportRaporPdf = async (periodId) => {
+  // Unduh rapor PDF — default: Halaman 4–6 saja (Nilai & Capaian). Jika includeCover: true -> Halaman 1–6 (Lengkap).
+  const exportRaporPdf = async (periodId, includeCover = false) => {
     const saved = periods.find((x) => String(x.id) === String(periodId));
     const stu = (students || []).find((x) => String(x.id) === String(saved && saved.studentId)) || selectedStudent;
     if (!saved || !stu) return;
@@ -1019,10 +1027,19 @@ export default function TeacherEraport() {
         mulok: rowsOf(subData, TABLES.mulok, saved.id),
         extras: rowsOf(subData, TABLES.ekskul, saved.id),
         aspek: { agama: rowsOf(subData, TABLES.aspekAgama, saved.id), jatidiri: rowsOf(subData, TABLES.aspekJatiDiri, saved.id), literasi: rowsOf(subData, TABLES.aspekLiterasi, saved.id) },
+        includeCover,
       });
-      doc.save(raporFileName(stu, saved));
+      doc.save(raporFileName(stu, saved, includeCover));
+      showToast(
+        includeCover
+          ? `Rapor lengkap (${stu.nama_siswa}) dengan Sampul & Biodata berhasil diunduh.`
+          : `Rapor nilai (${stu.nama_siswa}) berhasil diunduh (Halaman ${saved.kelas === 'TK' ? 'Capaian TK' : '4–6'}).`,
+        'success',
+        'Unduh PDF Berhasil'
+      );
     } catch (e) {
       setError('Gagal membuat PDF: ' + String((e && e.message) || e));
+      showToast('Gagal membuat PDF: ' + String((e && e.message) || e), 'error', 'Gagal Unduh');
     } finally {
       setExportingId(null);
     }
@@ -1059,12 +1076,12 @@ export default function TeacherEraport() {
       </div>
 
       {/* Tab kelas */}
-      <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar mb-4 w-fit max-w-full">
+      <div className="flex bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto hide-scrollbar mb-4 w-fit max-w-full [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
         {GRADES.map((grade) => (
           <button
             key={grade}
             onClick={() => setActiveGrade(grade)}
-            className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
+            className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap active:scale-95 ${
               activeGrade === grade ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
@@ -1086,7 +1103,7 @@ export default function TeacherEraport() {
         </div>
 
         {/* Filter Pills */}
-        <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shrink-0 text-xs font-bold text-slate-500 overflow-x-auto">
+        <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shrink-0 text-xs font-bold text-slate-500 overflow-x-auto hide-scrollbar [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
           {[
             { key: 'ALL', label: 'Semua' },
             { key: 'DONE', label: '✓ Lengkap' },
@@ -1096,7 +1113,7 @@ export default function TeacherEraport() {
             <button
               key={flt.key}
               onClick={() => setStatusFilter(flt.key)}
-              className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap text-[11px] font-black ${
+              className={`px-3 py-2 rounded-xl transition-all whitespace-nowrap text-[11px] font-black active:scale-95 ${
                 statusFilter === flt.key ? 'bg-slate-900 text-white' : 'hover:text-slate-900'
               }`}
             >
@@ -1112,7 +1129,7 @@ export default function TeacherEraport() {
       ) : filteredStudents.length === 0 ? (
         <div className="text-center py-20 text-slate-400 font-bold">Tidak ada siswa yang sesuai filter.</div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-3 [touch-action:pan-y]">
           {filteredStudents.map((s) => {
             const count = periods.filter((p) => String(p.studentId) === String(s.id)).length;
             const stats = studentStatsMap.get(String(s.id));
@@ -1121,7 +1138,7 @@ export default function TeacherEraport() {
               <button
                 key={s.id}
                 onClick={() => openStudent(s)}
-                className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:border-secondary/40 hover:shadow-md transition-all text-left"
+                className="w-full flex items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:border-secondary/40 hover:shadow-md active:scale-[0.99] transition-all text-left [touch-action:pan-y]"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
@@ -1186,12 +1203,79 @@ export default function TeacherEraport() {
                             <p className="font-black text-slate-900 text-sm">{periodTitle(p)}</p>
                             <p className="text-slate-400 font-bold text-xs">Tahun Pelajaran {p.tahunAjaran}</p>
                           </div>
-                          <div className="flex gap-1.5 sm:gap-2 shrink-0">
-                            {(
-                              <button onClick={() => exportRaporPdf(p.id)} disabled={exportingId === p.id} className="p-2 sm:p-2.5 rounded-xl bg-white text-slate-500 hover:bg-emerald-600 hover:text-white transition-all border border-slate-100 disabled:opacity-50" title="Unduh Rapor (PDF)">
-                                {exportingId === p.id ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
-                              </button>
-                            )}
+                          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                            {/* Split Button: Unduh Rapor Saja (Hal 4–6) & Menu Opsi Lengkap (Hal 1–6) */}
+                            <div className="relative">
+                              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => exportRaporPdf(p.id, false)}
+                                  disabled={exportingId === p.id}
+                                  className="p-2 sm:p-2.5 text-slate-600 hover:bg-emerald-600 hover:text-white transition-all disabled:opacity-50 flex items-center gap-1.5"
+                                  title="Unduh Rapor Saja (Hal 4–6 SD / Capaian TK)"
+                                >
+                                  {exportingId === p.id ? <Loader2 className="animate-spin" size={16} /> : <FileDown size={16} />}
+                                  <span className="hidden sm:inline text-[11px] font-black">Rapor (4–6)</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenPdfMenuId(openPdfMenuId === p.id ? null : p.id);
+                                  }}
+                                  disabled={exportingId === p.id}
+                                  className="px-1.5 sm:px-2 py-2 sm:py-2.5 border-l border-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                                  title="Pilihan Versi Unduh Rapor"
+                                >
+                                  <ChevronDown size={14} />
+                                </button>
+                              </div>
+
+                              {openPdfMenuId === p.id && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setOpenPdfMenuId(null)} />
+                                  <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-40 text-left animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="px-2.5 py-1.5 mb-1 border-b border-slate-100">
+                                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pilihan Cetak Dokumen</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenPdfMenuId(null);
+                                        exportRaporPdf(p.id, false);
+                                      }}
+                                      className="w-full text-left p-2.5 rounded-xl hover:bg-emerald-50 transition-colors group flex items-start gap-2.5"
+                                    >
+                                      <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                                        <FileText size={13} />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-black text-slate-900 group-hover:text-emerald-700">Rapor Saja (Hal 4–6)</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Nilai & capaian (hemat kertas, tiap semester)</p>
+                                      </div>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenPdfMenuId(null);
+                                        exportRaporPdf(p.id, true);
+                                      }}
+                                      className="w-full text-left p-2.5 rounded-xl hover:bg-secondary/10 transition-colors group flex items-start gap-2.5 mt-0.5"
+                                    >
+                                      <div className="w-6 h-6 rounded-lg bg-secondary/15 text-secondary flex items-center justify-center shrink-0 mt-0.5">
+                                        <BookOpen size={13} />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs font-black text-slate-900 group-hover:text-secondary">Lengkap + Sampul (Hal 1–6)</p>
+                                        <p className="text-[10px] text-slate-400 font-medium">Dengan cover & identitas (siswa baru/arsip)</p>
+                                      </div>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
                             <button onClick={() => openEditPeriod(p)} className="p-2 sm:p-2.5 rounded-xl bg-white text-slate-500 hover:bg-secondary hover:text-white transition-all border border-slate-100" title="Buka"><Pencil size={16} /></button>
                             <button onClick={() => setConfirmingDeletePeriod(p)} className="p-2 sm:p-2.5 rounded-xl bg-white text-slate-500 hover:bg-rose-500 hover:text-white transition-all border border-slate-100" title="Hapus"><Trash2 size={16} /></button>
                           </div>
@@ -1211,15 +1295,72 @@ export default function TeacherEraport() {
                     </button>
 
                     {activePeriod.id && (
-                      <button
-                        onClick={() => exportRaporPdf(activePeriod.id)}
-                        disabled={exportingId === activePeriod.id}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold transition-all border border-emerald-200 shadow-sm active:scale-95 disabled:opacity-50"
-                        title="Unduh / Cetak Dokumen Rapor PDF Lengkap"
-                      >
-                        {exportingId === activePeriod.id ? <Loader2 className="animate-spin" size={14} /> : <FileDown size={14} />}
-                        Unduh Rapor (PDF)
-                      </button>
+                      <div className="relative">
+                        <div className="inline-flex items-center rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => exportRaporPdf(activePeriod.id, false)}
+                            disabled={exportingId === activePeriod.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-black hover:bg-emerald-100 transition-all disabled:opacity-50"
+                            title="Unduh Rapor Saja (Hal 4–6 SD / Capaian TK)"
+                          >
+                            {exportingId === activePeriod.id ? <Loader2 className="animate-spin" size={14} /> : <FileDown size={14} />}
+                            Unduh Rapor (Hal 4–6)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenPdfMenuId(openPdfMenuId === 'activeHeader' ? null : 'activeHeader');
+                            }}
+                            disabled={exportingId === activePeriod.id}
+                            className="px-2 py-2 border-l border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            title="Pilihan Versi Rapor"
+                          >
+                            <ChevronDown size={13} />
+                          </button>
+                        </div>
+
+                        {openPdfMenuId === 'activeHeader' && (
+                          <>
+                            <div className="fixed inset-0 z-30" onClick={() => setOpenPdfMenuId(null)} />
+                            <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-40 text-left animate-in fade-in zoom-in-95 duration-150">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenPdfMenuId(null);
+                                  exportRaporPdf(activePeriod.id, false);
+                                }}
+                                className="w-full text-left p-2.5 rounded-xl hover:bg-emerald-50 transition-colors group flex items-start gap-2.5"
+                              >
+                                <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                                  <FileText size={13} />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-black text-slate-900 group-hover:text-emerald-700">Rapor Saja (Hal 4–6)</p>
+                                  <p className="text-[10px] text-slate-400 font-medium">Hanya nilai & capaian (tiap semester)</p>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenPdfMenuId(null);
+                                  exportRaporPdf(activePeriod.id, true);
+                                }}
+                                className="w-full text-left p-2.5 rounded-xl hover:bg-secondary/10 transition-colors group flex items-start gap-2.5 mt-0.5"
+                              >
+                                <div className="w-6 h-6 rounded-lg bg-secondary/15 text-secondary flex items-center justify-center shrink-0 mt-0.5">
+                                  <BookOpen size={13} />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-black text-slate-900 group-hover:text-secondary">Lengkap + Sampul (Hal 1–6)</p>
+                                  <p className="text-[10px] text-slate-400 font-medium">Dengan cover & identitas peserta didik</p>
+                                </div>
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -1289,7 +1430,7 @@ export default function TeacherEraport() {
                                 </div>
                               ) : (
                                 <>
-                                  <div className="overflow-x-auto -mx-1 px-1">
+                                  <div className="overflow-x-auto -mx-1 px-1 mb-2 [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
                                     <table className="w-full min-w-[580px] border-separate border-spacing-x-2 border-spacing-y-1">
                                       <thead>
                                         <tr>
@@ -1338,7 +1479,11 @@ export default function TeacherEraport() {
                             ) : (
                               <>
                                 {draft.length > 0 && (
-                                  <div className="overflow-x-auto -mx-1 px-1 mb-2">
+                                  <>
+                                    <div className="sm:hidden flex items-center gap-1.5 text-[10px] font-bold text-slate-400 mb-1 px-1">
+                                      <span className="text-secondary font-black">↔</span> Geser tabel ke kanan untuk mengisi nilai
+                                    </div>
+                                    <div className="overflow-x-auto -mx-1 px-1 mb-2 [touch-action:pan-x] [-webkit-overflow-scrolling:touch]">
                                     <table className="w-full min-w-[580px] border-separate border-spacing-x-2 border-spacing-y-1">
                                       <thead>
                                         <tr>
@@ -1362,7 +1507,8 @@ export default function TeacherEraport() {
                                       </tbody>
                                     </table>
                                   </div>
-                                )}
+                                </>
+                              )}
                                 <button onClick={() => addDraftRow(t)} className="inline-flex items-center gap-1.5 text-xs font-black text-secondary hover:underline">
                                   <Plus size={14} /> Tambah
                                 </button>
@@ -1440,9 +1586,71 @@ export default function TeacherEraport() {
                         Kembali ke Daftar
                       </button>
                       {activePeriod.id && (
-                        <button onClick={() => exportRaporPdf(activePeriod.id)} disabled={exportingId === activePeriod.id || subEditMode} title={subEditMode ? 'Simpan/Batal tabel nilai dulu' : 'Unduh Rapor (PDF)'} className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-500 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5">
-                          {exportingId === activePeriod.id ? <><Loader2 className="animate-spin" size={14} /> Membuat PDF…</> : <><FileDown size={14} /> Unduh PDF</>}
-                        </button>
+                        <div className="relative">
+                          <div className="inline-flex items-center rounded-xl bg-emerald-600 text-white shadow-md overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => exportRaporPdf(activePeriod.id, false)}
+                              disabled={exportingId === activePeriod.id || subEditMode}
+                              title={subEditMode ? 'Simpan/Batal tabel nilai dulu' : 'Unduh Rapor Saja (Hal 4–6)'}
+                              className="px-3.5 py-2.5 font-black text-xs hover:bg-emerald-500 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                              {exportingId === activePeriod.id ? <><Loader2 className="animate-spin" size={14} /> Membuat PDF…</> : <><FileDown size={14} /> Unduh Rapor (4–6)</>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenPdfMenuId(openPdfMenuId === 'activeFooter' ? null : 'activeFooter');
+                              }}
+                              disabled={exportingId === activePeriod.id || subEditMode}
+                              className="px-2 py-2.5 border-l border-emerald-500 text-white hover:bg-emerald-500 transition-colors"
+                              title="Pilihan Versi Rapor"
+                            >
+                              <ChevronDown size={14} />
+                            </button>
+                          </div>
+
+                          {openPdfMenuId === 'activeFooter' && (
+                            <>
+                              <div className="fixed inset-0 z-30" onClick={() => setOpenPdfMenuId(null)} />
+                              <div className="absolute right-0 bottom-full mb-1.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-40 text-left animate-in fade-in zoom-in-95 duration-150">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenPdfMenuId(null);
+                                    exportRaporPdf(activePeriod.id, false);
+                                  }}
+                                  className="w-full text-left p-2.5 rounded-xl hover:bg-emerald-50 transition-colors group flex items-start gap-2.5"
+                                >
+                                  <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                                    <FileText size={13} />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-black text-slate-900 group-hover:text-emerald-700">Rapor Saja (Hal 4–6)</p>
+                                    <p className="text-[10px] text-slate-400 font-medium">Hanya nilai & capaian (tiap semester)</p>
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenPdfMenuId(null);
+                                    exportRaporPdf(activePeriod.id, true);
+                                  }}
+                                  className="w-full text-left p-2.5 rounded-xl hover:bg-secondary/10 transition-colors group flex items-start gap-2.5 mt-0.5"
+                                >
+                                  <div className="w-6 h-6 rounded-lg bg-secondary/15 text-secondary flex items-center justify-center shrink-0 mt-0.5">
+                                    <BookOpen size={13} />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-black text-slate-900 group-hover:text-secondary">Lengkap + Sampul (Hal 1–6)</p>
+                                    <p className="text-[10px] text-slate-400 font-medium">Dengan cover & identitas peserta didik</p>
+                                  </div>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1667,10 +1875,67 @@ export default function TeacherEraport() {
                 </div>
               </div>
 
+              {/* Cakupan Halaman Rapor (Hemat Kertas vs Lengkap) */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-black uppercase text-secondary tracking-wider">
+                  2. Pilih Cakupan Halaman Rapor
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => !exportingMulti && setExportPageRange('rapor_only')}
+                    className={`cursor-pointer p-3.5 rounded-2xl border-2 transition-all ${
+                      exportPageRange === 'rapor_only'
+                        ? 'border-emerald-600 bg-emerald-50/50 text-slate-900 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          checked={exportPageRange === 'rapor_only'}
+                          onChange={() => setExportPageRange('rapor_only')}
+                          className="accent-emerald-600"
+                        />
+                        <span className="font-black text-xs">Halaman Rapor Saja (Hal 4–6)</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black shrink-0">
+                        Hemat Kertas
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1.5 ml-5 leading-relaxed">
+                      Tanpa Sampul & Identitas (Hal 1–3). Hanya mencetak lembar nilai akademik, capaian kompetensi, ekskul, dan catatan guru. Rekomendasi utama untuk cetak rutin tiap akhir semester!
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => !exportingMulti && setExportPageRange('full')}
+                    className={`cursor-pointer p-3.5 rounded-2xl border-2 transition-all ${
+                      exportPageRange === 'full'
+                        ? 'border-secondary bg-secondary/5 text-slate-900 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={exportPageRange === 'full'}
+                        onChange={() => setExportPageRange('full')}
+                        className="accent-secondary"
+                      />
+                      <span className="font-black text-xs">Versi Lengkap + Sampul (Hal 1–6)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1.5 ml-5 leading-relaxed">
+                      Lengkap dengan Sampul Depan, Data Sekolah, Identitas Peserta Didik, dan Lembar Nilai. Sangat cocok untuk siswa baru masuk sekolah atau arsip awal tahun.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Format Unduh (Kompilasi All vs Terpisah) */}
               <div className="space-y-2">
                 <label className="block text-[11px] font-black uppercase text-secondary tracking-wider">
-                  2. Pilih Format Dokumen PDF
+                  3. Pilih Format Dokumen PDF
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div
@@ -1723,7 +1988,7 @@ export default function TeacherEraport() {
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <label className="text-[11px] font-black uppercase text-secondary tracking-wider">
-                    3. Pilih Murid ({selectedExportStudentIds.length} dari {(students || []).filter((s) => s.kelas === activeGrade).length} dipilih)
+                    4. Pilih Murid ({selectedExportStudentIds.length} dari {(students || []).filter((s) => s.kelas === activeGrade).length} dipilih)
                   </label>
                   <div className="flex items-center gap-2">
                     <button
@@ -1745,8 +2010,8 @@ export default function TeacherEraport() {
                   </div>
                 </div>
 
-                {/* List Siswa */}
-                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-white">
+                {/* List Siswa (Overscroll contain & pan-y agar tidak macet di webview) */}
+                <div className="max-h-64 sm:max-h-72 overflow-y-auto overscroll-contain divide-y divide-slate-100 border border-slate-200 rounded-2xl bg-white [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
                   {(students || [])
                     .filter((s) => s.kelas === activeGrade)
                     .map((stu, idx) => {

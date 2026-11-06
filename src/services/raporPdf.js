@@ -83,7 +83,7 @@ const fmtNum = (n) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 const dash = (v) => (String(v ?? '').trim() ? String(v).trim() : '-');
 const hari = (v) => { const n = Number(String(v ?? '').trim()); return n > 0 ? `${n} hari` : '-'; };
 
-export async function generateRaporPdf({ student, period, umum = [], mulok = [], extras = [], aspek = {}, watermark, existingDoc }) {
+export async function generateRaporPdf({ student, period, umum = [], mulok = [], extras = [], aspek = {}, watermark, existingDoc, includeCover = true }) {
   const { jsPDF } = await import('jspdf');
   const doc = existingDoc || new jsPDF({ unit: 'mm', format: 'a4' });
   doc.setLineHeightFactor(1);
@@ -280,79 +280,81 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
     underlined(kepsek, p(763), g4);
   }
 
-  // ================= HALAMAN 1 — SAMPUL =================
-  newPage();
-  ['LAPORAN', isTK ? 'PERKEMBANGAN ANAK DIDIK' : 'HASIL CAPAIAN KOMPETENSI PESERTA DIDIK', SCHOOL.judul].forEach((t, i) => center(t, PAGE_W / 2, p(145 + i * 33.5), 'bold', 16));
-  center(`Nama ${anak} :`, PAGE_W / 2, p(507), 'bold', 16);
-  doc.setLineWidth(0.55); doc.setDrawColor(0);
-  doc.rect(p(250), p(548), p(838 - 250), p(643 - 548));
-  center(String(student.nama_siswa || '').toUpperCase(), PAGE_W / 2, p(605), 'bold', 16);
-  center('NISN / NIS', PAGE_W / 2, p(737), 'bold', 16);
-  doc.rect(p(250), p(775), p(838 - 250), p(871 - 775));
-  center(nisnNis, PAGE_W / 2, p(823), 'bold', 16);
-  [SCHOOL.yayasan, `KECAMATAN ${SCHOOL.kecamatan.toUpperCase()}`, `KABUPATEN ${SCHOOL.kabupaten.toUpperCase()}`]
-    .forEach((t, i) => center(t, PAGE_W / 2, p(901 + i * 33), 'bold', 16));
+  if (includeCover) {
+    // ================= HALAMAN 1 — SAMPUL =================
+    newPage();
+    ['LAPORAN', isTK ? 'PERKEMBANGAN ANAK DIDIK' : 'HASIL CAPAIAN KOMPETENSI PESERTA DIDIK', SCHOOL.judul].forEach((t, i) => center(t, PAGE_W / 2, p(145 + i * 33.5), 'bold', 16));
+    center(`Nama ${anak} :`, PAGE_W / 2, p(507), 'bold', 16);
+    doc.setLineWidth(0.55); doc.setDrawColor(0);
+    doc.rect(p(250), p(548), p(838 - 250), p(643 - 548));
+    center(String(student.nama_siswa || '').toUpperCase(), PAGE_W / 2, p(605), 'bold', 16);
+    center('NISN / NIS', PAGE_W / 2, p(737), 'bold', 16);
+    doc.rect(p(250), p(775), p(838 - 250), p(871 - 775));
+    center(nisnNis, PAGE_W / 2, p(823), 'bold', 16);
+    [SCHOOL.yayasan, `KECAMATAN ${SCHOOL.kecamatan.toUpperCase()}`, `KABUPATEN ${SCHOOL.kabupaten.toUpperCase()}`]
+      .forEach((t, i) => center(t, PAGE_W / 2, p(901 + i * 33), 'bold', 16));
 
-  // ================= HALAMAN 2 — DATA SEKOLAH =================
-  newPage();
-  (isTK ? ['LAPORAN', 'PERKEMBANGAN ANAK DIDIK', 'TAMAN KANAK-KANAK'] : ['RAPORT', 'PESERTA DIDIK', 'SEKOLAH DASAR']).forEach((t, i) => center(t, PAGE_W / 2, p(143 + i * 28.5), 'bold', 14));
-  [
-    ['Nama Sekolah', SCHOOL.nama], ['NPSN', dash(SCHOOL.npsn)], ['NSS', dash(SCHOOL.nss)], ['Alamat Sekolah', SCHOOL.alamat],
-    ['Kode Pos', SCHOOL.kodePos], ['Kelurahan/Desa', SCHOOL.kelurahan], ['Kecamatan', SCHOOL.kecamatan],
-    ['Kabupaten', SCHOOL.kabupaten], ['Provinsi', SCHOOL.provinsi], ['Website', SCHOOL.website], ['Email', SCHOOL.email],
-  ].forEach(([lb, val], i) => {
-    const y = p(315 + i * 47);
-    font('normal', 12);
-    text(lb, p(176), y); text(':', p(445), y); text(val, p(499), y);
-    dotted(p(489), p(899), y + p(12));
-  });
+    // ================= HALAMAN 2 — DATA SEKOLAH =================
+    newPage();
+    (isTK ? ['LAPORAN', 'PERKEMBANGAN ANAK DIDIK', 'TAMAN KANAK-KANAK'] : ['RAPORT', 'PESERTA DIDIK', 'SEKOLAH DASAR']).forEach((t, i) => center(t, PAGE_W / 2, p(143 + i * 28.5), 'bold', 14));
+    [
+      ['Nama Sekolah', SCHOOL.nama], ['NPSN', dash(SCHOOL.npsn)], ['NSS', dash(SCHOOL.nss)], ['Alamat Sekolah', SCHOOL.alamat],
+      ['Kode Pos', SCHOOL.kodePos], ['Kelurahan/Desa', SCHOOL.kelurahan], ['Kecamatan', SCHOOL.kecamatan],
+      ['Kabupaten', SCHOOL.kabupaten], ['Provinsi', SCHOOL.provinsi], ['Website', SCHOOL.website], ['Email', SCHOOL.email],
+    ].forEach(([lb, val], i) => {
+      const y = p(315 + i * 47);
+      font('normal', 12);
+      text(lb, p(176), y); text(':', p(445), y); text(val, p(499), y);
+      dotted(p(489), p(899), y + p(12));
+    });
 
-  // ================= HALAMAN 3 — IDENTITAS PESERTA DIDIK =================
-  newPage();
-  center(`IDENTITAS ${anak.toUpperCase()}`, PAGE_W / 2, p(143), 'bold', 14);
-  const tglLahir = tglIndo(student.tanggal_lahir);
-  const ttl = [String(student.tempat_lahir || '').trim(), tglLahir].filter(Boolean).join(', ');
-  const valX = p(567), valW = p(338);
-  let y = p(232);
-  const head = (n, label) => { font('normal', 12); text(n, p(165), y); text(label, p(216), y); y += p(25.4); };
-  const row = (n, label, value, o = {}) => {
-    font('normal', 12);
-    if (n) text(n, p(165), y);
-    text(label, o.sub ? p(216) : p(216), y);
-    text(':', p(513), y);
-    font('normal', 12);
-    const lines = wrapStr(String(value || '').trim() || (o.blank ? '' : '-'), valW);
-    lines.forEach((ln, i) => text(ln, valX, y + i * p(25)));
-    const lastY = y + (lines.length - 1) * p(25);
-    dotted(p(557), p(930), lastY + p(13));
-    y = lastY + p(25.4);
-  };
-  row('1.', `Nama ${anak}`, student.nama_siswa);
-  y += p(3.6);
-  row('2.', 'NISN / NIS', nisnNis, { blank: true });
-  row('3.', 'Tempat, Tanggal Lahir', ttl);
-  row('4.', 'Jenis Kelamin', student.jenis_kelamin);
-  row('5.', 'Agama', student.agama || 'Islam');
-  row('6.', 'Pendidikan Sebelumnya', student.pendidikan_sebelumnya);
-  row('7.', `Alamat ${anak}`, alamatSiswa);
-  y += p(0.6);
-  head('8', 'Nama Orang Tua');
-  row('', 'a. Ayah', student.nama_ayah); row('', 'b. Ibu', student.nama_ibu);
-  head('9.', 'Pekerjaan Orang Tua');
-  row('', 'a. Ayah', student.pekerjaan_ayah); row('', 'b. Ibu', student.pekerjaan_ibu);
-  head('10', 'Alamat Orang Tua');
-  row('', 'Jalan', alamatSiswa);
-  row('', 'Kelurahan/Desa', student.kelurahan); row('', 'Kecamatan', student.kecamatan);
-  row('', 'Kabupaten/Kota', student.kabupaten); row('', 'Provinsi', student.provinsi);
-  head('11.', `Wali ${anak}`);
-  row('', 'a. Nama', student.nama_wali); row('', 'b. Pekerjaan', student.pekerjaan_wali); row('', 'c. Alamat', student.alamat_wali);
+    // ================= HALAMAN 3 — IDENTITAS PESERTA DIDIK =================
+    newPage();
+    center(`IDENTITAS ${anak.toUpperCase()}`, PAGE_W / 2, p(143), 'bold', 14);
+    const tglLahir = tglIndo(student.tanggal_lahir);
+    const ttl = [String(student.tempat_lahir || '').trim(), tglLahir].filter(Boolean).join(', ');
+    const valX = p(567), valW = p(338);
+    let y = p(232);
+    const head = (n, label) => { font('normal', 12); text(n, p(165), y); text(label, p(216), y); y += p(25.4); };
+    const row = (n, label, value, o = {}) => {
+      font('normal', 12);
+      if (n) text(n, p(165), y);
+      text(label, o.sub ? p(216) : p(216), y);
+      text(':', p(513), y);
+      font('normal', 12);
+      const lines = wrapStr(String(value || '').trim() || (o.blank ? '' : '-'), valW);
+      lines.forEach((ln, i) => text(ln, valX, y + i * p(25)));
+      const lastY = y + (lines.length - 1) * p(25);
+      dotted(p(557), p(930), lastY + p(13));
+      y = lastY + p(25.4);
+    };
+    row('1.', `Nama ${anak}`, student.nama_siswa);
+    y += p(3.6);
+    row('2.', 'NISN / NIS', nisnNis, { blank: true });
+    row('3.', 'Tempat, Tanggal Lahir', ttl);
+    row('4.', 'Jenis Kelamin', student.jenis_kelamin);
+    row('5.', 'Agama', student.agama || 'Islam');
+    row('6.', 'Pendidikan Sebelumnya', student.pendidikan_sebelumnya);
+    row('7.', `Alamat ${anak}`, alamatSiswa);
+    y += p(0.6);
+    head('8', 'Nama Orang Tua');
+    row('', 'a. Ayah', student.nama_ayah); row('', 'b. Ibu', student.nama_ibu);
+    head('9.', 'Pekerjaan Orang Tua');
+    row('', 'a. Ayah', student.pekerjaan_ayah); row('', 'b. Ibu', student.pekerjaan_ibu);
+    head('10', 'Alamat Orang Tua');
+    row('', 'Jalan', alamatSiswa);
+    row('', 'Kelurahan/Desa', student.kelurahan); row('', 'Kecamatan', student.kecamatan);
+    row('', 'Kabupaten/Kota', student.kabupaten); row('', 'Provinsi', student.provinsi);
+    head('11.', `Wali ${anak}`);
+    row('', 'a. Nama', student.nama_wali); row('', 'b. Pekerjaan', student.pekerjaan_wali); row('', 'c. Alamat', student.alamat_wali);
 
-  const sigY = Math.max(y + p(60), p(947));
-  doc.setLineWidth(0.2); doc.setDrawColor(0);
-  doc.rect(p(461), sigY, p(613 - 461), p(204));
-  center(`${SCHOOL.kabupaten}, ${tglIdentitas}`, p(785), sigY + p(21), 'normal', 12);
-  center('Kepala Sekolah', p(785), sigY + p(49), 'normal', 12);
-  underlined(kepsek, p(785), sigY + p(162));
+    const sigY = Math.max(y + p(60), p(947));
+    doc.setLineWidth(0.2); doc.setDrawColor(0);
+    doc.rect(p(461), sigY, p(613 - 461), p(204));
+    center(`${SCHOOL.kabupaten}, ${tglIdentitas}`, p(785), sigY + p(21), 'normal', 12);
+    center('Kepala Sekolah', p(785), sigY + p(49), 'normal', 12);
+    underlined(kepsek, p(785), sigY + p(162));
+  }
 
   // ---------- kepala rapor (Nama, NISN, Sekolah, Alamat | Kelas, Fase, Semester, Tahun) ----------
   const raporHeader = () => {
@@ -581,8 +583,8 @@ export async function generateRaporPdf({ student, period, umum = [], mulok = [],
   return doc;
 }
 
-export const raporFileName = (student, period) =>
-  `Rapor_${String(student.nama_siswa || 'siswa').replace(/[^\w]+/g, '_')}_${period.kelas.replace(/\s+/g, '')}_Smt${period.semester}_${String(period.tahunAjaran || '').replace('/', '-')}.pdf`;
+export const raporFileName = (student, period, includeCover = false) =>
+  `Rapor_${includeCover ? 'Lengkap_' : ''}${String(student.nama_siswa || 'siswa').replace(/[^\w]+/g, '_')}_${period.kelas.replace(/\s+/g, '')}_Smt${period.semester}_${String(period.tahunAjaran || '').replace('/', '-')}.pdf`;
 
-export const multiRaporFileName = (kelas, semester, tahunAjaran) =>
-  `Rapor_Kompilasi_${String(kelas || '').replace(/\s+/g, '')}_Smt${semester}_${String(tahunAjaran || '').replace('/', '-')}.pdf`;
+export const multiRaporFileName = (kelas, semester, tahunAjaran, includeCover = false) =>
+  `Rapor_${includeCover ? 'Lengkap_' : ''}Kompilasi_${String(kelas || '').replace(/\s+/g, '')}_Smt${semester}_${String(tahunAjaran || '').replace('/', '-')}.pdf`;

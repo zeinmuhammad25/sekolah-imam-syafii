@@ -17,22 +17,21 @@ import {
 } from 'lucide-react';
 
 // Modal shell (header sticky, body scroll, footer sticky) — dipakai semua panel CRUD guru.
-// closeOnBackdrop: klik area gelap di luar kartu menutup popup (default ya, seperti sebelumnya).
-// expanded/onToggleExpand: opsional — kalau diisi, muncul tombol perbesar/perkecil di header.
+// Di mobile: tampil sebagai bottom-sheet modern (h-[92dvh], rounded-t-3xl) agar tombol bawah tidak terpotong address bar!
 export function Modal({ title, onClose, children, maxWidthClass = 'max-w-lg', closeOnBackdrop = true, expanded = false, onToggleExpand, expandedWidthClass = 'max-w-6xl' }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[150] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4"
+      className="fixed inset-0 z-[150] bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <motion.div
         initial={{ y: 30, scale: 0.98, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: 30, scale: 0.98, opacity: 0 }}
         transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-        className={`bg-white w-full ${expanded ? expandedWidthClass : maxWidthClass} rounded-2xl sm:rounded-3xl flex flex-col ${expanded ? 'max-h-[96vh]' : 'max-h-[92vh] sm:max-h-[88vh]'} overflow-hidden shadow-2xl transition-[max-width] duration-200`}
+        className={`bg-white w-full ${expanded ? expandedWidthClass : maxWidthClass} rounded-t-3xl sm:rounded-3xl flex flex-col ${expanded ? 'h-[96dvh] max-h-[96dvh]' : 'h-[92dvh] sm:h-auto max-h-[92dvh] sm:max-h-[88vh]'} overflow-hidden shadow-2xl transition-[max-width] duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3.5 sm:py-5 border-b border-slate-100">
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 md:px-8 py-3.5 sm:py-5 border-b border-slate-100 bg-white z-10">
           <h3 className="text-base sm:text-lg md:text-xl font-black text-slate-900 truncate pr-2 min-w-0">{title}</h3>
           <div className="flex items-center gap-1.5 shrink-0">
             {onToggleExpand && (
@@ -47,14 +46,18 @@ export function Modal({ title, onClose, children, maxWidthClass = 'max-w-lg', cl
             <button onClick={onClose} className="p-1.5 sm:p-2 bg-slate-50 rounded-full text-slate-400 hover:text-slate-700 transition-colors" aria-label="Tutup"><X size={18} /></button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">{children}</div>
       </motion.div>
     </motion.div>
   );
 }
 
 export function ModalFooter({ children }) {
-  return <div className="shrink-0 px-4 sm:px-6 md:px-8 py-3.5 sm:py-4 border-t border-slate-100 bg-white">{children}</div>;
+  return (
+    <div className="shrink-0 px-4 sm:px-6 md:px-8 py-3 sm:py-4 border-t border-slate-100 bg-white sticky bottom-0 z-20 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+      {children}
+    </div>
+  );
 }
 
 export function ConfirmDialog({

@@ -40,6 +40,7 @@ export default function TeacherAttendance() {
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [settings, setSettings] = useState(null);
   const [todayRecord, setTodayRecord] = useState(null);
+  const [allTodayAttendances, setAllTodayAttendances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -102,14 +103,15 @@ export default function TeacherAttendance() {
     }
   }, []);
 
-  // Ambil Data Awal: Settings & Teachers
+  // Ambil Data Awal: Settings, Teachers & Presensi Hari Ini
   useEffect(() => {
     let mounted = true;
     async function init() {
       setLoading(true);
-      const [tRes, sRes] = await Promise.all([
+      const [tRes, sRes, aRes] = await Promise.all([
         getAttendanceTeachers(),
         getAttendanceSettings(),
+        getAttendanceToday(),
       ]);
 
       if (mounted) {
@@ -118,6 +120,9 @@ export default function TeacherAttendance() {
         }
         if (sRes.success && sRes.settings) {
           setSettings(sRes.settings);
+        }
+        if (aRes && aRes.success && Array.isArray(aRes.attendances)) {
+          setAllTodayAttendances(aRes.attendances);
         }
         setLoading(false);
       }
@@ -320,6 +325,12 @@ export default function TeacherAttendance() {
         const found = (updated.attendances || []).find((a) => a.teacher_id === selectedTeacher.id);
         setTodayRecord(found || null);
       }
+      getAttendanceToday().then((all) => {
+        if (all.success && Array.isArray(all.attendances)) setAllTodayAttendances(all.attendances);
+      }).catch(() => {});
+      getAttendanceToday().then((all) => {
+        if (all.success && Array.isArray(all.attendances)) setAllTodayAttendances(all.attendances);
+      }).catch(() => {});
     } else {
       triggerPunchFeedback('Presensi Gagal', res.error || 'Gagal mengirim presensi.', 'error');
     }
@@ -421,6 +432,9 @@ export default function TeacherAttendance() {
         const found = (updated.attendances || []).find((a) => a.teacher_id === selectedTeacher.id);
         setTodayRecord(found || null);
       }
+      getAttendanceToday().then((all) => {
+        if (all.success && Array.isArray(all.attendances)) setAllTodayAttendances(all.attendances);
+      }).catch(() => {});
     } else {
       showToast(res.error || 'Gagal menyimpan keterangan.', 'error', 'Gagal');
     }
@@ -433,7 +447,7 @@ export default function TeacherAttendance() {
   });
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-16">
+    <div className="max-w-2xl mx-auto space-y-5 pb-24 md:pb-16 [touch-action:pan-y]">
       {/* Toast Notification Mengambang Cadangan (Hanya Tampil Jika Ada Message & Show Aktif) */}
       <AnimatePresence>
         {toast?.show && toast?.message && (
@@ -445,14 +459,10 @@ export default function TeacherAttendance() {
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* LAYAR 1: PILIH PROFIL GURU (GATE SCREEN - HEMAT RUANG & HANYA NAMA) */}
+      {/* LAYAR 1: PILIH PROFIL GURU (GATE SCREEN — LIST 1 KOLOM MOBILE, RAMAH JEMPOL & SMOOTH SCROLL) */}
       {/* ========================================================================= */}
       {viewStep === 'list' && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-3.5"
-        >
+        <div className="space-y-3.5 [touch-action:pan-y]">
           {/* Header Ringkas Pilih Guru */}
           <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-100">
             <div className="flex items-center gap-3">
@@ -482,7 +492,7 @@ export default function TeacherAttendance() {
             </div>
           </div>
 
-          {/* List Guru Kompak & Hemat Ruang (Hanya Nama Guru) */}
+          {/* List Guru Vertikal 1 Kolom di HP (Ramah Jempol, Anti-Macet Scroll) */}
           {loading ? (
             <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-sm">
               <RefreshCw size={24} className="animate-spin text-secondary mx-auto mb-2" />
@@ -495,32 +505,61 @@ export default function TeacherAttendance() {
               <p className="text-xs text-slate-400 mt-0.5">Silakan cek kembali kata kunci pencarian.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
-              {filteredTeachers.map((teacher) => (
-                <motion.button
-                  key={teacher.id}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => handleSelectTeacher(teacher)}
-                  className="bg-white p-3 rounded-2xl border border-slate-100 hover:border-secondary/50 shadow-sm hover:shadow-md transition-all text-left flex items-center justify-between gap-2 group active:bg-slate-50"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-secondary/10 text-secondary group-hover:bg-secondary group-hover:text-white flex items-center justify-center font-black text-xs shrink-0 transition-colors">
-                      {(teacher.name || 'G').charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-extrabold text-slate-800 text-xs sm:text-sm truncate group-hover:text-secondary transition-colors leading-tight">
-                      {teacher.name}
-                    </span>
-                  </div>
+            <div className="flex flex-col sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 [touch-action:pan-y] [-webkit-overflow-scrolling:touch]">
+              {filteredTeachers.map((teacher) => {
+                const rec = (allTodayAttendances || []).find((a) => a.teacher_id === teacher.id);
+                const hasIn = rec && rec.check_in_time;
+                const hasOut = rec && rec.check_out_time;
+                const isLeave = rec && rec.status && rec.status !== 'hadir';
 
-                  <span className="p-1 rounded-lg bg-slate-50 group-hover:bg-secondary/10 text-slate-400 group-hover:text-secondary transition-all shrink-0">
-                    <LogIn size={13} />
-                  </span>
-                </motion.button>
-              ))}
+                return (
+                  <button
+                    key={teacher.id}
+                    type="button"
+                    onClick={() => handleSelectTeacher(teacher)}
+                    className="w-full bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-100 hover:border-secondary/40 shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left flex items-center justify-between gap-3 group [touch-action:pan-y]"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-secondary/15 to-forest/15 text-secondary group-hover:from-secondary group-hover:to-forest group-hover:text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm transition-all">
+                        {(teacher.name || 'G').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-800 text-xs sm:text-sm truncate group-hover:text-secondary transition-colors">
+                          {teacher.name}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {hasOut ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                              ✓ Selesai ({rec.check_out_time.slice(0, 5)})
+                            </span>
+                          ) : hasIn ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md">
+                              ✓ Masuk ({rec.check_in_time.slice(0, 5)})
+                            </span>
+                          ) : isLeave ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md uppercase">
+                              {rec.status}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              Belum presensi hari ini
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="p-2 rounded-xl bg-slate-50 group-hover:bg-secondary group-hover:text-white text-slate-400 transition-all">
+                        <ChevronRight size={16} />
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
-        </motion.div>
+        </div>
       )}
 
       {/* ========================================================================= */}
