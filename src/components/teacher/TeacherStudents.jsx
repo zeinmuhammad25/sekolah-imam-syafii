@@ -218,7 +218,12 @@ const IMPORT_SAMPLE = {
 export default function TeacherStudents() {
   const [items, setItems] = useState(null); // null = loading
   const [query, setQuery] = useState('');
-  const [activeGrade, setActiveGrade] = useState('TK');
+  const [activeGrade, setActiveGrade] = useState(() => localStorage.getItem('last_active_grade_students') || 'SD 1');
+
+  const changeActiveGrade = (grade) => {
+    setActiveGrade(grade);
+    try { localStorage.setItem('last_active_grade_students', grade); } catch {}
+  };
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [editing, setEditing] = useState(null); // {form, id|null}
   const [previewing, setPreviewing] = useState(null); // item yang di-preview (read-only)
@@ -710,7 +715,7 @@ export default function TeacherStudents() {
         {GRADES.map((grade) => (
           <button
             key={grade}
-            onClick={() => setActiveGrade(grade)}
+            onClick={() => changeActiveGrade(grade)}
             className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all whitespace-nowrap ${
               activeGrade === grade ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
             }`}

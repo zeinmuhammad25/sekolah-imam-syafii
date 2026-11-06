@@ -32,7 +32,12 @@ const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
 const normGrade = (g) => String(g || '').trim().replace(/^sd\s*(\d+)$/i, 'SD $1').toUpperCase();
 
 export default function TeacherSoal() {
-  const [activeGrade, setActiveGrade] = useState('SD 1');
+  const [activeGrade, setActiveGrade] = useState(() => localStorage.getItem('last_active_grade_soal') || 'SD 1');
+
+  const changeActiveGrade = (grade) => {
+    setActiveGrade(grade);
+    try { localStorage.setItem('last_active_grade_soal', grade); } catch {}
+  };
   
   // Data Master Mata Pelajaran (Otomatis dari Master Mapel)
   const [masterSubjects, setMasterSubjects] = useState([]);
@@ -201,10 +206,10 @@ export default function TeacherSoal() {
     }
   }, [activeExamFolder, subjectFolders]);
 
-  // Otomatis pilih mapel saat pertama kali atau saat ganti tab jenjang
+  // Otomatis pilih mapel saat pertama kali dimuat, saat data server tiba, atau saat ganti tab jenjang
   useEffect(() => {
     if (currentClassSubjects.length > 0) {
-      // Pertahankan mapel dengan nama sama jika ada di jenjang baru, atau default ke yang pertama
+      // Pertahankan mapel aktif jika masih relevan, atau pilih mapel pertama
       const currentSubjName = activeSubjectObj?.nama?.trim().toLowerCase();
       const matchedSubject = currentSubjName
         ? currentClassSubjects.find(s => s.nama.trim().toLowerCase() === currentSubjName)
@@ -221,7 +226,7 @@ export default function TeacherSoal() {
       setActiveExamFolder(null);
     }
     setReorderMode(false);
-  }, [activeGrade]);
+  }, [activeGrade, currentClassSubjects, subjectFolders]);
 
   // Menentukan subject aktif dan folder aktif saat ini
   const activeSubjectObj = useMemo(() => {

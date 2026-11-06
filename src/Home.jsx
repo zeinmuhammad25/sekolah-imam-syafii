@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Phone, Mail, Instagram, Facebook, Youtube, Menu, X, ArrowRight, MessageCircle, Calendar, Users, Award, Lock, GraduationCap, BookOpen, MapPin, CheckCircle2, Sparkles, ChevronRight } from 'lucide-react'
+import { Phone, Mail, Instagram, Facebook, Youtube, Menu, X, ArrowRight, MessageCircle, Calendar, Users, Award, Lock, GraduationCap, BookOpen, MapPin, CheckCircle2, Sparkles, ChevronRight, Building2, Shield, HeartHandshake, Compass, Layers, Check, FileText } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import PPDBForm from './components/PPDBForm'
 import TeacherLoginModal from './components/TeacherLoginModal'
@@ -56,10 +56,46 @@ const flyerContent = {
     "Ilmu Pengetahuan Umum sesuai Kurikulum Merdeka."
   ],
   facilities: [
-    { name: "Ruang Kelas Full AC", icon: "❄️" },
-    { name: "Halaman Luas", icon: "🌳" },
-    { name: "Masjid Full AC", icon: "🕌" },
-    { name: "Ekstrakurikuler (Futsal, Taekwondo, dll)", icon: "🏆" }
+    {
+      name: "Ruang Kelas Full AC & Nyaman",
+      icon: "❄️",
+      tag: "Fasilitas Utama",
+      desc: "Ruang belajar sejuk ber-AC dengan ventilasi optimal, pencahayaan alami, dan rasio murid ideal demi konsentrasi belajar maksimal.",
+      badge: "Kenyamanan Belajar",
+      colSpan: "col-span-1 md:col-span-2"
+    },
+    {
+      name: "Masjid Jami' & Pojok Tahfidz",
+      icon: "🕌",
+      tag: "Pusat Karakter",
+      desc: "Pusat ibadah harian ber-AC untuk sholat berjamaah, pembinaan adab sholih, dan murajaah tahfidz hening.",
+      badge: "Lingkungan Sunnah",
+      colSpan: "col-span-1 md:col-span-2"
+    },
+    {
+      name: "Halaman Luas & Area Olahraga",
+      icon: "🌳",
+      tag: "Outdoor Area",
+      desc: "Lapangan bermain yang asri, aman, dan lapang untuk kegiatan jasmani, upacara, dan motorik luar ruangan.",
+      badge: "Sehat & Aktif",
+      colSpan: "col-span-1"
+    },
+    {
+      name: "Ekstrakurikuler Pilihan",
+      icon: "🏆",
+      tag: "Bakat & Fisik",
+      desc: "Pengembangan minat bakat jasmani dan mental santri (Futsal, Taekwondo, Panahan, dan Kesenian Kaligrafi).",
+      badge: "Karakter Tangguh",
+      colSpan: "col-span-1"
+    },
+    {
+      name: "Sanitasi & Wudhu Representatif",
+      icon: "💧",
+      tag: "Kebersihan",
+      desc: "Tempat wudhu dan toilet terpisah ikhwan/akhwat yang senantiasa bersih, higienis, dan terawat.",
+      badge: "Adab Bersuci",
+      colSpan: "col-span-1 md:col-span-2"
+    }
   ],
   history: "Yayasan Nashirus Sunnah Percut berdiri resmi pada 17 Oktober 2019. Berawal dari pemahaman yang sama di atas prinsip Al-Qur'an dan As-Sunnah sesuai manhaj para Sahabat. Pada 15 Juli 2022, dimulai layanan TK Qur'an Imam Syafi'i, disusul pandirian SD Islam Imam Syafi'i pada 1 Desember 2023.",
   goal: "Menciptakan generasi muslim yang berpegang teguh pada Al-Quran and As-Sunnah di atas manhaj As-Salafush Sholih sehingga mampu menjawab tantangan fitnah syubhat dan syahwat.",
@@ -167,6 +203,8 @@ export default function Home() {
   const [expandedVideo, setExpandedVideo] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [sheetData, setSheetData] = useState(null)
+  const [curriculumTab, setCurriculumTab] = useState('sd') // 'sd' | 'tk'
+  const [isQuickDockOpen, setIsQuickDockOpen] = useState(true)
 
   // Video dari sheet (title, youtube_url) -> {id, title}; jatuh ke fallback kalau kosong/belum ada ID valid
   const videos = (sheetData?.Videos || [])
@@ -646,18 +684,151 @@ export default function Home() {
                 <p className="font-display text-xl md:text-2xl text-ivory/90 leading-relaxed italic mx-auto max-w-2xl">{flyerContent.goal}</p>
               </div>
 
-              {/* 4. Satuan Pendidikan (Logos) */}
-              <div className="grid grid-cols-2 gap-4 md:gap-6 max-w-2xl mx-auto w-full">
-                <div className="p-8 bg-white rounded-2xl border border-primary/10 flex flex-col items-center text-center">
-                  <div className="text-4xl md:text-5xl mb-3">🏫</div>
-                  <div className="font-display text-lg md:text-xl font-semibold text-primary mb-1">TK Qur'an</div>
-                  <div className="text-[9px] md:text-[10px] text-secondary font-bold uppercase tracking-[0.15em]">Usia 5 Tahun</div>
+              {/* 4. Kurikulum Unggulan & Jenjang Pendidikan (Interactive Dual-Curriculum Matrix) */}
+              <div className="w-full max-w-5xl mx-auto mt-2">
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary/10 text-secondary text-[11px] font-bold uppercase tracking-[0.2em] mb-3">
+                    <Compass size={13} /> Integrasi Kurikulum Merdeka & Diniyyah
+                  </div>
+                  <h3 className="font-display text-2xl md:text-4xl font-semibold text-primary">
+                    Pendidikan Berjenjang <span className="italic text-secondary">Rabbani & Cerdas</span>
+                  </h3>
+                  <p className="text-xs md:text-sm text-primary/70 mt-2 max-w-xl mx-auto">
+                    Kombinasi sains modern berstandar nasional dan penanaman pondasi aqidah, tahfidz, serta adab salaf sejak dini.
+                  </p>
+
+                  {/* Switch Tab Jenjang TK vs SD */}
+                  <div className="inline-flex p-1.5 rounded-2xl bg-white border border-secondary/30 shadow-sm mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setCurriculumTab('sd')}
+                      className={`px-6 py-2.5 rounded-xl font-display font-semibold text-xs md:text-sm transition-all duration-300 flex items-center gap-2 ${
+                        curriculumTab === 'sd' ? 'bg-primary text-ivory shadow-md' : 'text-primary/60 hover:text-primary'
+                      }`}
+                    >
+                      <span>📚 SD Islam (Usia 6–12 Thn)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurriculumTab('tk')}
+                      className={`px-6 py-2.5 rounded-xl font-display font-semibold text-xs md:text-sm transition-all duration-300 flex items-center gap-2 ${
+                        curriculumTab === 'tk' ? 'bg-secondary text-white shadow-md' : 'text-primary/60 hover:text-primary'
+                      }`}
+                    >
+                      <span>🏫 TK Qur'an (Usia 4–6 Thn)</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="p-8 bg-white rounded-2xl border border-primary/10 flex flex-col items-center text-center">
-                  <div className="text-4xl md:text-5xl mb-3">📚</div>
-                  <div className="font-display text-lg md:text-xl font-semibold text-primary mb-1">SD Islam</div>
-                  <div className="text-[9px] md:text-[10px] text-secondary font-bold uppercase tracking-[0.15em]">Usia 6 Tahun</div>
-                </div>
+
+                {/* Konten Matriks Kurikulum SD */}
+                {curriculumTab === 'sd' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="grid md:grid-cols-3 gap-5"
+                  >
+                    <div className="bg-white p-6 md:p-8 rounded-3xl border border-secondary/25 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-2xl bg-secondary/15 text-secondary flex items-center justify-center mb-5 text-2xl font-black">
+                        📖
+                      </div>
+                      <h4 className="font-display text-lg font-bold text-primary mb-2">Program Tahfidz & Tajwid</h4>
+                      <p className="text-xs text-primary/70 leading-relaxed mb-4">
+                        Target minimal <b>3 Juz mutqin</b> dengan metode talaqqi bersanad, fasih makhraj, hafalan matan doa, dan hadits arba'in.
+                      </p>
+                      <ul className="space-y-2 text-[11px] font-semibold text-primary/80 border-t border-slate-100 pt-3">
+                        <li className="flex items-center gap-2"><Check size={14} className="text-secondary shrink-0" /> Setoran Hafalan Harian</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-secondary shrink-0" /> Murajaah Terbimbing</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-secondary shrink-0" /> Sertifikasi Ujian Tahfidz</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-white p-6 md:p-8 rounded-3xl border border-primary/20 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 text-2xl font-black">
+                        🕋
+                      </div>
+                      <h4 className="font-display text-lg font-bold text-primary mb-2">Kurikulum Diniyyah Salaf</h4>
+                      <p className="text-xs text-primary/70 leading-relaxed mb-4">
+                        Pondasi aqidah tauhid murni yang kokoh, praktek sholat sempurna sesuai sunnah Nabi ﷺ, adab thalabul ilmi, dan bahasa Arab dasar.
+                      </p>
+                      <ul className="space-y-2 text-[11px] font-semibold text-primary/80 border-t border-slate-100 pt-3">
+                        <li className="flex items-center gap-2"><Check size={14} className="text-primary shrink-0" /> Kitab Tauhid & Fiqih Ibadah</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-primary shrink-0" /> Praktek Wudhu & Sholat Berjamaah</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-primary shrink-0" /> Muhadatsah Bahasa Arab Ringan</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-white p-6 md:p-8 rounded-3xl border border-secondary/25 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-2xl bg-secondary-light/60 text-forest flex items-center justify-center mb-5 text-2xl font-black">
+                        🔬
+                      </div>
+                      <h4 className="font-display text-lg font-bold text-primary mb-2">Kurikulum Merdeka Nasional</h4>
+                      <p className="text-xs text-primary/70 leading-relaxed mb-4">
+                        Standar Kemendikbudristek dengan pendekatan saintifik, literasi numerasi kritis, penguasaan IPAS, dan Projek P5 berakhlak mulia.
+                      </p>
+                      <ul className="space-y-2 text-[11px] font-semibold text-primary/80 border-t border-slate-100 pt-3">
+                        <li className="flex items-center gap-2"><Check size={14} className="text-forest shrink-0" /> Matematika & Sains Aplikatif</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-forest shrink-0" /> Literasi Bahasa Indonesia & Inggris</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-forest shrink-0" /> Eksplorasi Proyek Kolaboratif</li>
+                      </ul>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Konten Matriks Kurikulum TK */}
+                {curriculumTab === 'tk' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="grid md:grid-cols-3 gap-5"
+                  >
+                    <div className="bg-white p-6 md:p-8 rounded-3xl border border-secondary/25 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-2xl bg-secondary/15 text-secondary flex items-center justify-center mb-5 text-2xl font-black">
+                        🌱
+                      </div>
+                      <h4 className="font-display text-lg font-bold text-primary mb-2">Penanaman Adab & Fitrah</h4>
+                      <p className="text-xs text-primary/70 leading-relaxed mb-4">
+                        Membimbing anak usia emas (golden age) mencintai Allah dan Rasul-Nya, doa harian, adab makan, tidur, dan interaksi santun.
+                      </p>
+                      <ul className="space-y-2 text-[11px] font-semibold text-primary/80 border-t border-slate-100 pt-3">
+                        <li className="flex items-center gap-2"><Check size={14} className="text-secondary shrink-0" /> 20+ Hafalan Doa & Dzikir Harian</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-secondary shrink-0" /> Pembiasaan Adab & Kalimat Thayyibah</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-secondary shrink-0" /> Kisah Teladan Para Nabi & Shahabat</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-white p-6 md:p-8 rounded-3xl border border-primary/20 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 text-2xl font-black">
+                        🗣️
+                      </div>
+                      <h4 className="font-display text-lg font-bold text-primary mb-2">Metode Cepat Baca Qur'an</h4>
+                      <p className="text-xs text-primary/70 leading-relaxed mb-4">
+                        Pengenalan huruf hijaiyyah dengan metode Iqro' menyenangkan, penguatan makhraj, dan hafalan surat-surat pendek Juz 'Amma.
+                      </p>
+                      <ul className="space-y-2 text-[11px] font-semibold text-primary/80 border-t border-slate-100 pt-3">
+                        <li className="flex items-center gap-2"><Check size={14} className="text-primary shrink-0" /> Target Hafalan Surat An-Naas s.d Ad-Dhuha</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-primary shrink-0" /> Pengenalan Huruf & Makharijul Huruf</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-primary shrink-0" /> Bimbingan Individual (1 Murid 1 Guru)</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-white p-6 md:p-8 rounded-3xl border border-secondary/25 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="w-12 h-12 rounded-2xl bg-secondary-light/60 text-forest flex items-center justify-center mb-5 text-2xl font-black">
+                        🎨
+                      </div>
+                      <h4 className="font-display text-lg font-bold text-primary mb-2">Motorik & Kesiapan Masuk SD</h4>
+                      <p className="text-xs text-primary/70 leading-relaxed mb-4">
+                        Stimulasi motorik halus dan kasar, pra-membaca, pra-menulis, pengenalan angka, dan kemandirian toilet training.
+                      </p>
+                      <ul className="space-y-2 text-[11px] font-semibold text-primary/80 border-t border-slate-100 pt-3">
+                        <li className="flex items-center gap-2"><Check size={14} className="text-forest shrink-0" /> Sensori Motorik & Eksplorasi Visual</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-forest shrink-0" /> Kesiapan Memegang Pensil & Menulis</li>
+                        <li className="flex items-center gap-2"><Check size={14} className="text-forest shrink-0" /> Kemandirian & Sosialisasi Positif</li>
+                      </ul>
+                    </div>
+                  </motion.div>
+                )}
               </div>
 
               {/* 5. Syarat Pendaftaran */}
@@ -829,11 +1000,33 @@ export default function Home() {
           <div className="container mx-auto px-5 md:px-6 relative z-10">
             <SectionHeading eyebrow="Sarana & Prasarana" title="Fasilitas Sekolah" subtitle="Mendukung kenyamanan belajar di lingkungan bermanhaj salaf." center light />
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-16 md:mb-28">
+            {/* Bento Grid Showcase Fasilitas */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-16 md:mb-24">
               {flyerContent.facilities.map((f, i) => (
-                <div key={i} className="text-center p-8 md:p-10 bg-ivory/5 border border-ivory/10 rounded-2xl backdrop-blur-md hover:border-secondary-light/40 transition-colors">
-                  <div className="text-3xl md:text-5xl mb-4 md:mb-6">{f.icon}</div>
-                  <div className="font-display text-base md:text-lg font-semibold">{f.name}</div>
+                <div
+                  key={i}
+                  className={`${f.colSpan || 'col-span-1'} p-6 md:p-8 bg-ivory/5 border border-ivory/15 rounded-3xl backdrop-blur-xl hover:border-secondary-light/50 hover:bg-ivory/10 transition-all duration-300 flex flex-col justify-between group`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-3xl md:text-4xl p-2.5 rounded-2xl bg-white/10 group-hover:scale-110 transition-transform">
+                        {f.icon}
+                      </span>
+                      <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-secondary-light/20 text-secondary-light border border-secondary-light/30">
+                        {f.badge || f.tag}
+                      </span>
+                    </div>
+                    <h4 className="font-display text-lg md:text-xl font-semibold text-ivory mb-2">
+                      {f.name}
+                    </h4>
+                    <p className="text-xs text-ivory/70 leading-relaxed">
+                      {f.desc}
+                    </p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-ivory/10 flex items-center justify-between text-[11px] font-bold text-secondary-light">
+                    <span>{f.tag}</span>
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity">✓ Terstandarisasi</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -960,6 +1153,79 @@ export default function Home() {
         </div>
       </footer>
 
+      {/* Point 5: Floating Quick Action Hub (Akses Cepat Ortu & Calon Santri) */}
+      <div className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-2.5">
+        <AnimatePresence>
+          {isQuickDockOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.85, y: 15 }}
+              className="bg-white/95 backdrop-blur-xl border border-primary/15 rounded-2xl p-2.5 shadow-2xl space-y-1.5 w-56 text-left"
+            >
+              <div className="px-2 py-1 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pusat Layanan Cepat</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              
+              <a
+                href="https://wa.me/6283125755134?text=Bismillah,%20saya%20ingin%20konsultasi%20pendaftaran%20santri%20baru%20Sekolah%20Islam%20Imam%20Syafi'i"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <MessageCircle size={15} />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-xs font-black text-slate-900 group-hover:text-emerald-700">Chat Panitia PPDB</p>
+                  <p className="text-[10px] text-slate-500 font-semibold">Konsultasi via WA</p>
+                </div>
+              </a>
+
+              <Link
+                to="/portal-ortu"
+                className="flex items-center gap-2.5 p-2 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary transition-colors group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-secondary text-white flex items-center justify-center shrink-0">
+                  <FileText size={15} />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-xs font-black text-slate-900 group-hover:text-secondary">Portal Rapor Ortu</p>
+                  <p className="text-[10px] text-slate-500 font-semibold">Cek Nilai & Hasil Rapor</p>
+                </div>
+              </Link>
+
+              <a
+                href="https://maps.google.com/?q=Sekolah+Islam+Imam+Syafii+Percut"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition-colors group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+                  <MapPin size={15} />
+                </div>
+                <div className="leading-tight">
+                  <p className="text-xs font-black text-slate-900 group-hover:text-primary">Petunjuk Arah</p>
+                  <p className="text-[10px] text-slate-500 font-semibold">Buka Google Maps</p>
+                </div>
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Toggle Button Hub */}
+        <button
+          type="button"
+          onClick={() => setIsQuickDockOpen(!isQuickDockOpen)}
+          className="bg-forest hover:bg-primary text-secondary-light border-2 border-secondary-light/40 px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 font-black text-xs transition-all active:scale-95 group tracking-wide"
+          title="Buka Pusat Layanan Cepat"
+        >
+          <Sparkles size={16} className="text-secondary-light animate-spin-slow" />
+          <span>{isQuickDockOpen ? 'Tutup Bantuan' : 'Pusat Bantuan Cepat'}</span>
+        </button>
+      </div>
+
       {/* Teachers Full List Modal */}
       <AnimatePresence>
         {isTeachersModalOpen && (
@@ -1054,12 +1320,6 @@ export default function Home() {
 
       <PPDBForm isOpen={isPPDBOpen} onClose={() => setIsPPDBOpen(false)} />
       <TeacherLoginModal isOpen={isTeacherLoginOpen} onClose={() => setIsTeacherLoginOpen(false)} />
-
-      {/* WhatsApp float — desktop only; di mobile digabung ke sticky bar bawah. Hijau dipertahankan sebagai brand signal WA */}
-      <a href="https://wa.me/6283125755134" target="_blank" className="hidden md:flex fixed bottom-8 right-8 z-[60] bg-green-600 text-white p-5 rounded-2xl shadow-3xl hover:bg-green-700 transition-all hover:scale-110 group items-center gap-3">
-        <MessageCircle size={28} />
-        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-700 font-bold whitespace-nowrap text-xs uppercase tracking-[0.15em]">Konsultasi PPDB</span>
-      </a>
 
       {/* Sticky CTA — mobile only */}
       <div className="md:hidden fixed bottom-0 inset-x-0 z-[60] p-3 bg-ivory/95 backdrop-blur-lg border-t border-primary/10 flex gap-3">

@@ -263,7 +263,12 @@ export default function TeacherEraport() {
   const [periods, setPeriods] = useState([]);
   const [subData, setSubData] = useState(EMPTY_SUBDATA); // { ReportGrades, ReportAspects, ReportExtras }
   const [masterSubjects, setMasterSubjects] = useState([]); // Master daftar mapel & aspek
-  const [activeGrade, setActiveGrade] = useState('TK');
+  const [activeGrade, setActiveGrade] = useState(() => localStorage.getItem('last_active_grade_eraport') || 'SD 1');
+
+  const changeActiveGrade = (grade) => {
+    setActiveGrade(grade);
+    try { localStorage.setItem('last_active_grade_eraport', grade); } catch {}
+  };
   const [query, setQuery] = useState('');
 
   const [selectedStudent, setSelectedStudent] = useState(null); // siswa yang dibuka riwayat raport-nya
@@ -512,6 +517,27 @@ export default function TeacherEraport() {
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, currentName: '' });
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error'|'warning', title }
   const [confirmingMultiExportSkip, setConfirmingMultiExportSkip] = useState(null);
+
+  // Sinkronkan nama wali kelas & tanggal saat guru mengubah pilihan Tahun Ajaran atau Semester di dalam modal
+  useEffect(() => {
+    if (!showBatchModal) return;
+    const classStudentIds = new Set((students || []).filter((s) => s.kelas === activeGrade).map((s) => String(s.id)));
+    const matching = (periods || []).find(
+      (p) =>
+        classStudentIds.has(String(p.studentId)) &&
+        String(p.tahunAjaran) === String(batchForm.tahunAjaran) &&
+        String(p.semester) === String(batchForm.semester)
+    );
+    if (matching) {
+      setBatchForm((prev) => ({
+        ...prev,
+        namaWaliKelas: matching.namaWaliKelas || prev.namaWaliKelas,
+        tanggalRapor: matching.tanggalRapor || prev.tanggalRapor,
+        tanggalIdentitas: matching.tanggalIdentitas || prev.tanggalIdentitas,
+        tempatRapor: matching.tempatRapor || prev.tempatRapor,
+      }));
+    }
+  }, [batchForm.tahunAjaran, batchForm.semester, showBatchModal, activeGrade, periods, students]);
 
   const showToast = (message, type = 'success', title = '') => {
     setToast({ message, type, title });
@@ -889,6 +915,38 @@ export default function TeacherEraport() {
       setActivePeriod(null);
       resetSub();
     }
+  };
+
+  // Fungsi pembuka modal setup kelas: otomatis isi form dari data semester yang sudah tersimpan di database
+  const openBatchSetupModal = () => {
+    const classStudentIds = new Set((students || []).filter((s) => s.kelas === activeGrade).map((s) => String(s.id)));
+    const existingClassPeriods = (periods || []).filter((p) => classStudentIds.has(String(p.studentId)));
+
+    if (existingClassPeriods.length > 0) {
+      // Ambil periode terbaru yang sudah tersimpan untuk kelas ini
+      const sorted = [...existingClassPeriods].sort((a, b) =>
+        String(b.tahunAjaran || '').localeCompare(String(a.tahunAjaran || '')) || (Number(b.semester) || 0) - (Number(a.semester) || 0)
+      );
+      const latest = sorted[0];
+      setBatchForm({
+        tahunAjaran: latest.tahunAjaran || '2025/2026',
+        semester: latest.semester || '1',
+        tanggalRapor: latest.tanggalRapor || '',
+        tanggalIdentitas: latest.tanggalIdentitas || '',
+        tempatRapor: latest.tempatRapor || 'Tanjung Rejo',
+        namaWaliKelas: latest.namaWaliKelas || '',
+      });
+    } else {
+      setBatchForm({
+        tahunAjaran: '2025/2026',
+        semester: '1',
+        tanggalRapor: '',
+        tanggalIdentitas: '',
+        tempatRapor: 'Tanjung Rejo',
+        namaWaliKelas: '',
+      });
+    }
+    setShowBatchModal(true);
   };
 
   // Eksekusi Pembuatan Periode Semester Massal Se-Kelas (Batch Setup)
@@ -1339,7 +1397,7 @@ export default function TeacherEraport() {
             <span className="truncate">Unduh Rapor</span>
           </button>
           <button
-            onClick={() => setShowBatchModal(true)}
+            onClick={openBatchSetupModal}
             className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-slate-900 text-white hover:bg-black font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 text-center"
           >
             <Users size={15} className="shrink-0" />
@@ -1353,7 +1411,7 @@ export default function TeacherEraport() {
         {GRADES.map((grade) => (
           <button
             key={grade}
-            onClick={() => setActiveGrade(grade)}
+            onClick={() => changeActiveGrade(grade)}
             className={`flex-1 min-w-[56px] sm:min-w-[62px] py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all text-center whitespace-nowrap active:scale-95 ${
               activeGrade === grade ? 'bg-secondary text-white shadow-md shadow-secondary/20' : 'text-slate-400 hover:text-slate-600'
             }`}

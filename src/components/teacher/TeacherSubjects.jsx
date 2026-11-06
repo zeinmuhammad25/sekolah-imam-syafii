@@ -76,7 +76,12 @@ const getStandardDefaultsForGrade = (grade) => {
 
 export default function TeacherSubjects() {
   const [subjects, setSubjects] = useState(null);
-  const [activeGrade, setActiveGrade] = useState('SD 1'); // 'TK' | 'SD 1'..'SD 6'
+  const [activeGrade, setActiveGrade] = useState(() => localStorage.getItem('last_active_grade_subjects') || 'SD 1');
+
+  const changeActiveGrade = (grade) => {
+    setActiveGrade(grade);
+    try { localStorage.setItem('last_active_grade_subjects', grade); } catch {}
+  };
   const [activeKelompok, setActiveKelompok] = useState('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
