@@ -11,7 +11,7 @@ import {
   buildAdd, buildUpdate, buildDelete, friendlyDbError,
 } from '../_lib/writes.js';
 
-const MAX_BATCH_OPS = 300;
+const MAX_BATCH_OPS = 500;
 const CONFLICT_MSG = 'Data ini baru saja diubah oleh guru lain. Perubahan Anda belum tersimpan — muat ulang untuk melihat versi terbaru, lalu ulangi.';
 const GONE_MSG = 'Data ini sudah dihapus oleh guru lain.';
 

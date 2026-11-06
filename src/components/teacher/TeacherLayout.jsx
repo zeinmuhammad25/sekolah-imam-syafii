@@ -33,6 +33,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 export default function TeacherLayout({ children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
+  const [isReauthModalOpen, setIsReauthModalOpen] = useState(false);
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [reauthLoading, setReauthLoading] = useState(false);
+  const [reauthError, setReauthError] = useState('');
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -46,18 +51,87 @@ export default function TeacherLayout({ children }) {
     }
   });
 
-  // Sinkronisasi data user aktif dari backend
-  useEffect(() => {
-    fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.loggedIn && data.user) {
+  // Re-auth in-place handler: perbarui sesi tanpa reload halaman
+  const handleReauthSubmit = async (e) => {
+    e?.preventDefault();
+    if (!reauthPassword) {
+      setReauthError('Masukkan password Anda');
+      return;
+    }
+    setReauthLoading(true);
+    setReauthError('');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: currentUser?.username || 'admin',
+          password: reauthPassword
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsSessionExpired(false);
+        setIsReauthModalOpen(false);
+        setReauthPassword('');
+        if (data.user) {
           setCurrentUser(data.user);
           sessionStorage.setItem('teacherUser', JSON.stringify(data.user));
           localStorage.setItem('teacherUser', JSON.stringify(data.user));
         }
-      })
-      .catch(() => {});
+      } else {
+        setReauthError(data.error || 'Password salah');
+      }
+    } catch {
+      setReauthError('Gagal menghubungi server. Periksa koneksi internet.');
+    } finally {
+      setReauthLoading(false);
+    }
+  };
+
+  // Sinkronisasi data user aktif & Silent Keepalive dari backend
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.loggedIn) {
+          // Ambil user dari payload atau fallback ke user yang sudah tersimpan di storage/state
+          const currentStored = currentUser || (() => {
+            try { return JSON.parse(localStorage.getItem('teacherUser') || sessionStorage.getItem('teacherUser')); } catch { return null; }
+          })();
+
+          const fallbackUsername = data.username || currentStored?.username || (data.name === 'Admin Sekolah' ? 'admin' : '');
+          const isSuper = fallbackUsername === 'admin' || data.role === 'superadmin' || currentStored?.role === 'superadmin';
+
+          const userObj = data.user || {
+            id: data.userId || currentStored?.id,
+            username: fallbackUsername || currentStored?.username,
+            name: data.name || currentStored?.name,
+            role: isSuper ? 'superadmin' : (data.role || currentStored?.role || 'guru'),
+            permissions: isSuper ? '["all"]' : (data.permissions || currentStored?.permissions || '["all"]')
+          };
+          setCurrentUser(userObj);
+          sessionStorage.setItem('teacherUser', JSON.stringify(userObj));
+          localStorage.setItem('teacherUser', JSON.stringify(userObj));
+          setIsSessionExpired(false);
+        } else if (res.status === 401 || data.loggedIn === false) {
+          setIsSessionExpired(true);
+        }
+      } catch {
+        // Abaikan offline / error sementara
+      }
+    };
+
+    checkAuth();
+    const interval = setInterval(checkAuth, 10 * 60 * 1000); // Heartbeat keepalive tiap 10 menit
+    const onFocus = () => checkAuth();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   // Helper cek izin akses
@@ -464,6 +538,96 @@ export default function TeacherLayout({ children }) {
              </div>
            </div>
         </header>
+
+        {/* Banner Peringatan Sesi Kedaluwarsa */}
+        {isSessionExpired && (
+          <div className="bg-rose-600 text-white px-4 py-3 flex items-center justify-between text-xs font-bold shadow-md sticky top-0 md:top-20 z-50 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <ShieldAlert size={18} className="shrink-0 text-amber-300" />
+              <span>Sesi login Anda telah berakhir. Perubahan baru mungkin belum tersimpan ke server.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsReauthModalOpen(true);
+                setReauthError('');
+                setReauthPassword('');
+              }}
+              className="bg-white text-rose-700 px-3 py-1.5 rounded-lg hover:bg-rose-50 transition-colors uppercase text-[10px] font-black shrink-0 ml-3 shadow-sm active:scale-95"
+            >
+              Login Ulang di Sini
+            </button>
+          </div>
+        )}
+
+        {/* Modal Pop-up In-Place Re-auth (Tanpa Reload Halaman) */}
+        <AnimatePresence>
+          {isReauthModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setIsReauthModalOpen(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-100"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+                  <KeyRound size={24} />
+                </div>
+                <h3 className="text-lg font-black text-slate-900 leading-tight">Perpanjang Sesi Login</h3>
+                <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                  Masukkan password akun <strong className="text-slate-800 font-black">[{currentUser?.name || currentUser?.username || 'Guru'}]</strong> untuk melanjutkan pekerjaan tanpa me-reload halaman.
+                </p>
+
+                {reauthError && (
+                  <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-bold">
+                    {reauthError}
+                  </div>
+                )}
+
+                <form onSubmit={handleReauthSubmit} className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                      Password Akun
+                    </label>
+                    <input
+                      type="password"
+                      autoFocus
+                      required
+                      value={reauthPassword}
+                      onChange={(e) => setReauthPassword(e.target.value)}
+                      placeholder="Masukkan password..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsReauthModalOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={reauthLoading}
+                      className="flex-1 py-2.5 rounded-xl bg-secondary hover:brightness-95 text-white text-xs font-black shadow-md shadow-secondary/20 transition-all disabled:opacity-50"
+                    >
+                      {reauthLoading ? 'Memeriksa…' : 'Masuk Kembali'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Padding responsif: pas kanan-kiri di HP (px-3 py-4 = 12px) dan lapang di PC (10 = 40px), safe bottom space */}
         <div className="px-3 py-4 sm:p-6 md:p-10 w-full max-w-5xl mx-auto min-w-0 pb-28 md:pb-12">

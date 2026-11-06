@@ -930,12 +930,13 @@ export default function ParentPortal() {
                                 A. Muatan Pelajaran Umum
                               </h4>
                               <div className="overflow-x-auto border border-primary/5 rounded-xl">
-                                <table className="w-full min-w-[500px] text-left text-xs">
+                                <table className="w-full min-w-[640px] text-left text-xs">
                                   <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
                                     <tr>
                                       <th className="py-2.5 px-3">Mata Pelajaran</th>
                                       <th className="py-2.5 px-3 text-center w-24">Nilai Akhir</th>
-                                      <th className="py-2.5 px-3">Capaian Kompetensi</th>
+                                      <th className="py-2.5 px-3">Capaian Tertinggi</th>
+                                      <th className="py-2.5 px-3">Bimbingan / Harapan</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-primary/5 bg-white">
@@ -943,7 +944,14 @@ export default function ParentPortal() {
                                       <tr key={g.id} className="hover:bg-primary/[0.01]">
                                         <td className="py-2.5 px-3 font-semibold text-primary">{g.mataPelajaran || g.mata_pelajaran}</td>
                                         <td className="py-2.5 px-3 text-center font-bold text-secondary">{g.nilaiAngka || g.nilai_angka || '-'}</td>
-                                        <td className="py-2.5 px-3 text-primary/70 text-[11px] leading-relaxed">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                                        <td className="py-2.5 px-3 text-primary/80 text-[11px] leading-relaxed">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                                        <td className="py-2.5 px-3 text-[11px] leading-relaxed text-amber-900/90 bg-amber-500/[0.02]">
+                                          {(g.capaianBimbingan || g.capaian_bimbingan) ? (
+                                            <span>{g.capaianBimbingan || g.capaian_bimbingan}</span>
+                                          ) : (
+                                            <span className="text-slate-400 italic">-</span>
+                                          )}
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -960,12 +968,13 @@ export default function ParentPortal() {
                                 B. Muatan Lokal Diniyyah / Ciri Khusus
                               </h4>
                               <div className="overflow-x-auto border border-primary/5 rounded-xl">
-                                <table className="w-full min-w-[500px] text-left text-xs">
+                                <table className="w-full min-w-[640px] text-left text-xs">
                                   <thead className="bg-primary/5 text-primary/70 uppercase text-[10px] font-bold">
                                     <tr>
                                       <th className="py-2.5 px-3">Mata Pelajaran Diniyyah</th>
                                       <th className="py-2.5 px-3 text-center w-24">Nilai Akhir</th>
-                                      <th className="py-2.5 px-3">Capaian Kompetensi</th>
+                                      <th className="py-2.5 px-3">Capaian Tertinggi</th>
+                                      <th className="py-2.5 px-3">Bimbingan / Harapan</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-primary/5 bg-white">
@@ -973,7 +982,14 @@ export default function ParentPortal() {
                                       <tr key={g.id} className="hover:bg-primary/[0.01]">
                                         <td className="py-2.5 px-3 font-semibold text-primary">{g.mataPelajaran || g.mata_pelajaran}</td>
                                         <td className="py-2.5 px-3 text-center font-bold text-secondary">{g.nilaiAngka || g.nilai_angka || '-'}</td>
-                                        <td className="py-2.5 px-3 text-primary/70 text-[11px] leading-relaxed">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                                        <td className="py-2.5 px-3 text-primary/80 text-[11px] leading-relaxed">{g.deskripsiCapaian || g.deskripsi_capaian || '-'}</td>
+                                        <td className="py-2.5 px-3 text-[11px] leading-relaxed text-amber-900/90 bg-amber-500/[0.02]">
+                                          {(g.capaianBimbingan || g.capaian_bimbingan) ? (
+                                            <span>{g.capaianBimbingan || g.capaian_bimbingan}</span>
+                                          ) : (
+                                            <span className="text-slate-400 italic">-</span>
+                                          )}
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>

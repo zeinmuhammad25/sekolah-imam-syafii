@@ -106,14 +106,82 @@ export const mutateRow = async ({ action, sheetName, row, id, direction, ids, ex
 // -> { success, results: [{ id, updatedAt }] }  |  { success:false, conflict, conflicts, error }
 export const mutateBatch = (ops) => mutateRow({ action: 'batch', ops });
 
-// Admin: upload foto -> Cloudflare R2 -> { success, url }. Wajib login.
+// Helper client-side image compression untuk efisiensi upload ke R2
+export const compressImageBeforeUpload = (file, maxWidth = 1600, maxHeight = 1600, quality = 0.82) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/')) {
+      return resolve(file);
+    }
+    // Jika file SVG atau GIF, lewati kompresi canvas agar animasi/vektor tidak rusak
+    if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      return resolve(file);
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        // Resize proporsional jika melampaui batas maksimum
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            maxHeight = height;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Pilih WebP jika didukung, atau JPEG dengan kualitas optimal
+        const mimeType = 'image/webp';
+        const dataUrl = canvas.toDataURL(mimeType, quality);
+        
+        // Buat file baru dari blob jika perlu, atau kembalikan object berisi dataUrl
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            return resolve(file);
+          }
+          const baseName = file.name.replace(/\.[^/.]+$/, '');
+          const compressedFile = new File([blob], `${baseName}.webp`, {
+            type: 'image/webp',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        }, 'image/webp', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
+// Admin: upload foto -> Cloudflare R2 -> { success, url }. Wajib login (dengan auto-kompresi).
 export const uploadImage = async (file) => {
   try {
+    let processedFile = file;
+    try {
+      processedFile = await compressImageBeforeUpload(file);
+    } catch (compErr) {
+      console.warn('Image compression fallback to original:', compErr);
+      processedFile = file;
+    }
+
     const dataUrl = await new Promise((resolve, reject) => {
       const fr = new FileReader();
       fr.onload = () => resolve(fr.result);
       fr.onerror = reject;
-      fr.readAsDataURL(file);
+      fr.readAsDataURL(processedFile);
     });
     const res = await fetch('/api/upload', {
       method: 'POST',

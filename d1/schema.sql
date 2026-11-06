@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS report_periods (
   updated_at          INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_periods_student ON report_periods(student_id);
+CREATE INDEX IF NOT EXISTS idx_periods_lookup ON report_periods(kelas, tahun_ajaran, semester);
+CREATE INDEX IF NOT EXISTS idx_periods_student_sem ON report_periods(student_id, tahun_ajaran, semester);
 
 CREATE TABLE IF NOT EXISTS report_grades (
   id                  TEXT PRIMARY KEY,
@@ -185,6 +187,7 @@ CREATE TABLE IF NOT EXISTS report_grades (
   updated_at          INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_grades_period ON report_grades(report_period_id);
+CREATE INDEX IF NOT EXISTS idx_report_grades_composite ON report_grades(report_period_id, mata_pelajaran);
 
 CREATE TABLE IF NOT EXISTS report_aspects (
   id                  TEXT PRIMARY KEY,
@@ -211,7 +214,8 @@ CREATE INDEX IF NOT EXISTS idx_extras_period ON report_extras(report_period_id);
 CREATE TABLE IF NOT EXISTS teacher_users (
   id            TEXT PRIMARY KEY,
   username      TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,   -- hash (PBKDF2/scrypt via Web Crypto), JANGAN plaintext
+  password_hash TEXT NOT NULL,
+  password_plain TEXT,   -- hash (PBKDF2/scrypt via Web Crypto), JANGAN plaintext
   name          TEXT,
   role          TEXT DEFAULT 'guru', -- 'superadmin' | 'guru' | 'tu' | 'humas' | 'custom'
   permissions   TEXT DEFAULT '["all"]', -- JSON array of module keys
@@ -284,6 +288,7 @@ CREATE TABLE IF NOT EXISTS master_subjects (
 );
 CREATE INDEX IF NOT EXISTS idx_master_subjects_level ON master_subjects(level);
 CREATE INDEX IF NOT EXISTS idx_master_subjects_kelompok ON master_subjects(kelompok);
+CREATE INDEX IF NOT EXISTS idx_master_subjects_urutan ON master_subjects(level, urutan);
 
 -- ---------- Kontrol Publikasi Rapor per Kelas untuk Portal Wali Murid ----------
 

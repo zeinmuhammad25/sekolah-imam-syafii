@@ -292,7 +292,7 @@ export default function TeacherStudents() {
       if (s.kelas !== activeGrade) return false;
       if (filterStatus !== 'Semua' && (s.status || 'Aktif') !== filterStatus) return false;
       if (!q) return true;
-      return [s.nama_siswa, s.nik_siswa, s.nisn, s.no_kk, s.nama_ayah, s.nama_ibu]
+      return [s.nama_siswa, s.nik_siswa, s.nisn, s.nis, s.no_kk, s.nama_ayah, s.nama_ibu, s.nama_wali]
         .some((v) => String(v || '').toLowerCase().includes(q));
     });
   }, [items, query, activeGrade, filterStatus]);

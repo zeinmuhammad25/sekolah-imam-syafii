@@ -18,8 +18,8 @@ const ALL_GRADES = [
 ];
 
 const SD_KELOMPOK = [
-  { key: 'umum', label: 'Mapel Umum (Kurikulum Merdeka)', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  { key: 'mulok', label: 'Muatan Lokal (Diniyyah Sekolah)', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { key: 'umum', label: 'Kelompok A: Mapel Umum (Kurikulum Merdeka)', badge: 'bg-emerald-50 text-emerald-800 border-emerald-300 font-black' },
+  { key: 'mulok', label: 'Kelompok B: Muatan Lokal & Agama (Diniyyah)', badge: 'bg-amber-50 text-amber-800 border-amber-300 font-black' },
 ];
 
 const TK_KELOMPOK = [
@@ -283,34 +283,35 @@ export default function TeacherSubjects() {
     if (targetIdx < 0 || targetIdx >= itemsInSameGroup.length) return;
 
     const otherItem = itemsInSameGroup[targetIdx];
+    // Reorder instan: tanpa CAS expectedUpdatedAt agar guru bisa klik panah berkali-kali secara mulus
     const ops = [
       {
         action: 'update',
         sheetName: 'MasterSubjects',
         id: item.id,
-        expectedUpdatedAt: item.updatedAt ?? null,
         row: { urutan: otherItem.urutan },
       },
       {
         action: 'update',
         sheetName: 'MasterSubjects',
         id: otherItem.id,
-        expectedUpdatedAt: otherItem.updatedAt ?? null,
         row: { urutan: item.urutan },
       },
     ];
 
+    // Optimistic UI update seketika
+    setSubjects((prev) =>
+      prev.map((s) => {
+        if (s.id === item.id) return { ...s, urutan: otherItem.urutan };
+        if (s.id === otherItem.id) return { ...s, urutan: item.urutan };
+        return s;
+      })
+    );
+
     const res = await mutateBatch(ops);
-    if (res.success) {
-      setSubjects((prev) =>
-        prev.map((s) => {
-          if (s.id === item.id) return { ...s, urutan: otherItem.urutan };
-          if (s.id === otherItem.id) return { ...s, urutan: item.urutan };
-          return s;
-        })
-      );
-    } else {
-      showToast('Gagal memindahkan urutan.', 'error');
+    if (!res.success) {
+      showToast('Gagal menyimpan urutan ke server.', 'error');
+      load(); // rollback jika server menolak
     }
   };
 
@@ -574,9 +575,27 @@ export default function TeacherSubjects() {
                   };
                   const isFirst = idx === 0 || filteredSubjects[idx - 1].kelompok !== s.kelompok;
                   const isLast = idx === filteredSubjects.length - 1 || filteredSubjects[idx + 1].kelompok !== s.kelompok;
+                  const showHeader = isFirst && activeKelompok === 'all';
 
                   return (
-                    <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                    <React.Fragment key={s.id}>
+                      {showHeader && (
+                        <tr className="bg-slate-50/90 border-y border-slate-200">
+                          <td colSpan={isTK ? 5 : 6} className="py-2.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black border ${kelConfig.badge}`}>
+                                {kelConfig.label}
+                              </span>
+                              {!isTK && (
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  (Otomatis masuk bagian {s.kelompok === 'umum' ? 'A (Mapel Umum)' : 'B (Muatan Lokal)'} pada lembar rapor PDF)
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <tr className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3.5 px-4 text-center">
                         <span className="font-black text-slate-400 text-xs">{s.urutan || idx + 1}</span>
                       </td>
@@ -645,6 +664,7 @@ export default function TeacherSubjects() {
                         </div>
                       </td>
                     </tr>
+                    </React.Fragment>
                   );
                 })}
               </tbody>

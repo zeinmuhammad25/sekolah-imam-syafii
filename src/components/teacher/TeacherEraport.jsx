@@ -218,6 +218,46 @@ const describeError = (res) => {
 
 const cellBase = 'w-full bg-slate-50 border-2 border-slate-100 rounded-lg p-2 text-xs font-semibold text-slate-800 outline-none focus:border-secondary transition-all';
 
+// Helper: Otomatis susun narasi Capaian Tertinggi & Bimbingan/Harapan Kurikulum Merdeka berbasis nilai angka
+const generateSmartCapaian = (subjectName, scoreVal, type = 'capaian') => {
+  const score = Number(scoreVal);
+  const subj = (subjectName || '').trim() || 'mata pelajaran ini';
+  const isTahfidz = subj.toLowerCase().includes('tahfidz');
+  const isAgama = subj.toLowerCase().includes('agama') || subj.toLowerCase().includes('tauhid') || subj.toLowerCase().includes('fiqih') || subj.toLowerCase().includes('arab') || subj.toLowerCase().includes('hadits') || subj.toLowerCase().includes('diniyyah');
+
+  // ==================== B. PERLU BIMBINGAN / HARAPAN ====================
+  if (type === 'bimbingan') {
+    if (isNaN(score) || score >= 85) {
+      if (isTahfidz) return 'Diharapkan terus istiqomah mempertahankan mutqin hafalan dan meningkatkan kualitas tilawah secara konsisten.';
+      if (isAgama) return `Diharapkan terus mempertahankan akhlak mulia dan mengamalkan ilmu ${subj} dalam keseharian.`;
+      return `Diharapkan terus mempertahankan prestasi belajarnya serta dapat menjadi teladan bagi rekan-rekan di kelas.`;
+    } else if (score >= 75) {
+      if (isTahfidz) return 'Perlu menambah frekuensi murajaah mandiri di rumah agar hafalan semakin lancar dan tidak mudah lupa.';
+      if (isAgama) return `Perlu pembiasaan mengulang materi ${subj} di rumah dan meningkatkan ketelitian saat praktik.`;
+      return `Perlu bimbingan untuk lebih konsisten dan aktif bertanya agar pemahaman materi ${subj} semakin maksimal.`;
+    } else {
+      if (isTahfidz) return 'Perlu pendampingan intensif dari orang tua untuk murajaah harian agar target hafalan dapat tercapai.';
+      if (isAgama) return `Perlu bimbingan dan pendampingan khusus di rumah dalam memahami materi dasar ${subj}.`;
+      return `Perlu bimbingan dan perhatian lebih intensif dari orang tua dalam mendampingi belajar di rumah.`;
+    }
+  }
+
+  // ==================== A. CAPAIAN KOMPETENSI / TERTINGGI ====================
+  if (isNaN(score) || score >= 85) {
+    if (isTahfidz) return 'Menunjukkan kelancaran dan kefasihan tajwid yang sangat baik dalam menghafal Al-Qur\'an serta murajaah secara disiplin.';
+    if (isAgama) return `Menunjukkan penguasaan yang sangat baik dalam memahami kaidah ${subj} serta mempraktikkan adab islami dalam keseharian.`;
+    return `Menunjukkan penguasaan yang sangat baik dalam memahami konsep materi ${subj}, serta mampu menyelesaikan tugas dengan cermat dan mandiri.`;
+  } else if (score >= 75) {
+    if (isTahfidz) return 'Menunjukkan penguasaan yang baik dalam menghafal Al-Qur\'an, mampu mengikuti setoran hafalan dengan tertib.';
+    if (isAgama) return `Menunjukkan penguasaan yang baik dalam materi ${subj} dan memiliki kemauan yang positif dalam belajar.`;
+    return `Menunjukkan penguasaan yang baik dalam memahami materi ${subj}, serta mampu berpartisipasi aktif dalam kegiatan pembelajaran.`;
+  } else {
+    if (isTahfidz) return 'Mampu mengikuti hafalan Al-Qur\'an dengan bimbingan dan membutuhkan waktu lebih untuk mencapai ketuntasan.';
+    if (isAgama) return `Mampu memahami materi pengenalan dasar ${subj} dengan pendampingan bertahap dari guru.`;
+    return `Mampu memahami materi dasar ${subj} dengan pendampingan bertahap dari guru dan teman sejawat.`;
+  }
+};
+
 export default function TeacherEraport() {
   const [students, setStudents] = useState(null);
   const [periods, setPeriods] = useState([]);
@@ -244,6 +284,207 @@ export default function TeacherEraport() {
 
   // Filter status progres: 'ALL' | 'DONE' | 'PROGRESS' | 'EMPTY'
   const [statusFilter, setStatusFilter] = useState('ALL');
+  // Modal Input Nilai Se-Kelas (Matrix Grid Sheet)
+  const [showClassGridModal, setShowClassGridModal] = useState(false);
+  const [gridSubject, setGridSubject] = useState('');
+  const [gridKelompok, setGridKelompok] = useState('umum');
+  const [gridSemester, setGridSemester] = useState('1');
+  const [gridTahunAjaran, setGridTahunAjaran] = useState('2025/2026');
+  const [gridRows, setGridRows] = useState([]);
+  const [savingGrid, setSavingGrid] = useState(false);
+  const gridInputsRef = useRef([]);
+
+  const populateGridRows = (subjName, kel, ta, sem, studentList) => {
+    const currentStudents = studentList || (students || []).filter((s) => s.kelas === activeGrade);
+    const isTKGrade = activeGrade === 'TK';
+
+    const rows = currentStudents.map((stu) => {
+      const p = (periods || []).find(
+        (x) => String(x.studentId) === String(stu.id) && String(x.tahunAjaran) === String(ta) && String(x.semester) === String(sem)
+      );
+
+      let gradeRow = null;
+      if (p) {
+        if (isTKGrade) {
+          gradeRow = (subData.ReportAspects || []).find(
+            (g) => String(g.reportPeriodId) === String(p.id) && (g.aspek || '').trim().toLowerCase() === subjName.trim().toLowerCase()
+          );
+        } else {
+          gradeRow = (subData.ReportGrades || []).find(
+            (g) => String(g.reportPeriodId) === String(p.id) && (g.mataPelajaran || '').trim().toLowerCase() === subjName.trim().toLowerCase()
+          );
+        }
+      }
+
+      return {
+        studentId: stu.id,
+        studentName: stu.nama_siswa,
+        periodId: p ? p.id : null,
+        gradeRowId: gradeRow ? gradeRow.id : null,
+        nilaiAngka: gradeRow ? (gradeRow.nilaiAngka || '') : '',
+        deskripsiCapaian: gradeRow ? (gradeRow.deskripsiCapaian || gradeRow.deskripsi || '') : '',
+        capaianBimbingan: gradeRow ? (gradeRow.capaianBimbingan || '') : '',
+      };
+    });
+
+    setGridRows(rows);
+  };
+
+  const openClassGridModal = () => {
+    const classStudents = (students || []).filter((s) => s.kelas === activeGrade);
+    if (!classStudents.length) {
+      showToast(`Belum ada siswa terdaftar di ${activeGrade}.`, 'error');
+      return;
+    }
+
+    const activeSubjects = masterSubjects.filter((s) => (s.level === activeGrade || s.level === 'SD') && s.isActive !== 0);
+    const firstSubject = activeSubjects[0]?.nama || (activeGrade === 'TK' ? 'Nilai Agama & Budi Pekerti' : 'Pendidikan Agama Islam');
+    const firstKelompok = activeSubjects[0]?.kelompok || (activeGrade === 'TK' ? 'agama' : 'umum');
+
+    const classStudentIds = new Set(classStudents.map((s) => String(s.id)));
+    const latestP = (periods || []).find((p) => classStudentIds.has(String(p.studentId)));
+    const ta = latestP?.tahunAjaran || '2025/2026';
+    const sem = latestP?.semester || '1';
+
+    setGridSubject(firstSubject);
+    setGridKelompok(firstKelompok);
+    setGridTahunAjaran(ta);
+    setGridSemester(sem);
+
+    populateGridRows(firstSubject, firstKelompok, ta, sem, classStudents);
+    setShowClassGridModal(true);
+  };
+
+  const updateGridRow = (index, field, value) => {
+    setGridRows((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const autoGenerateGridRow = (index) => {
+    setGridRows((prev) => {
+      const copy = [...prev];
+      const r = copy[index];
+      const desc = generateSmartCapaian(gridSubject, r.nilaiAngka, 'capaian');
+      const bimb = generateSmartCapaian(gridSubject, r.nilaiAngka, 'bimbingan');
+      copy[index] = { ...r, deskripsiCapaian: desc, capaianBimbingan: bimb };
+      return copy;
+    });
+  };
+
+  const autoGenerateAllGridRows = () => {
+    setGridRows((prev) =>
+      prev.map((r) => {
+        if (!r.nilaiAngka) return r;
+        const desc = generateSmartCapaian(gridSubject, r.nilaiAngka, 'capaian');
+        const bimb = generateSmartCapaian(gridSubject, r.nilaiAngka, 'bimbingan');
+        return {
+          ...r,
+          deskripsiCapaian: desc,
+          capaianBimbingan: bimb,
+        };
+      })
+    );
+    showToast('Deskripsi capaian seluruh siswa berhasil di-generate otomatis.', 'success');
+  };
+
+  const handleScoreKeyDown = (e, index) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextInput = gridInputsRef.current[index + 1];
+      if (nextInput) nextInput.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevInput = gridInputsRef.current[index - 1];
+      if (prevInput) prevInput.focus();
+    }
+  };
+
+  const handleSaveClassGrid = async () => {
+    const isTKGrade = activeGrade === 'TK';
+    const filledRows = gridRows.filter((r) => String(r.nilaiAngka || '').trim() !== '' || String(r.deskripsiCapaian || '').trim() !== '');
+
+    if (!filledRows.length) {
+      showToast('Belum ada nilai yang diinput.', 'error');
+      return;
+    }
+
+    setSavingGrid(true);
+    try {
+      const ops = [];
+
+      const rowsNeedingPeriod = filledRows.filter((r) => !r.periodId);
+      if (rowsNeedingPeriod.length > 0) {
+        const periodOps = rowsNeedingPeriod.map((r) => ({
+          action: 'add',
+          sheetName: 'ReportPeriods',
+          row: {
+            studentId: r.studentId,
+            kelas: activeGrade,
+            tahunAjaran: gridTahunAjaran,
+            semester: gridSemester,
+          },
+        }));
+        const pRes = await mutateBatch(periodOps);
+        if (!pRes.success) {
+          throw new Error('Gagal menyiapkan data semester siswa.');
+        }
+        pRes.results.forEach((resItem, idx) => {
+          rowsNeedingPeriod[idx].periodId = resItem.id;
+        });
+      }
+
+      const sheetName = isTKGrade ? 'ReportAspects' : 'ReportGrades';
+      filledRows.forEach((r) => {
+        const rowData = isTKGrade
+          ? {
+              reportPeriodId: r.periodId,
+              kelompok: gridKelompok || 'agama',
+              aspek: gridSubject,
+              deskripsi: r.deskripsiCapaian || '',
+            }
+          : {
+              reportPeriodId: r.periodId,
+              kelompok: gridKelompok || 'umum',
+              mataPelajaran: gridSubject,
+              nilaiAngka: String(r.nilaiAngka || '').trim(),
+              deskripsiCapaian: r.deskripsiCapaian || '',
+              capaianBimbingan: r.capaianBimbingan || '',
+            };
+
+        if (r.gradeRowId) {
+          ops.push({
+            action: 'update',
+            sheetName,
+            id: r.gradeRowId,
+            row: rowData,
+          });
+        } else {
+          ops.push({
+            action: 'add',
+            sheetName,
+            row: rowData,
+          });
+        }
+      });
+
+      const res = await mutateBatch(ops);
+      if (!res.success) {
+        throw new Error(res.error || 'Gagal menyimpan nilai se-kelas.');
+      }
+
+      setShowClassGridModal(false);
+      await load();
+      showToast(`Nilai ${gridSubject} untuk ${filledRows.length} siswa kelas ${activeGrade} berhasil disimpan!`, 'success');
+    } catch (err) {
+      showToast(String(err.message || err), 'error');
+    } finally {
+      setSavingGrid(false);
+    }
+  };
+
 
   // Modal Setup Semester Massal Se-Kelas (Batch Setup)
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -983,7 +1224,29 @@ export default function TeacherEraport() {
         <div className="space-y-1">
           <textarea rows={f.rows || 1} {...common} className={`${cellBase} ${f.w || ''}`} />
           {(isCapaian || isBimbingan) && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 items-center">
+              {(isCapaian || isBimbingan) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isCapaian) {
+                      const text = generateSmartCapaian(row.mataPelajaran || row.aspek, row.nilaiAngka, 'capaian');
+                      updateDraftCell(t.key, row._key, 'deskripsiCapaian', text);
+                      const bimb = generateSmartCapaian(row.mataPelajaran || row.aspek, row.nilaiAngka, 'bimbingan');
+                      if (bimb && (!row.capaianBimbingan || row.capaianBimbingan.trim() === '')) {
+                        updateDraftCell(t.key, row._key, 'capaianBimbingan', bimb);
+                      }
+                    } else if (isBimbingan) {
+                      const bimb = generateSmartCapaian(row.mataPelajaran || row.aspek, row.nilaiAngka, 'bimbingan');
+                      updateDraftCell(t.key, row._key, 'capaianBimbingan', bimb);
+                    }
+                  }}
+                  className="text-[10px] font-black bg-secondary/15 hover:bg-secondary text-secondary hover:text-white px-2 py-0.5 rounded-md transition-all flex items-center gap-1 shadow-xs active:scale-95 mr-1"
+                  title={isCapaian ? "Otomatis susun narasi capaian Kurikulum Merdeka dari nilai angka" : "Otomatis susun narasi bimbingan/harapan dari nilai angka"}
+                >
+                  <Sparkles size={11} /> {isCapaian ? 'Auto Capaian' : 'Auto Harapan'}
+                </button>
+              )}
               {(isCapaian ? QUICK_TEMPLATES.capaian : QUICK_TEMPLATES.bimbingan).map((qt, idx) => (
                 <button
                   key={idx}
@@ -1060,6 +1323,14 @@ export default function TeacherEraport() {
 
         {/* Tombol Aksi Massal: di mobile berdampingan 2 kolom proporsional */}
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={openClassGridModal}
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-emerald-700 text-white hover:bg-emerald-800 font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-700/20 active:scale-95 text-center col-span-2 sm:col-span-1"
+            title="Input nilai 1 mata pelajaran untuk seluruh siswa kelas sekaligus"
+          >
+            <Table size={15} className="shrink-0" />
+            <span className="truncate">Input Nilai Se-Kelas</span>
+          </button>
           <button
             onClick={openMultiExportModal}
             className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-secondary text-white hover:brightness-95 font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-secondary/20 active:scale-95 text-center"
@@ -2148,6 +2419,203 @@ export default function TeacherEraport() {
         )}
       </AnimatePresence>
 
+      {/* Modal Input Nilai Se-Kelas (Matrix Grid Sheet) */}
+      <AnimatePresence>
+        {showClassGridModal && (
+          <Modal
+            isOpen={true}
+            onClose={() => { if (!savingGrid) setShowClassGridModal(false); }}
+            title={`Input Nilai Se-Kelas — ${activeGrade}`}
+            subtitle="Lembar kerja cepat: isi nilai 1 mapel untuk seluruh siswa kelas sekaligus"
+            maxWidth="max-w-4xl"
+          >
+            <div className="space-y-4">
+              {/* Filter Bar: Mapel, Semester, Tahun Ajaran */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                    Mata Pelajaran / Aspek
+                  </label>
+                  <select
+                    value={gridSubject}
+                    onChange={(e) => {
+                      const subj = e.target.value;
+                      const found = masterSubjects.find((s) => s.nama === subj);
+                      const kel = found?.kelompok || (activeGrade === 'TK' ? 'agama' : 'umum');
+                      setGridSubject(subj);
+                      setGridKelompok(kel);
+                      populateGridRows(subj, kel, gridTahunAjaran, gridSemester);
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all"
+                  >
+                    {masterSubjects
+                      .filter((s) => (s.level === activeGrade || s.level === 'SD') && s.isActive !== 0)
+                      .map((s) => (
+                        <option key={s.id || s.nama} value={s.nama}>
+                          {s.nama} ({s.kelompok === 'umum' ? 'Kel. A' : s.kelompok === 'mulok' ? 'Kel. B' : s.kelompok})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                    Semester
+                  </label>
+                  <select
+                    value={gridSemester}
+                    onChange={(e) => {
+                      const sem = e.target.value;
+                      setGridSemester(sem);
+                      populateGridRows(gridSubject, gridKelompok, gridTahunAjaran, sem);
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all"
+                  >
+                    <option value="1">Semester 1 (Ganjil)</option>
+                    <option value="2">Semester 2 (Genap)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                    Tahun Ajaran
+                  </label>
+                  <input
+                    type="text"
+                    value={gridTahunAjaran}
+                    onChange={(e) => {
+                      const ta = e.target.value;
+                      setGridTahunAjaran(ta);
+                      populateGridRows(gridSubject, gridKelompok, ta, gridSemester);
+                    }}
+                    placeholder="mis. 2025/2026"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-secondary transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Action Bar & Quick Guide */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+                <p className="text-[11px] font-semibold text-slate-500">
+                  Tekan <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-black">Enter</kbd> atau <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-black">↓</kbd> pada nilai angka untuk lanjut ke siswa berikutnya.
+                </p>
+                <button
+                  type="button"
+                  onClick={autoGenerateAllGridRows}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-secondary/10 hover:bg-secondary text-secondary hover:text-white font-black text-xs transition-all shadow-xs active:scale-95 shrink-0"
+                  title="Otomatis susun deskripsi capaian seluruh siswa dari nilai angka yang terisi"
+                >
+                  <Sparkles size={13} />
+                  <span>Auto-Capaian Semua Siswa</span>
+                </button>
+              </div>
+
+              {/* Tabel Lembar Kerja Se-Kelas */}
+              <div className="max-h-[55vh] overflow-y-auto border border-slate-200 rounded-2xl shadow-inner">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="sticky top-0 bg-slate-100 z-10 shadow-xs">
+                    <tr className="border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                      <th className="py-2.5 px-3 w-10 text-center">No</th>
+                      <th className="py-2.5 px-3 w-44 sm:w-52">Nama Siswa</th>
+                      <th className="py-2.5 px-2 w-24 text-center">Nilai (0–100)</th>
+                      <th className="py-2.5 px-3">Capaian Pembelajaran (Deskripsi)</th>
+                      {!isTK && <th className="py-2.5 px-3">Perlu Bimbingan / Harapan</th>}
+                      <th className="py-2.5 px-3 w-14 text-center">Auto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {gridRows.map((row, idx) => (
+                      <tr key={row.studentId} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-400">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <p className="font-bold text-slate-900 leading-snug">{row.studentName}</p>
+                          {!row.periodId && (
+                            <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                              + Buat Periode
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-2 text-center">
+                          <input
+                            ref={(el) => (gridInputsRef.current[idx] = el)}
+                            type="text"
+                            inputMode="decimal"
+                            value={row.nilaiAngka}
+                            onChange={(e) => updateGridRow(idx, 'nilaiAngka', e.target.value)}
+                            onKeyDown={(e) => handleScoreKeyDown(e, idx)}
+                            placeholder="0-100"
+                            className="w-16 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-center font-black text-xs text-slate-900 outline-none focus:border-secondary focus:bg-white transition-all"
+                          />
+                        </td>
+                        <td className="py-2 px-2.5">
+                          <textarea
+                            rows={2}
+                            value={row.deskripsiCapaian}
+                            onChange={(e) => updateGridRow(idx, 'deskripsiCapaian', e.target.value)}
+                            placeholder="Deskripsi capaian pembelajaran..."
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-800 outline-none focus:border-secondary focus:bg-white transition-all resize-y"
+                          />
+                        </td>
+                        {!isTK && (
+                          <td className="py-2 px-2.5">
+                            <textarea
+                              rows={2}
+                              value={row.capaianBimbingan}
+                              onChange={(e) => updateGridRow(idx, 'capaianBimbingan', e.target.value)}
+                              placeholder="Perlu bimbingan / harapan..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-800 outline-none focus:border-secondary focus:bg-white transition-all resize-y"
+                            />
+                          </td>
+                        )}
+                        <td className="py-2 px-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => autoGenerateGridRow(idx)}
+                            disabled={!row.nilaiAngka}
+                            className="p-1.5 rounded-lg bg-secondary/10 hover:bg-secondary text-secondary hover:text-white transition-colors disabled:opacity-20"
+                            title="Generate narasi capaian & bimbingan siswa ini"
+                          >
+                            <Sparkles size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <ModalFooter>
+              <div className="flex gap-2 justify-end w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowClassGridModal(false)}
+                  disabled={savingGrid}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs hover:bg-slate-200 transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveClassGrid}
+                  disabled={savingGrid}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-700 text-white font-black text-xs uppercase tracking-wider hover:bg-emerald-800 transition-all shadow-md shadow-emerald-700/20 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingGrid ? (
+                    <><Loader2 size={14} className="animate-spin" /> Menyimpan Se-Kelas…</>
+                  ) : (
+                    <><Check size={14} /> Simpan Nilai Se-Kelas</>
+                  )}
+                </button>
+              </div>
+            </ModalFooter>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      
       {/* Toast Notifikasi Modern (Tengah Atas) */}
       <AnimatePresence>
         {toast && (

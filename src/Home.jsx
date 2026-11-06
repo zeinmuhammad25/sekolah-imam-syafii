@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Phone, Mail, Instagram, Facebook, Youtube, Menu, X, ArrowRight, MessageCircle, Calendar, Users, Award, Lock, GraduationCap, BookOpen, MapPin, CheckCircle2, Sparkles } from 'lucide-react'
+import { Phone, Mail, Instagram, Facebook, Youtube, Menu, X, ArrowRight, MessageCircle, Calendar, Users, Award, Lock, GraduationCap, BookOpen, MapPin, CheckCircle2, Sparkles, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import PPDBForm from './components/PPDBForm'
 import TeacherLoginModal from './components/TeacherLoginModal'
@@ -10,13 +10,13 @@ import { fetchSchoolData, formatSheetDate, extractYoutubeId } from './services/g
 const MotionLink = motion(Link)
 
 // Mock Data
-const navigation = [
-  { name: 'Portal Nilai', href: '/portal-ortu' },
-  { name: 'Twibbon', href: '/twibbon' },
-  { name: 'Profil', href: '#profil' },
-  { name: 'Akademik', href: '#akademik' },
-  { name: 'Karya Siswa', href: '#galeri' },
+const mainNavigation = [
+  { name: 'Profil', href: '#profil', icon: Users, desc: 'Visi, Misi & Legalitas Yayasan' },
+  { name: 'Akademik', href: '#akademik', icon: GraduationCap, desc: 'Kurikulum Merdeka & Tahfidz' },
+  { name: 'Karya Siswa', href: '#galeri', icon: BookOpen, desc: 'Galeri Prestasi & Dokumentasi' },
+  { name: 'Twibbon', href: '/twibbon', icon: Sparkles, desc: 'Generator Bingkai Foto MPLS', isRoute: true },
 ]
+const navigation = mainNavigation
 
 // Angka kepercayaan di hero — konten statis, tidak perlu dari sheet
 const heroStats = [
@@ -260,11 +260,11 @@ export default function Home() {
       </div>
 
       {/* Header */}
-      <header className={`sticky top-0 z-50 transition-all duration-500 ${scrolled ? 'py-2' : 'py-5'}`}>
-        <div className="container mx-auto px-4">
-          <div className={`flex justify-between items-center px-4 md:px-6 transition-all ${scrolled ? 'bg-ivory/90 backdrop-blur-md py-3 rounded-2xl shadow-lg border border-primary/10' : ''}`}>
-            <a href="#beranda" className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-primary rounded-xl flex items-center justify-center text-ivory overflow-hidden shrink-0 border border-secondary/30">
+      <header className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'py-2 md:py-3' : 'py-3.5 md:py-5'}`}>
+        <div className="container mx-auto px-4 max-w-7xl">
+          <div className="flex justify-between items-center px-4 md:px-6 py-2.5 md:py-3 rounded-2xl md:rounded-3xl bg-ivory/90 backdrop-blur-xl border border-primary/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300">
+            <a href="#beranda" className="flex items-center gap-3 group">
+              <div className="w-10 h-10 md:w-11 md:h-11 bg-primary rounded-xl md:rounded-2xl flex items-center justify-center text-ivory overflow-hidden shrink-0 border border-secondary/40 shadow-sm group-hover:scale-105 transition-transform duration-300">
                 <OptimizedImage
                   src="/avatars/logo.png"
                   alt="Logo Sekolah Islam Imam Syafi'i Percut"
@@ -273,131 +273,246 @@ export default function Home() {
                 />
               </div>
               <div className="leading-tight">
-                <p className="font-display text-lg font-semibold tracking-tight text-primary">Imam Syafi'i Percut</p>
-                <p className="text-[8px] text-primary/50 uppercase tracking-[0.25em] font-bold">TK Qur'an & SD Islam</p>
+                <p className="font-display text-base md:text-lg font-bold tracking-tight text-primary group-hover:text-forest transition-colors">
+                  Imam Syafi'i Percut
+                </p>
+                <p className="text-[9px] text-secondary font-bold tracking-[0.2em] uppercase">
+                  TK Qur'an & SD Islam
+                </p>
               </div>
             </a>
 
-            <nav className="hidden md:flex items-center gap-6 lg:gap-9">
-              {navigation.map((item) => {
-                const cls = "text-[12px] font-semibold text-primary/60 hover:text-secondary transition-all relative group uppercase tracking-[0.15em]"
-                const inner = <>{item.name}<span className="absolute -bottom-1 left-0 w-0 h-px bg-secondary transition-all group-hover:w-full" /></>
-                return item.href.startsWith('/')
-                  ? <Link key={item.name} to={item.href} className={cls}>{inner}</Link>
-                  : <a key={item.name} href={item.href} className={cls}>{inner}</a>
+            {/* Desktop Navigation Links & Actions */}
+            <nav className="hidden lg:flex items-center gap-1 xl:gap-2">
+              {mainNavigation.map((item) => {
+                const isRoute = !!item.isRoute;
+                const El = isRoute ? Link : 'a';
+                const linkProps = isRoute ? { to: item.href } : { href: item.href };
+                return (
+                  <El
+                    key={item.name}
+                    {...linkProps}
+                    className="px-3.5 py-2 rounded-xl text-xs font-semibold text-primary/75 hover:text-primary hover:bg-primary/5 transition-all flex items-center gap-1.5 tracking-wide"
+                  >
+                    {item.name === 'Twibbon' && <Sparkles size={13} className="text-secondary" />}
+                    <span>{item.name}</span>
+                  </El>
+                );
               })}
+
+              <div className="h-4 w-px bg-primary/15 mx-2" />
+
+              {/* Portal Ortu / E-Raport (Akses Eksklusif Wali Murid) */}
               <Link
                 to="/portal-ortu"
-                className="text-[11px] font-bold text-secondary hover:text-secondary-dark transition-all flex items-center gap-1.5 bg-secondary/10 px-3 py-1.5 rounded-lg border border-secondary/20"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary border border-secondary/25 text-xs font-bold transition-all shadow-sm active:scale-95"
+                title="Cek Nilai & Rapor Siswa"
               >
-                <Award size={13} /> PORTAL ORTU
+                <Award size={14} className="text-secondary" />
+                <span>Portal Nilai</span>
               </Link>
+
+              {/* Akses Guru */}
               <button
                 onClick={() => setIsTeacherLoginOpen(true)}
-                className="text-[11px] font-semibold text-primary/40 hover:text-primary transition-all flex items-center gap-1.5"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-primary/65 hover:text-primary hover:bg-primary/5 text-xs font-semibold transition-all active:scale-95"
+                title="Login Guru & Tenaga Kependidikan"
               >
-                <Lock size={13} /> AKSES GURU
+                <Lock size={13} />
+                <span>Akses Guru</span>
               </button>
-              <button onClick={() => setIsPPDBOpen(true)} className="bg-primary hover:bg-forest text-ivory px-6 py-3 rounded-xl text-[11px] font-bold shadow-lg shadow-primary/20 transition-all uppercase tracking-[0.15em]">
-                Daftar PPDB
+
+              {/* Primary CTA: Daftar PPDB */}
+              <button
+                onClick={() => setIsPPDBOpen(true)}
+                className="ml-1 bg-gradient-to-r from-primary to-forest hover:from-primary-light hover:to-primary text-ivory px-5 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all active:scale-95 flex items-center gap-2 uppercase tracking-wider"
+              >
+                <span>Daftar PPDB</span>
+                <ArrowRight size={13} className="text-secondary-light" />
               </button>
             </nav>
 
-            <button className="md:hidden p-3 text-primary" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Buka menu">
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            {/* Mobile Hamburger Button */}
+            <button
+              className="lg:hidden w-10 h-10 rounded-xl bg-primary/5 hover:bg-primary/10 text-primary flex items-center justify-center transition-all active:scale-90 border border-primary/10"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label="Buka menu"
+            >
+              {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Menu */}
+      {/* Mobile Drawer Menu (Next-Level Luxury) */}
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, x: '100%' }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-[100] bg-ivory flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] bg-forest/40 backdrop-blur-sm lg:hidden flex justify-end"
+            onClick={() => setIsMenuOpen(false)}
           >
-            <div className="flex justify-between items-center p-8 border-b border-primary/10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-ivory text-xs overflow-hidden border border-secondary/30">
-                  <OptimizedImage
-                    src="/avatars/logo.png"
-                    alt="Logo Sekolah Islam Imam Syafi'i Percut"
-                    className="w-full h-full"
-                  />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+              className="w-[88vw] max-w-md h-full bg-[#FCFBF7] shadow-2xl flex flex-col overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header Drawer */}
+              <div className="p-5 border-b border-primary/10 flex items-center justify-between sticky top-0 bg-[#FCFBF7]/95 backdrop-blur-md z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-ivory overflow-hidden border border-secondary/30 shrink-0">
+                    <OptimizedImage
+                      src="/avatars/logo.png"
+                      alt="Logo Sekolah"
+                      className="w-full h-full"
+                    />
+                  </div>
+                  <div>
+                    <p className="font-display font-bold text-sm text-primary leading-tight">Imam Syafi'i Percut</p>
+                    <span className="text-[9px] font-bold text-secondary uppercase tracking-wider">TK Qur'an & SD Islam</span>
+                  </div>
                 </div>
-                <span className="font-bold text-xs tracking-[0.2em] text-primary uppercase">Menu Utama</span>
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-10 h-10 rounded-full bg-primary/5 hover:bg-primary/10 flex items-center justify-center text-primary active:scale-90 transition-transform"
+                  aria-label="Tutup menu"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <button
-                onClick={() => setIsMenuOpen(false)}
-                className="w-12 h-12 rounded-full bg-primary/5 flex items-center justify-center text-primary active:scale-90 transition-transform"
-                aria-label="Tutup menu"
-              >
-                <X size={24} />
-              </button>
-            </div>
 
-            <nav className="flex-grow flex flex-col justify-center px-10 gap-2">
-              {navigation.map((item, i) => {
-                const isRoute = item.href.startsWith('/')
-                const El = isRoute ? MotionLink : motion.a
-                const linkProps = isRoute ? { to: item.href } : { href: item.href }
-                return (
-                  <El
-                    key={item.name}
-                    {...linkProps}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + (i * 0.05) }}
-                    className="group flex items-center justify-between py-4 border-b border-primary/10 last:border-0"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <span className="font-display text-2xl font-semibold text-primary group-hover:text-secondary transition-colors flex items-center gap-4">
-                      {item.name === 'Portal Nilai' && <Award size={18} className="text-secondary/50" />}
-                      {item.name === 'Twibbon' && <Sparkles size={18} className="text-secondary/50" />}
-                      {item.name === 'Profil' && <Users size={18} className="text-secondary/50" />}
-                      {item.name === 'Akademik' && <GraduationCap size={18} className="text-secondary/50" />}
-                      {item.name === 'Karya Siswa' && <BookOpen size={18} className="text-secondary/50" />}
-                      {item.name}
+              {/* Content Drawer */}
+              <div className="p-5 flex-grow flex flex-col gap-5">
+                {/* Banner Card PPDB */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-forest to-forest text-ivory p-4 shadow-lg shadow-primary/20 border border-secondary/30">
+                  <div className="absolute top-0 right-0 translate-x-4 -translate-y-4 w-24 h-24 bg-secondary/10 rounded-full blur-xl pointer-events-none" />
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="px-2 py-0.5 rounded-full bg-secondary/20 text-secondary-light text-[9px] font-black tracking-wider uppercase border border-secondary/30">
+                      ★ PPDB TA 2026/2027
                     </span>
-                    <ArrowRight size={18} className="text-primary/20 group-hover:text-secondary transition-all" />
-                  </El>
-                )
-              })}
+                    <span className="text-[10px] text-ivory/70 font-semibold">• Bebas Biaya</span>
+                  </div>
+                  <h4 className="font-display font-bold text-base text-ivory leading-snug">
+                    Penerimaan Murid Baru
+                  </h4>
+                  <p className="text-[11px] text-ivory/80 mt-0.5 leading-relaxed">
+                    Jenjang TK Qur'an & SD Islam Imam Syafi'i Percut berbasis Sunnah.
+                  </p>
+                  <button
+                    onClick={() => { setIsPPDBOpen(true); setIsMenuOpen(false); }}
+                    className="mt-3 w-full py-2.5 px-4 bg-secondary hover:bg-secondary-light text-forest rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95"
+                  >
+                    <span>Daftar Online Sekarang</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="mt-8 flex flex-col gap-4"
-              >
-                <button
-                  onClick={() => { setIsPPDBOpen(true); setIsMenuOpen(false); }}
-                  className="w-full bg-primary text-ivory py-5 rounded-2xl font-bold text-base shadow-2xl shadow-primary/20 flex items-center justify-center gap-3"
-                >
-                  DAFTAR PPDB <ArrowRight size={20} />
-                </button>
-                <button
-                  onClick={() => { setIsTeacherLoginOpen(true); setIsMenuOpen(false); }}
-                  className="w-full bg-primary/5 text-primary/60 py-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-3 border border-primary/10"
-                >
-                  <Lock size={16} /> AKSES ADMINISTRASI GURU
-                </button>
-              </motion.div>
-            </nav>
+                {/* Seksi Navigasi Utama */}
+                <div>
+                  <p className="text-[10px] font-black text-primary/40 uppercase tracking-[0.2em] mb-2 px-1">
+                    Jelajahi Sekolah
+                  </p>
+                  <div className="space-y-1.5">
+                    {mainNavigation.map((item) => {
+                      const isRoute = !!item.isRoute;
+                      const El = isRoute ? Link : 'a';
+                      const linkProps = isRoute ? { to: item.href } : { href: item.href };
+                      const Icon = item.icon;
+                      return (
+                        <El
+                          key={item.name}
+                          {...linkProps}
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center justify-between p-3 rounded-2xl bg-white border border-primary/5 hover:border-secondary/40 shadow-sm active:scale-[0.98] transition-all group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-primary/5 group-hover:bg-secondary/10 text-primary group-hover:text-secondary flex items-center justify-center transition-colors">
+                              <Icon size={17} />
+                            </div>
+                            <div>
+                              <p className="font-bold text-xs text-primary group-hover:text-secondary transition-colors">
+                                {item.name}
+                              </p>
+                              <p className="text-[10px] text-primary/45 font-medium leading-tight">
+                                {item.desc}
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className="text-primary/25 group-hover:text-secondary group-hover:translate-x-0.5 transition-all" />
+                        </El>
+                      );
+                    })}
+                  </div>
+                </div>
 
-            <div className="p-12 border-t border-primary/10">
-              <p className="text-[10px] font-bold text-primary/40 uppercase tracking-[0.2em] mb-4">Hubungi Kami</p>
-              <div className="flex gap-6 text-primary/50">
-                <Instagram size={20} />
-                <Facebook size={20} />
-                <Youtube size={20} />
-                <Mail size={20} />
+                {/* Seksi Layanan Civitas */}
+                <div>
+                  <p className="text-[10px] font-black text-primary/40 uppercase tracking-[0.2em] mb-2 px-1">
+                    Layanan & Administrasi
+                  </p>
+                  <div className="space-y-2">
+                    <Link
+                      to="/portal-ortu"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-secondary/10 border border-secondary/25 hover:bg-secondary/15 transition-all active:scale-[0.98] group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-secondary/20 text-secondary flex items-center justify-center">
+                          <Award size={18} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-xs text-secondary-dark">Portal Nilai Siswa (E-Raport)</p>
+                          <p className="text-[10px] text-secondary/80 font-medium">Cek nilai & rapor berkala siswa</p>
+                        </div>
+                      </div>
+                      <ArrowRight size={15} className="text-secondary group-hover:translate-x-1 transition-transform" />
+                    </Link>
+
+                    <button
+                      onClick={() => { setIsTeacherLoginOpen(true); setIsMenuOpen(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-all active:scale-[0.98]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                          <Lock size={15} />
+                        </div>
+                        <span className="font-bold text-xs text-primary/80">Login Guru & Tendik</span>
+                      </div>
+                      <ChevronRight size={15} className="text-primary/30" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+
+              {/* Footer Drawer */}
+              <div className="p-5 border-t border-primary/10 bg-white/50 mt-auto space-y-3">
+                <a
+                  href="https://wa.me/6283125755134"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  <MessageCircle size={15} />
+                  <span>Konsultasi PPDB via WhatsApp</span>
+                </a>
+
+                <div className="flex items-center justify-between pt-1 text-primary/50 text-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary/40">Ikuti Kami</span>
+                  <div className="flex gap-4">
+                    <a href="https://instagram.com" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors" aria-label="Instagram"><Instagram size={17} /></a>
+                    <a href="https://facebook.com" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors" aria-label="Facebook"><Facebook size={17} /></a>
+                    <a href="https://youtube.com" target="_blank" rel="noreferrer" className="hover:text-primary transition-colors" aria-label="YouTube"><Youtube size={17} /></a>
+                    <a href="mailto:admin@sekolahislamimamsyafii.web.id" className="hover:text-primary transition-colors" aria-label="Email"><Mail size={17} /></a>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

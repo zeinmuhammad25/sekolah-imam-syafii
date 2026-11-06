@@ -33,7 +33,7 @@ function queryD1(sql) {
 }
 
 function fetchUsersFromDb() {
-  const sql = "SELECT id, username, name, role, permissions, is_active, created_at, updated_at FROM teacher_users ORDER BY (CASE WHEN username = 'guru' OR username = 'admin' THEN 0 ELSE 1 END), name ASC";
+  const sql = "SELECT id, username, name, role, permissions, is_active, password_plain, created_at, updated_at FROM teacher_users ORDER BY (CASE WHEN username = 'guru' OR username = 'admin' THEN 0 ELSE 1 END), name ASC";
   const rows = queryD1(sql);
   cachedUsers = rows;
   lastFetchTime = Date.now();

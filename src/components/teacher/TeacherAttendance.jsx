@@ -625,15 +625,24 @@ export default function TeacherAttendance() {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => acquireGps(true)}
-                disabled={gpsLoading}
-                className="w-full sm:w-auto px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md transition-all shrink-0 flex items-center justify-center gap-1.5"
-              >
-                <Navigation size={13} className={gpsLoading ? 'animate-spin' : ''} />
-                <span>{gpsLoading ? 'Mendeteksi…' : 'Izinkan Lokasi Sekarang'}</span>
-              </button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPermissionModalOpen(true)}
+                  className="px-3.5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-black text-xs rounded-xl transition-all text-center"
+                >
+                  Panduan Chrome HP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => acquireGps(true)}
+                  disabled={gpsLoading}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md transition-all shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  <Navigation size={13} className={gpsLoading ? 'animate-spin' : ''} />
+                  <span>{gpsLoading ? 'Mendeteksi…' : 'Izinkan Lokasi Sekarang'}</span>
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -984,23 +993,41 @@ export default function TeacherAttendance() {
                 </p>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-left space-y-3 text-xs font-bold text-slate-700">
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-secondary text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">1</span>
-                  <span>
-                    Jika muncul pop-up browser, pilih <b className="text-emerald-700">"Allow while visiting the site"</b> atau <b className="text-emerald-700">"Allow this time"</b>.
-                  </span>
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 p-4 rounded-2xl border border-amber-200/80 text-left space-y-3.5 text-xs text-slate-800 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-xl bg-secondary text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5 shadow-sm">
+                    1
+                  </div>
+                  <div className="leading-relaxed">
+                    <p className="font-black text-slate-900">Perhatikan Bilah Alamat (URL) di Chrome HP</p>
+                    <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                      Ketuk ikon <b>Gembok 🔒</b> atau <b>Pengaturan Situs (Tune / Sliders)</b> yang berada tepat di samping kiri alamat web <code className="bg-amber-100/80 px-1 py-0.5 rounded text-amber-900 font-mono">sekolah-imam-syafii...</code>.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="w-5 h-5 rounded-full bg-secondary text-white flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">2</span>
-                  <span>
-                    Jika sebelumnya terlanjur memilih <b className="text-rose-600">"Never allow" / "Blokir"</b>:
-                    <ul className="list-disc pl-4 mt-1 font-medium text-slate-600 space-y-0.5 text-[11px]">
-                      <li>Ketuk ikon <b>Gembok 🔒</b> atau simbol pengaturan di sebelah kiri kolom URL browser HP.</li>
-                      <li>Ketuk <b>Izin Situs (Permissions)</b> → Aktifkan <b>Lokasi (Location)</b>.</li>
-                      <li>Setelah itu, ketuk tombol <b>"Coba Izinkan Lokasi Lagi"</b> di bawah.</li>
-                    </ul>
-                  </span>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-xl bg-secondary text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5 shadow-sm">
+                    2
+                  </div>
+                  <div className="leading-relaxed">
+                    <p className="font-black text-slate-900">Buka Menu "Izin" (Permissions)</p>
+                    <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                      Pilih menu <b>Izin (Permissions)</b> → cari baris <b>Lokasi (Location)</b> → ubah centang/toggle menjadi <span className="font-black text-emerald-700 bg-emerald-100/60 px-1.5 py-0.5 rounded">Izinkan / Allow</span>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-xl bg-secondary text-white flex items-center justify-center text-xs font-black shrink-0 mt-0.5 shadow-sm">
+                    3
+                  </div>
+                  <div className="leading-relaxed">
+                    <p className="font-black text-slate-900">Deteksi Ulang GPS</p>
+                    <p className="text-[11px] font-semibold text-slate-600 mt-0.5">
+                      Pastikan GPS perangkat HP Anda dalam kondisi aktif, lalu tekan tombol hitam <b>"Coba Izinkan Lokasi Lagi"</b> di bawah ini.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

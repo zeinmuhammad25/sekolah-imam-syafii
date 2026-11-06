@@ -46,7 +46,13 @@ export default function TeacherLoginModal({ isOpen, onClose }) {
 
       const data = await res.json();
       if (data.success) {
-        const userObj = data.user || { username, name: data.name || username, role: 'guru', permissions: '["all"]' };
+        const normUser = String(username || '').trim().toLowerCase();
+        const userObj = data.user || {
+          username: normUser,
+          name: data.name || username,
+          role: normUser === 'admin' ? 'superadmin' : (data.role || 'guru'),
+          permissions: normUser === 'admin' ? '["all"]' : (data.permissions || '["all"]'),
+        };
         sessionStorage.setItem('isTeacherAuthenticated', 'true');
         sessionStorage.setItem('teacherUser', JSON.stringify(userObj));
         localStorage.setItem('isTeacherAuthenticated', 'true');

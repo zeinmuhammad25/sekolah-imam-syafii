@@ -20,7 +20,7 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const users = await env.DB.prepare(`
-      SELECT id, username, name, role, permissions, is_active, created_at, updated_at
+      SELECT id, username, name, role, permissions, is_active, password_plain, created_at, updated_at
       FROM teacher_users
       ORDER BY (CASE WHEN username = 'admin' THEN 0 ELSE 1 END), name ASC
     `).all();
@@ -136,11 +136,13 @@ export async function onRequestPost({ request, env }) {
       }
 
       let passwordHash = target.password_hash;
+      let passwordPlain = target.password_plain;
       if (password && password.trim().length > 0) {
         if (password.length < 6) {
           return json({ success: false, error: 'Password baru minimal 6 karakter.' }, { status: 400 });
         }
         passwordHash = await hashPassword(password);
+        passwordPlain = password;
       }
 
       await env.DB.prepare(`
@@ -148,12 +150,13 @@ export async function onRequestPost({ request, env }) {
           username = ?,
           name = ?,
           password_hash = ?,
+          password_plain = ?,
           role = ?,
           permissions = ?,
           is_active = ?,
           updated_at = ?
         WHERE id = ?
-      `).bind(newUsername, name, passwordHash, role, permissions, isActive, epoch, id).run();
+      `).bind(newUsername, name, passwordHash, passwordPlain, role, permissions, isActive, epoch, id).run();
 
       // Jika password diubah atau dinonaktifkan, hapus sesi login lama user tersebut agar wajib re-login
       if (password || isActive === 0) {

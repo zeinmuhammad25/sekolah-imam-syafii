@@ -46,11 +46,12 @@ export default function TeacherLoginGate({ onSuccess }) {
 
       const data = await res.json();
       if (data.success) {
+        const normUser = username.trim().toLowerCase();
         const userObj = data.user || {
-          username: username.trim().toLowerCase(),
+          username: normUser,
           name: data.name || username,
-          role: 'guru',
-          permissions: '["all"]',
+          role: normUser === 'admin' ? 'superadmin' : (data.role || 'guru'),
+          permissions: normUser === 'admin' ? '["all"]' : (data.permissions || '["all"]'),
         };
         localStorage.setItem('isTeacherAuthenticated', 'true');
         localStorage.setItem('teacherUser', JSON.stringify(userObj));

@@ -1,7 +1,7 @@
 import { verifyPassword, randomToken } from '../../_lib/password.js';
 import { sessionCookie, json } from '../../_lib/auth.js';
 
-const SESSION_DAYS = 14;
+const SESSION_DAYS = 30; // 30 hari masa aktif sesi guru (super long & aman)
 
 export async function onRequestPost({ request, env }) {
   let body;

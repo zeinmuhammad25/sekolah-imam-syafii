@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   Plus,
+  Eye,
+  EyeOff,
+  Copy,
   Edit2,
   Trash2,
   ShieldCheck,
@@ -147,6 +150,17 @@ export default function TeacherUsers() {
 
   // Toast
   const [toast, setToast] = useState({ show: false, message: '', type: 'success', title: '' });
+  const [showPasswordMap, setShowPasswordMap] = useState({});
+
+  const togglePasswordVisibility = (userId) => {
+    setShowPasswordMap((prev) => ({ ...prev, [userId]: !prev[userId] }));
+  };
+
+  const handleCopyPassword = (pwd) => {
+    if (!pwd) return;
+    navigator.clipboard?.writeText(pwd);
+    showToast('Password disalin ke papan klip!', 'success', 'Tersalin');
+  };
   const showToast = (message, type = 'success', title = '') => {
     setToast({ show: true, message, type, title });
   };
@@ -407,6 +421,7 @@ export default function TeacherUsers() {
                 <tr>
                   <th className="py-4 px-6">Pengguna & Username</th>
                   <th className="py-4 px-4">Peran (Role)</th>
+                  <th className="py-4 px-4">Kata Sandi</th>
                   <th className="py-4 px-4">Cakupan Hak Akses</th>
                   <th className="py-4 px-4 text-center">Status</th>
                   <th className="py-4 px-6 text-center">Aksi</th>
@@ -458,6 +473,38 @@ export default function TeacherUsers() {
                           <Shield size={12} />
                           <span>{preset.label}</span>
                         </span>
+                      </td>
+
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        {u.password_plain ? (
+                          <div className="inline-flex items-center gap-1.5 bg-slate-100/80 hover:bg-slate-100 border border-slate-200/80 px-2.5 py-1.5 rounded-xl transition-all">
+                            <KeyRound size={12} className="text-secondary shrink-0" />
+                            <span className="font-mono text-xs text-slate-800 font-bold select-all tracking-wider min-w-[70px]">
+                              {showPasswordMap[u.id] ? u.password_plain : '••••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => togglePasswordVisibility(u.id)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white transition-colors"
+                              title={showPasswordMap[u.id] ? 'Sembunyikan' : 'Lihat Password'}
+                            >
+                              {showPasswordMap[u.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyPassword(u.password_plain)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-secondary hover:bg-white transition-colors"
+                              title="Salin Password"
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 italic font-medium">
+                            <Lock size={11} className="text-slate-300" />
+                            <span>Terenkripsi</span>
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-4 px-4">
