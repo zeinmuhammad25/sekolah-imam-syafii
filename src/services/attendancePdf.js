@@ -85,7 +85,8 @@ export function exportAttendancePdf({
   doc.text(guruText, pageWidth - 14, 48, { align: 'right' });
 
   // Ringkasan Statistik
-  const ringkasanText = `Ringkasan: Hadir: ${stats.hadirTotal || (stats.tepatWaktu || 0) + (stats.terlambat || 0)}  |  Tepat Waktu: ${stats.tepatWaktu || 0}  |  Terlambat: ${stats.terlambat || 0}  |  Izin/Sakit: ${stats.izinSakitDinas || 0}  |  Alpha: ${stats.alpha || 0}`;
+  const tidakTapText = stats.tidakTapPulang ? `  |  Tidak Tap Pulang: ${stats.tidakTapPulang}` : '';
+  const ringkasanText = `Ringkasan: Hadir: ${stats.hadirTotal || (stats.tepatWaktu || 0) + (stats.terlambat || 0)}  |  Tepat Waktu: ${stats.tepatWaktu || 0}  |  Terlambat: ${stats.terlambat || 0}${tidakTapText}  |  Izin/Sakit: ${stats.izinSakitDinas || 0}  |  Alpha: ${stats.alpha || 0}`;
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
   doc.text(ringkasanText, 14, 53);
@@ -94,6 +95,7 @@ export function exportAttendancePdf({
   const tableData = attendances.map((item, idx) => {
     const isLate = item.check_in_status === 'terlambat';
     const isEarly = item.check_out_status === 'pulang_cepat' || (item.early_minutes && Number(item.early_minutes) > 0);
+    const isMissingOut = item.status === 'hadir' && Boolean(item.check_in_time) && !item.check_out_time;
 
     const statusMasuk = item.check_in_time
       ? isLate
@@ -105,7 +107,19 @@ export function exportAttendancePdf({
       ? isEarly
         ? `Cepat (${item.early_minutes || 0}m)`
         : 'Tepat Waktu (OK)'
+      : isMissingOut
+      ? 'Tidak Tap Pulang'
       : '-';
+
+    const jamPulang = item.check_out_time
+      ? item.check_out_time.slice(0, 5)
+      : isMissingOut
+      ? 'Tidak Tap'
+      : '-';
+
+    const noteText = isMissingOut
+      ? (item.notes ? `[Tidak tap pulang] ${item.notes}` : 'Tidak melakukan presensi pulang')
+      : (item.notes || '-');
 
     return [
       idx + 1,
@@ -114,9 +128,9 @@ export function exportAttendancePdf({
       (item.status || 'hadir').replace(/_/g, ' ').toUpperCase(),
       item.check_in_time ? item.check_in_time.slice(0, 5) : '-',
       statusMasuk,
-      item.check_out_time ? item.check_out_time.slice(0, 5) : '-',
+      jamPulang,
       statusPulang,
-      item.notes || '-',
+      noteText,
     ];
   });
 

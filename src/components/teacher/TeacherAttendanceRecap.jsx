@@ -202,6 +202,30 @@ export default function TeacherAttendanceRecap() {
     setSelectedIds(new Set());
   }, [selectedStatus]);
 
+  // Deteksi Guru yang Tidak / Lupa Melakukan Presensi Pulang
+  // Syarat: Status hadir + ada jam masuk + jam pulang kosong + (tanggal < hari ini ATAU hari ini setelah jam kerja berakhir)
+  const isNoCheckOut = (item) => {
+    if (!item) return false;
+    if (item.status !== 'hadir') return false;
+    if (!item.check_in_time) return false;
+    if (item.check_out_time) return false;
+
+    // Tanggal kemarin atau hari-hari sebelumnya yang sudah lewat
+    if (item.date < todayStr) return true;
+
+    // Tanggal hari ini: dicek apakah sudah melewati jadwal jam kerja pulang guru
+    if (item.date === todayStr) {
+      const teacher = teachers.find((t) => t.id === item.teacher_id);
+      const workEndTime = teacher?.work_end_time || '15:00';
+      const endMinutes = parseTimeToMinutes(workEndTime);
+      const nowWib = new Date();
+      const currentMinutes = nowWib.getHours() * 60 + nowWib.getMinutes();
+      return currentMinutes >= endMinutes;
+    }
+
+    return false;
+  };
+
   // Deteksi Alpha & Belum Absen Otomatis
   // Hanya berlaku untuk guru dengan is_active = 1 dan hari yang ada di work_days guru tersebut.
   const displayAttendances = useMemo(() => {
@@ -305,6 +329,7 @@ export default function TeacherAttendanceRecap() {
         if (selectedStatus === 'hadir') return item.status === 'hadir';
         if (selectedStatus === 'tepat_waktu') return item.status === 'hadir' && item.check_in_status === 'tepat_waktu';
         if (selectedStatus === 'terlambat') return item.status === 'hadir' && item.check_in_status === 'terlambat';
+        if (selectedStatus === 'tidak_tap_pulang') return isNoCheckOut(item);
         if (selectedStatus === 'izin') return item.status === 'izin';
         if (selectedStatus === 'sakit') return item.status === 'sakit';
         if (selectedStatus === 'dinas') return item.status === 'dinas';
@@ -329,6 +354,7 @@ export default function TeacherAttendanceRecap() {
     let terlambat = 0;
     let totalLateMinutes = 0;
     let pulangCepat = 0;
+    let tidakTapPulang = 0;
     let izin = 0;
     let sakit = 0;
     let dinas = 0;
@@ -345,6 +371,9 @@ export default function TeacherAttendanceRecap() {
         if (a.check_out_status === 'pulang_cepat' || (a.early_minutes && Number(a.early_minutes) > 0)) {
           pulangCepat++;
         }
+        if (isNoCheckOut(a)) {
+          tidakTapPulang++;
+        }
       } else if (a.status === 'izin') izin++;
       else if (a.status === 'sakit') sakit++;
       else if (a.status === 'dinas') dinas++;
@@ -359,6 +388,7 @@ export default function TeacherAttendanceRecap() {
       terlambat,
       totalLateMinutes,
       pulangCepat,
+      tidakTapPulang,
       izinSakitDinas: izin + sakit + dinas,
       alpha,
       belumAbsen,
@@ -515,24 +545,32 @@ export default function TeacherAttendanceRecap() {
     if (!deleteTarget) return;
 
     setDeleting(true);
-    const res = await adminResetAttendanceRecord(deleteTarget);
-    setDeleting(false);
+    try {
+      const targetName = deleteTarget.teacher_name || '';
+      const targetDate = deleteTarget.date || '';
+      const targetId = deleteTarget.id;
+      const res = await adminResetAttendanceRecord(deleteTarget);
 
-    if (res.success) {
-      showToast(
-        `Catatan presensi ${deleteTarget.teacher_name} pada tanggal ${deleteTarget.date} berhasil dihapus.`,
-        'success',
-        'Data Dihapus'
-      );
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(deleteTarget.id);
-        return next;
-      });
-      setDeleteTarget(null);
-      loadRecap();
-    } else {
-      showToast(res.error || 'Gagal menghapus data presensi.', 'error', 'Error');
+      if (res.success) {
+        showToast(
+          `Catatan presensi ${targetName} pada tanggal ${targetDate} berhasil dihapus.`,
+          'success',
+          'Data Dihapus'
+        );
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetId);
+          return next;
+        });
+        setDeleteTarget(null);
+        await loadRecap();
+      } else {
+        showToast(res.error || 'Gagal menghapus data presensi.', 'error', 'Error');
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan saat menghapus data: ' + err.message, 'error', 'Error');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -548,20 +586,26 @@ export default function TeacherAttendanceRecap() {
     if (bulkDeleteTarget.length === 0) return;
 
     setBulkDeleting(true);
-    const res = await adminDeleteAttendanceRecords(bulkDeleteTarget);
-    setBulkDeleting(false);
+    try {
+      const count = bulkDeleteTarget.length;
+      const res = await adminDeleteAttendanceRecords(bulkDeleteTarget);
 
-    if (res.success) {
-      showToast(
-        `${bulkDeleteTarget.length} data presensi berhasil dihapus dari rekap.`,
-        'success',
-        'Hapus Massal Berhasil'
-      );
-      setSelectedIds(new Set());
-      setBulkDeleteTarget([]);
-      loadRecap();
-    } else {
-      showToast(res.error || 'Gagal menghapus data presensi.', 'error', 'Error');
+      if (res.success) {
+        showToast(
+          `${count} data presensi berhasil dihapus dari rekap.`,
+          'success',
+          'Hapus Massal Berhasil'
+        );
+        setSelectedIds(new Set());
+        setBulkDeleteTarget([]);
+        await loadRecap();
+      } else {
+        showToast(res.error || 'Gagal menghapus data presensi.', 'error', 'Error');
+      }
+    } catch (err) {
+      showToast('Terjadi kesalahan saat menghapus data massal: ' + err.message, 'error', 'Error');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -601,19 +645,36 @@ export default function TeacherAttendanceRecap() {
     }
 
     const headers = ['No', 'Tanggal', 'Nama Guru', 'Status', 'Jam Masuk', 'Status Masuk', 'Telat (Menit)', 'Jam Pulang', 'Status Pulang', 'Pulang Cepat (Menit)', 'Catatan'];
-    const rows = displayAttendances.map((a, idx) => [
-      idx + 1,
-      a.date,
-      `"${a.teacher_name || ''}"`,
-      (a.status || 'hadir').toUpperCase(),
-      a.check_in_time ? a.check_in_time.slice(0, 5) : '-',
-      a.check_in_status || '-',
-      a.late_minutes || 0,
-      a.check_out_time ? a.check_out_time.slice(0, 5) : '-',
-      a.check_out_status || '-',
-      a.early_minutes || 0,
-      `"${(a.notes || '').replace(/"/g, '""')}"`,
-    ]);
+    const rows = displayAttendances.map((a, idx) => {
+      const isMissingOut = isNoCheckOut(a);
+      const jamPulang = a.check_out_time
+        ? a.check_out_time.slice(0, 5)
+        : isMissingOut
+        ? 'Tidak Tap'
+        : '-';
+      const statusPulang = a.check_out_time
+        ? (a.check_out_status || '-')
+        : isMissingOut
+        ? 'TIDAK TAP PULANG'
+        : '-';
+      const noteText = isMissingOut
+        ? (a.notes ? `[Tidak tap pulang] ${a.notes}` : 'Tidak melakukan presensi pulang (Lupa tap pulang)')
+        : (a.notes || '-');
+
+      return [
+        idx + 1,
+        a.date,
+        `"${a.teacher_name || ''}"`,
+        (a.status || 'hadir').toUpperCase(),
+        a.check_in_time ? a.check_in_time.slice(0, 5) : '-',
+        a.check_in_status || '-',
+        a.late_minutes || 0,
+        jamPulang,
+        statusPulang,
+        a.early_minutes || 0,
+        `"${noteText.replace(/"/g, '""')}"`,
+      ];
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -787,6 +848,7 @@ export default function TeacherAttendanceRecap() {
               <option value="hadir">Hadir (Semua)</option>
               <option value="tepat_waktu">Tepat Waktu</option>
               <option value="terlambat">Terlambat</option>
+              <option value="tidak_tap_pulang">⚠️ Tidak Tap Pulang</option>
               <option value="izin">Izin</option>
               <option value="sakit">Sakit</option>
               <option value="dinas">Dinas Luar</option>
@@ -821,7 +883,7 @@ export default function TeacherAttendanceRecap() {
       </div>
 
       {/* Metric Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-1">
             <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Total Rekap</span>
@@ -851,6 +913,15 @@ export default function TeacherAttendanceRecap() {
           </p>
         </div>
 
+        <div className="bg-amber-50/70 p-4 sm:p-5 rounded-3xl border border-amber-200 shadow-sm">
+          <div className="flex items-center justify-between text-amber-700 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Tidak Tap Pulang</span>
+            <AlertCircle size={16} />
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-amber-800">{stats.tidakTapPulang || 0}</div>
+          <p className="text-[10px] font-bold text-amber-700/80 mt-1">Lupa presensi keluar</p>
+        </div>
+
         <div className="bg-blue-50/60 p-4 sm:p-5 rounded-3xl border border-blue-100 shadow-sm">
           <div className="flex items-center justify-between text-blue-600 mb-1">
             <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Izin / Sakit</span>
@@ -860,7 +931,7 @@ export default function TeacherAttendanceRecap() {
           <p className="text-[10px] font-bold text-blue-600/80 mt-1">Dengan keterangan</p>
         </div>
 
-        <div className="bg-rose-100/60 p-4 sm:p-5 rounded-3xl border border-rose-300 shadow-sm col-span-2 sm:col-span-1">
+        <div className="bg-rose-100/60 p-4 sm:p-5 rounded-3xl border border-rose-300 shadow-sm">
           <div className="flex items-center justify-between text-rose-700 mb-1">
             <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Alpha</span>
             <AlertTriangle size={16} />
@@ -965,6 +1036,7 @@ export default function TeacherAttendanceRecap() {
                   const isLeave = ['izin', 'sakit', 'dinas'].includes(item.status);
                   const isLate = item.check_in_status === 'terlambat';
                   const isEarly = item.check_out_status === 'pulang_cepat' || (item.early_minutes && Number(item.early_minutes) > 0);
+                  const isMissingOut = isNoCheckOut(item);
 
                   let statusBadgeClass = 'bg-emerald-100 text-emerald-700';
                   let statusText = item.status;
@@ -989,6 +1061,8 @@ export default function TeacherAttendanceRecap() {
                           ? 'bg-rose-50/40 hover:bg-rose-50/70'
                           : isBelumAbsen
                           ? 'bg-amber-50/30 hover:bg-amber-50/60'
+                          : isMissingOut
+                          ? 'bg-amber-50/20 hover:bg-amber-50/50'
                           : 'hover:bg-slate-50/70'
                       }`}
                     >
@@ -1024,7 +1098,11 @@ export default function TeacherAttendanceRecap() {
                         ) : '-'}
                       </td>
                       <td className="py-3.5 px-3 whitespace-nowrap font-mono">
-                        {item.check_out_time ? item.check_out_time.slice(0, 5) : '-'}
+                        {item.check_out_time ? (
+                          item.check_out_time.slice(0, 5)
+                        ) : isMissingOut ? (
+                          <span className="text-amber-700 font-sans text-[11px] font-black">Tidak Tap</span>
+                        ) : '-'}
                       </td>
                       <td className="py-3.5 px-3 whitespace-nowrap">
                         {item.check_out_time ? (
@@ -1033,10 +1111,20 @@ export default function TeacherAttendanceRecap() {
                           }`}>
                             {isEarly ? `Cepat ${item.early_minutes || 0}m` : 'OK'}
                           </span>
+                        ) : isMissingOut ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                            ⚠️ Tidak Tap Pulang
+                          </span>
                         ) : '-'}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate">
-                        {item.notes || '-'}
+                      <td className="py-3.5 px-4 text-slate-500 max-w-xs truncate" title={item.notes || ''}>
+                        {isMissingOut ? (
+                          <span className="text-amber-800 font-semibold">
+                            {item.notes ? `[Tidak tap pulang] ${item.notes}` : 'Tidak melakukan presensi pulang (Lupa tap pulang)'}
+                          </span>
+                        ) : (
+                          item.notes || '-'
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
