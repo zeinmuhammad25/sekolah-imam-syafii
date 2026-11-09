@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Pencil, Trash2, ArrowUp, ArrowDown,
   Loader2, AlertTriangle, Check, BookMarked, Sparkles, RefreshCw, Copy
 } from 'lucide-react';
-import { fetchSchoolData, mutateRow, mutateBatch } from '../../services/gsheet';
+import { fetchSchoolData, mutateRow, mutateBatch, describeMutationError } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, ToastNotification } from './ModalKit';
 
 const ALL_GRADES = [
@@ -181,6 +181,16 @@ export default function TeacherSubjects() {
       setError('Nama mata pelajaran / aspek wajib diisi.');
       return;
     }
+
+    const trimmedName = formData.nama.trim().toLowerCase();
+    const isDuplicate = (subjects || []).some(
+      (s) => s.level === formData.level && s.nama.trim().toLowerCase() === trimmedName && (!editingItem || String(s.id) !== String(editingItem.id))
+    );
+    if (isDuplicate) {
+      setError(`Mata pelajaran "${formData.nama.trim()}" sudah ada di kelas ${formData.level}.`);
+      return;
+    }
+
     setSaving(true);
     setError('');
     try {
@@ -202,12 +212,12 @@ export default function TeacherSubjects() {
           row,
         });
         if (!res.success) {
-          setError(res.error || 'Gagal mengubah data.');
+          setError(res.error || describeMutationError(res) || 'Gagal mengubah data.');
           setSaving(false);
           return;
         }
         setSubjects((prev) =>
-          prev.map((s) => (s.id === editingItem.id ? { ...s, ...row, updatedAt: res.updatedAt } : s))
+          (prev || []).map((s) => (String(s.id) === String(editingItem.id) ? { ...s, ...row, updatedAt: res.updatedAt } : s))
         );
         showToast('Mata pelajaran berhasil diperbarui.');
       } else {
@@ -217,14 +227,15 @@ export default function TeacherSubjects() {
           row,
         });
         if (!res.success) {
-          setError(res.error || 'Gagal menambah data.');
+          setError(res.error || describeMutationError(res) || 'Gagal menambah data.');
           setSaving(false);
           return;
         }
-        setSubjects((prev) => [...prev, { ...row, id: res.id, updatedAt: res.updatedAt }]);
+        setSubjects((prev) => [...(prev || []), { ...row, id: res.id, updatedAt: res.updatedAt }]);
         showToast(`Mata pelajaran baru berhasil ditambahkan ke ${formData.level}.`);
       }
       setModalOpen(false);
+      await load();
     } catch (err) {
       setError('Terjadi kesalahan jaringan.');
     } finally {
@@ -236,23 +247,26 @@ export default function TeacherSubjects() {
     if (!confirmDelete) return;
     setDeleting(true);
     try {
+      // Hapus definitif berdasar ID unik mata pelajaran
       const res = await mutateRow({
         action: 'delete',
         sheetName: 'MasterSubjects',
         id: confirmDelete.id,
-        expectedUpdatedAt: confirmDelete.updatedAt ?? null,
       });
       if (!res.success) {
-        setError(res.error || 'Gagal menghapus.');
+        const errMsg = res.error || describeMutationError(res) || 'Gagal menghapus mata pelajaran.';
+        showToast(errMsg, 'error');
         setDeleting(false);
         setConfirmDelete(null);
+        await load();
         return;
       }
-      setSubjects((prev) => prev.filter((s) => s.id !== confirmDelete.id));
-      showToast('Mata pelajaran berhasil dihapus.');
+      setSubjects((prev) => (prev || []).filter((s) => String(s.id) !== String(confirmDelete.id)));
+      showToast(`Mata pelajaran "${confirmDelete.nama}" berhasil dihapus.`);
       setConfirmDelete(null);
+      await load(); // Verifikasi dan sinkronkan dengan database server secara nyata
     } catch (e) {
-      setError('Gagal menghapus.');
+      showToast('Gagal menghapus mata pelajaran karena kesalahan jaringan.', 'error');
     } finally {
       setDeleting(false);
     }
@@ -269,11 +283,13 @@ export default function TeacherSubjects() {
     });
     if (res.success) {
       setSubjects((prev) =>
-        prev.map((s) => (s.id === item.id ? { ...s, isActive: nextState, updatedAt: res.updatedAt } : s))
+        (prev || []).map((s) => (String(s.id) === String(item.id) ? { ...s, isActive: nextState, updatedAt: res.updatedAt } : s))
       );
       showToast(`Mata pelajaran ${nextState ? 'diaktifkan' : 'dinonaktifkan'}.`);
+      await load();
     } else {
-      showToast('Gagal mengubah status aktif.', 'error');
+      showToast(res.error || describeMutationError(res) || 'Gagal mengubah status aktif.', 'error');
+      await load();
     }
   };
 
@@ -449,6 +465,19 @@ export default function TeacherSubjects() {
               <Copy size={14} /> Salin ke Kelas Lain
             </button>
           )}
+
+          <button
+            onClick={async () => {
+              await load();
+              showToast('Daftar mata pelajaran berhasil disinkronkan dari server.', 'success');
+            }}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-black text-xs hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
+            title="Segarkan Data Mata Pelajaran dari Server"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-secondary' : ''} />
+            <span className="hidden sm:inline">Segarkan</span>
+          </button>
 
           <button
             onClick={() => setConfirmingResetDefaults(true)}

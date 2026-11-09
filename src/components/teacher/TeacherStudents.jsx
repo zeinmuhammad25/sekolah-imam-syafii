@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import {
   Plus, Pencil, Trash2, Eye, ArrowUpCircle, LogOut, Search, Download, Loader2, AlertTriangle, FolderOpen,
-  FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown,
+  FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown, RefreshCw,
 } from 'lucide-react';
 import { fetchSchoolData, mutateRow, mutateBatch, moveKKFile, formatSheetDate, formatSheetDateDMY, describeMutationError } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Thumb, Field, ToastNotification } from './ModalKit';
@@ -267,7 +267,16 @@ export default function TeacherStudents() {
   const [exportStatuses, setExportStatuses] = useState(() => [...STATUS_OPTIONS]);
   const [exportFields, setExportFields] = useState(() => ALL_FIELDS.map((f) => f.name));
 
-  const load = () => fetchSchoolData().then((d) => setItems((d && d.Students) || []));
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const load = async () => {
+    setIsRefreshing(true);
+    try {
+      const d = await fetchSchoolData();
+      setItems((d && d.Students) || []);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   useEffect(() => { load(); }, []);
 
   // Update state lokal langsung dari hasil mutateRow, tanpa reload seluruh spreadsheet (jauh lebih cepat).
@@ -281,6 +290,21 @@ export default function TeacherStudents() {
   const addItemLocal = (item) => setItems((prev) => [...(prev || []), item]);
 
   const hasStagedChanges = Object.keys(stagedEdits).length > 0 || stagedDeleteIds.length > 0;
+
+  const handleRefresh = async () => {
+    if (hasStagedChanges) {
+      const confirmDiscard = window.confirm(
+        'Ada perubahan draf data siswa yang belum Anda simpan ke server. Jika menyegarkan data sekarang, draf tersebut akan dibatalkan. Lanjutkan muat ulang data dari server?'
+      );
+      if (!confirmDiscard) return;
+      setStagedEdits({});
+      setStagedDeleteIds([]);
+      setCheckedIds([]);
+      setListEditMode(false);
+    }
+    await load();
+    setToast({ show: true, message: 'Data siswa berhasil disinkronkan dari server.', type: 'success', title: 'Sinkronisasi' });
+  };
 
   // Peringatan browser kalau tab ditutup/refresh saat masih ada perubahan yang belum diklik "Simpan".
   useEffect(() => {
@@ -700,6 +724,15 @@ export default function TeacherStudents() {
             className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
           >
             <Download size={15} /> Export
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
+            title="Segarkan Data Siswa dari Server"
+          >
+            <RefreshCw size={15} className={isRefreshing ? 'animate-spin text-secondary' : ''} />
+            <span className="hidden sm:inline">Segarkan</span>
           </button>
           <button
             onClick={openAdd}

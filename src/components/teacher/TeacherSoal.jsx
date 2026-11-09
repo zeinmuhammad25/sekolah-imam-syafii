@@ -19,13 +19,14 @@ import {
   HelpCircle,
   FileCheck,
   Check,
-  Loader2
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { mutateRow, fetchSchoolData } from '../../services/gsheet';
 import { ConfirmDialog } from './ModalKit';
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
 
@@ -365,7 +366,7 @@ export default function TeacherSoal() {
     setQuestionForm({
       text: q.text || '',
       options: q.options || { a: '', b: '', c: '', d: '' },
-      correctAnswer: q.correctAnswer || 'a',
+      correctAnswer: String(q.correctAnswer || 'a').toLowerCase(),
       type: q.type || 'pg',
     });
     setIsQuestionModalOpen(true);
@@ -395,7 +396,7 @@ export default function TeacherSoal() {
         optionB: isEssay ? '' : (q.options?.b || ''),
         optionC: isEssay ? '' : (q.options?.c || ''),
         optionD: isEssay ? '' : (q.options?.d || ''),
-        correctAnswer: isEssay ? '' : (q.correctAnswer || 'a'),
+        correctAnswer: isEssay ? '' : String(q.correctAnswer || 'a').toLowerCase(),
         type: q.type || 'pg',
       };
 
@@ -457,7 +458,7 @@ export default function TeacherSoal() {
         optionB: isEssay ? '' : opts.b.trim(),
         optionC: isEssay ? '' : opts.c.trim(),
         optionD: isEssay ? '' : opts.d.trim(),
-        correctAnswer: isEssay ? '' : (questionForm.correctAnswer || 'a'),
+        correctAnswer: isEssay ? '' : String(questionForm.correctAnswer || 'a').toLowerCase(),
         type: questionForm.type || 'pg',
       };
 
@@ -777,7 +778,7 @@ export default function TeacherSoal() {
         tableBody.push(row);
       }
 
-      doc.autoTable({
+      autoTable(doc, {
         startY: currentY,
         margin: { left: margin, right: margin },
         head: [['No', 'Kunci', 'No', 'Kunci', 'No', 'Kunci', 'No', 'Kunci', 'No', 'Kunci']],
@@ -1225,6 +1226,21 @@ export default function TeacherSoal() {
               <Layers size={14} className="text-secondary" /> <span className="whitespace-nowrap">Multi-Export</span>
             </button>
 
+            {/* Tombol Segarkan Bank Soal */}
+            <button
+              type="button"
+              onClick={async () => {
+                await loadAllData(false);
+                setNotify({ type: 'success', title: 'Data Segar', message: 'Bank soal dan folder berhasil disinkronkan dari server.' });
+              }}
+              disabled={isSyncing}
+              className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40 flex-1 sm:flex-initial"
+              title="Segarkan data bank soal dari server"
+            >
+              <RefreshCw size={14} className={isSyncing ? 'animate-spin text-secondary' : ''} />
+              <span className="hidden sm:inline">Segarkan</span>
+            </button>
+
             {/* Tombol Buat Soal Baru */}
             <button
               onClick={handleOpenNewQuestion}
@@ -1353,7 +1369,7 @@ export default function TeacherSoal() {
                   {!isEssay && q.options && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-10 text-xs font-medium text-slate-600">
                       {['a', 'b', 'c', 'd'].map((k) => {
-                        const isCorrect = String(q.correctAnswer).toLowerCase() === k;
+                        const isCorrect = String(q.correctAnswer || '').toLowerCase() === k;
                         return (
                           <div
                             key={k}
@@ -1454,22 +1470,43 @@ export default function TeacherSoal() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {['a', 'b', 'c', 'd'].map((k) => {
-                        const isCorrect = questionForm.correctAnswer === k;
+                        const isCorrect = String(questionForm.correctAnswer || '').toLowerCase() === k;
                         return (
-                          <div key={k} className="relative">
-                            <div className="flex items-center gap-2 mb-1">
-                              <button
-                                type="button"
-                                onClick={() => setQuestionForm((f) => ({ ...f, correctAnswer: k }))}
-                                className={`w-5 h-5 rounded-full text-[10px] font-black uppercase flex items-center justify-center transition-all ${
-                                  isCorrect ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                          <div
+                            key={k}
+                            className={`p-3 rounded-2xl border-2 transition-all ${
+                              isCorrect
+                                ? 'border-emerald-500 bg-emerald-50/40 shadow-sm'
+                                : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'
+                            }`}
+                          >
+                            <div
+                              onClick={() => setQuestionForm((f) => ({ ...f, correctAnswer: k }))}
+                              className="flex items-center justify-between mb-2 cursor-pointer select-none group"
+                              title="Klik untuk jadikan kunci jawaban"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`w-6 h-6 rounded-full text-[11px] font-black uppercase flex items-center justify-center transition-all ${
+                                    isCorrect
+                                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/30'
+                                      : 'bg-slate-200 text-slate-600 group-hover:bg-slate-300'
+                                  }`}
+                                >
+                                  {k}
+                                </span>
+                                <span className={`text-xs font-bold transition-colors ${isCorrect ? 'text-emerald-800' : 'text-slate-600 group-hover:text-slate-900'}`}>
+                                  Pilihan {k.toUpperCase()}
+                                </span>
+                              </div>
+                              <span
+                                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full transition-all ${
+                                  isCorrect
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'bg-slate-200/70 text-slate-500 group-hover:bg-slate-300'
                                 }`}
-                                title="Klik untuk jadikan kunci jawaban"
                               >
-                                {k}
-                              </button>
-                              <span className="text-[11px] font-bold text-slate-500">
-                                Pilihan {k.toUpperCase()} {isCorrect && <span className="text-emerald-600 font-black">(KUNCI)</span>}
+                                {isCorrect ? '✓ Kunci' : 'Jadikan Kunci'}
                               </span>
                             </div>
                             <input
@@ -1480,8 +1517,10 @@ export default function TeacherSoal() {
                                 ...f,
                                 options: { ...f.options, [k]: e.target.value },
                               }))}
-                              className={`w-full bg-slate-50 border-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none transition-all ${
-                                isCorrect ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-100 focus:border-secondary'
+                              className={`w-full bg-white border rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none transition-all ${
+                                isCorrect
+                                  ? 'border-emerald-300 focus:border-emerald-500 ring-2 ring-emerald-500/10 text-slate-900'
+                                  : 'border-slate-200 focus:border-secondary text-slate-800'
                               }`}
                             />
                           </div>

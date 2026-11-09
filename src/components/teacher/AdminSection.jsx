@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, Check, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { fetchSchoolData, mutateRow, uploadImage, extractYoutubeId, describeMutationError } from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Thumb, Field, ToastNotification } from './ModalKit';
 
@@ -186,6 +186,18 @@ export default function AdminSection({ section }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              await load();
+              showToast(`Data ${cfg.title} berhasil disinkronkan dari server.`, 'success');
+            }}
+            disabled={items === null}
+            className="inline-flex items-center gap-1.5 px-3.5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all border-2 bg-white text-slate-600 border-slate-200 hover:border-slate-900 hover:text-slate-900 disabled:opacity-50"
+            title={`Segarkan Data ${cfg.title} dari Server`}
+          >
+            <RefreshCw size={15} className={items === null ? 'animate-spin text-secondary' : ''} />
+            <span className="hidden sm:inline">Segarkan</span>
+          </button>
           <button
             onClick={() => (editMode ? exitEdit() : setEditMode(true))}
             disabled={savingOrder}

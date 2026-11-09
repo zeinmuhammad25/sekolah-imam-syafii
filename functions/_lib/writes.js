@@ -13,7 +13,7 @@
 import { jsonToRow } from './tables.js';
 
 export const bumpVersion = (db) =>
-  db.prepare("UPDATE meta SET value = value + 1 WHERE key = 'data_version'");
+  db.prepare("INSERT INTO meta (key, value) VALUES ('data_version', 1) ON CONFLICT(key) DO UPDATE SET value = value + 1");
 
 // Gagal (NOT NULL constraint) kalau statement sebelumnya tidak mengubah satu baris pun.
 export const guardChanged = (db) =>

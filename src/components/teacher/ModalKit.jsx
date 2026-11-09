@@ -165,14 +165,14 @@ export function ConfirmDialog({
 // Toast Notifikasi Mengambang di Tengah Atas (Modern Top-Center Toast)
 // Otomatis hilang: Sukses = 3 detik, Error = 6 detik, Warning = 4.5 detik.
 // Mendukung Pause on Hover (jeda timer saat disorot kursor mouse).
-export function ToastNotification({ toast, onClose, duration }) {
+export function ToastNotification({ toast, onClose, setToast, duration }) {
   if (!toast || (toast.show !== undefined && !toast.show) || !toast.message) return null;
 
   const isSuccess = toast.type === 'success';
   const isError = toast.type === 'error';
   const isWarning = toast.type === 'warning';
 
-  // Opsi A: Sukses 3 detik, Error 6 detik, Warning 4.5 detik
+  // Durasi default: Sukses 3 detik, Error 6 detik, Warning 4.5 detik
   const defaultDuration = isSuccess ? 3000 : isError ? 6000 : 4500;
   const totalDuration = typeof toast.duration === 'number'
     ? toast.duration
@@ -180,38 +180,66 @@ export function ToastNotification({ toast, onClose, duration }) {
     ? duration
     : defaultDuration;
 
+  // Resolusi handler penutup (mendukung onClose maupun setToast)
+  const handleClose = useCallback(() => {
+    if (typeof onClose === 'function') {
+      onClose();
+    } else if (typeof setToast === 'function') {
+      setToast((prev) => {
+        if (prev === null || typeof prev !== 'object') return null;
+        return { ...prev, show: false, message: '' };
+      });
+    }
+  }, [onClose, setToast]);
+
+  // Ref stabil untuk handler agar tidak me-reset timer saat parent component me-render ulang
+  const closeRef = useRef(handleClose);
+  closeRef.current = handleClose;
+
   const [isHovered, setIsHovered] = useState(false);
-  const [remainingTime, setRemainingTime] = useState(totalDuration);
+  const remainingRef = useRef(totalDuration);
   const startTimeRef = useRef(Date.now());
   const timerRef = useRef(null);
 
-  // Reset timer saat toast berganti pesan/tipe
+  // Kunci unik toast agar timer hanya reset saat toast baru benar-benar muncul
+  const toastKey = toast.id || `${toast.type || 'info'}-${toast.message}`;
+
   useEffect(() => {
-    setRemainingTime(totalDuration);
+    if (totalDuration <= 0) return;
+
+    remainingRef.current = totalDuration;
     startTimeRef.current = Date.now();
-  }, [toast?.message, toast?.type, totalDuration]);
 
-  // Efek penanganan timer mundur dengan jeda saat hover
-  useEffect(() => {
-    if (totalDuration <= 0 || !onClose) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
 
-    if (isHovered) {
-      // Jeda timer: hitung sisa waktu
-      const elapsed = Date.now() - startTimeRef.current;
-      setRemainingTime((prev) => Math.max(0, prev - elapsed));
-      if (timerRef.current) clearTimeout(timerRef.current);
-    } else {
-      // Lanjutkan timer dengan sisa waktu yang ada
-      startTimeRef.current = Date.now();
-      timerRef.current = setTimeout(() => {
-        onClose();
-      }, remainingTime);
-    }
+    timerRef.current = setTimeout(() => {
+      if (closeRef.current) closeRef.current();
+    }, totalDuration);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isHovered, remainingTime, totalDuration, onClose, toast?.message]);
+  }, [toastKey, totalDuration]);
+
+  // Hover Pause & Resume
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const elapsed = Date.now() - startTimeRef.current;
+    remainingRef.current = Math.max(500, remainingRef.current - elapsed);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    if (totalDuration <= 0) return;
+    startTimeRef.current = Date.now();
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (closeRef.current) closeRef.current();
+    }, remainingRef.current);
+  };
+
+  const hasCloseAction = typeof onClose === 'function' || typeof setToast === 'function';
 
   return (
     <motion.div
@@ -219,8 +247,8 @@ export function ToastNotification({ toast, onClose, duration }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.95 }}
       transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       className="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-[calc(100%-2rem)] max-w-md pointer-events-auto select-none"
     >
       <div
@@ -260,7 +288,7 @@ export function ToastNotification({ toast, onClose, duration }) {
           <div className="flex items-center gap-2 mb-0.5">
             {toast.title && <h5 className="font-black text-xs uppercase tracking-wider">{toast.title}</h5>}
             {isHovered && (
-              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-black/10 text-slate-600">
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/10 text-slate-600">
                 Dijeda
               </span>
             )}
@@ -268,10 +296,10 @@ export function ToastNotification({ toast, onClose, duration }) {
           <p className="text-xs font-semibold leading-relaxed whitespace-pre-line">{toast.message}</p>
         </div>
 
-        {onClose && (
+        {hasCloseAction && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-black/5 transition-colors"
             title="Tutup Sekarang"
           >
@@ -282,11 +310,11 @@ export function ToastNotification({ toast, onClose, duration }) {
         {/* Indikator Garis Durasi Waktu (Visual Countdown Bar) */}
         {totalDuration > 0 && (
           <motion.div
-            key={toast?.message}
+            key={toastKey}
             initial={{ width: '100%' }}
             animate={{ width: isHovered ? undefined : '0%' }}
             transition={{
-              duration: remainingTime / 1000,
+              duration: totalDuration / 1000,
               ease: 'linear',
             }}
             className={`absolute bottom-0 left-0 h-1 ${

@@ -681,7 +681,9 @@ export default function TeacherEraport() {
     if (!res.success) {
       setConfirmingDeletePeriod(null);
       if (res.conflict) await load();
-      setError('Gagal menghapus: ' + describeError(res));
+      const msg = 'Gagal menghapus: ' + describeError(res);
+      setError(msg);
+      showToast(msg, 'error', 'Gagal Hapus');
       return;
     }
     setPeriods((prev) => prev.filter((p) => String(p.id) !== String(confirmingDeletePeriod.id)));
@@ -1402,6 +1404,18 @@ export default function TeacherEraport() {
           >
             <Users size={15} className="shrink-0" />
             <span className="truncate">Setup Kelas</span>
+          </button>
+          <button
+            onClick={async () => {
+              await load();
+              showToast('Data E-Raport berhasil disinkronkan dari server.', 'success');
+            }}
+            disabled={students === null}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl sm:rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-black text-[11px] sm:text-xs uppercase tracking-wider transition-all shadow-sm active:scale-95 text-center disabled:opacity-50"
+            title="Segarkan data rapor & nilai dari server"
+          >
+            <RefreshCw size={14} className={students === null ? 'animate-spin text-secondary' : ''} />
+            <span className="hidden lg:inline">Segarkan</span>
           </button>
         </div>
       </div>
