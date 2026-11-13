@@ -73,7 +73,7 @@ export function devStudentAttendancePlugin() {
         if (req.method === 'GET') {
           try {
             const action = url.searchParams.get('action') || 'today_class';
-            const kelas = url.searchParams.get('kelas') || 'SD 1';
+            const kelas = url.searchParams.get('kelas') || (action === 'recap' ? 'ALL' : 'SD 1');
             const studentId = url.searchParams.get('studentId');
             const dateParam = url.searchParams.get('date');
             const startDate = url.searchParams.get('startDate');
@@ -141,6 +141,13 @@ export function devStudentAttendancePlugin() {
               sql += conds.join(' AND ') + ' ORDER BY date DESC, kelas ASC, student_name ASC';
               const attendances = queryD1(sql);
 
+              let studentsSql = `SELECT id, nama_siswa, nisn, nis, jenis_kelamin, kelas FROM students WHERE (status IS NULL OR LOWER(TRIM(status)) != 'alumni')`;
+              if (kelas && kelas !== 'ALL') {
+                studentsSql += ` AND LOWER(TRIM(kelas)) = LOWER(TRIM('${escapeSql(kelas)}'))`;
+              }
+              studentsSql += ' ORDER BY kelas ASC, nama_siswa ASC';
+              const students = queryD1(studentsSql);
+
               res.statusCode = 200;
               return res.end(JSON.stringify({
                 success: true,
@@ -148,6 +155,7 @@ export function devStudentAttendancePlugin() {
                 endDate: endDate || targetDate,
                 kelas: kelas || 'ALL',
                 attendances,
+                students,
               }));
             }
 

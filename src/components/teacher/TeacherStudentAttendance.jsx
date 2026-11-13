@@ -125,6 +125,7 @@ export default function TeacherStudentAttendance() {
   const [idCardModalOpen, setIdCardModalOpen] = useState(false);
   const [idCardStudent, setIdCardStudent] = useState(null);
   const [noteModal, setNoteModal] = useState({ open: false, student: null, noteText: '', targetStatus: '' });
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
 
   // Responsif Mobile Tab & Filter Siswa
   const [mobileViewTab, setMobileViewTab] = useState('scanner'); // 'scanner' | 'list'
@@ -430,19 +431,17 @@ export default function TeacherStudentAttendance() {
     showToast(`${unscanned.length} siswa ditandai sebagai ${status.toUpperCase()}.`, 'info', 'Presensi Diperbarui');
   };
 
-  // 5. Batch Submit ke Cloudflare D1
-  const handleSubmitBatch = async () => {
-    if (students.length === 0) return;
-
-    // Pastikan semua siswa memiliki status (jika belum, otomatis set alpha atau konfirmasi)
-    const unscannedCount = students.filter((s) => !attendanceMap[s.id]).length;
-    if (unscannedCount > 0) {
-      const confirmSubmit = window.confirm(
-        `Masih ada ${unscannedCount} siswa yang belum tercatat presensinya. Siswa yang belum tercatat akan otomatis dianggap 'Alpha'. Lanjutkan simpan?`
-      );
-      if (!confirmSubmit) return;
+  // 5. Buka Dialog Konfirmasi Batch Submit
+  const handleSubmitBatch = () => {
+    if (students.length === 0) {
+      showToast(`Belum ada data siswa di kelas ${selectedGrade}.`, 'warning', 'Daftar Siswa Kosong');
+      return;
     }
+    setSubmitConfirmOpen(true);
+  };
 
+  // Eksekusi Simpan Presensi ke Database Cloudflare D1
+  const doSubmitBatch = async () => {
     setSubmitting(true);
     try {
       const itemsToSubmit = students.map((s) => {
@@ -491,6 +490,7 @@ export default function TeacherStudentAttendance() {
           'Tersimpan di Database'
         );
         setIsSubmittedServer(true);
+        setSubmitConfirmOpen(false);
         // Hapus draft lokal setelah berhasil submit
         try { localStorage.removeItem(draftKey); } catch {}
         if (isCameraActive) stopCamera();
@@ -498,7 +498,7 @@ export default function TeacherStudentAttendance() {
         showToast(res.error || 'Gagal menyimpan presensi.', 'error', 'Error');
       }
     } catch (err) {
-      console.error('handleSubmitBatch error:', err);
+      console.error('doSubmitBatch error:', err);
       showToast('Terjadi kesalahan koneksi: ' + err.message, 'error', 'Error');
     } finally {
       setSubmitting(false);
@@ -1384,6 +1384,105 @@ export default function TeacherStudentAttendance() {
               </div>
             </ModalFooter>
           </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL KONFIRMASI SIMPAN PRESENSI KELAS (CUSTOM STYLISH DIALOG - PENGGANTI BROWSER CONFIRM) */}
+      <AnimatePresence>
+        {submitConfirmOpen && (
+          <div
+            className="fixed inset-0 z-[180] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+            onClick={() => !submitting && setSubmitConfirmOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 flex flex-col text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header Icon */}
+              <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto mb-4 shadow-xs">
+                <ShieldCheck size={32} />
+              </div>
+
+              <h3 className="font-black text-lg sm:text-xl text-slate-900 leading-tight">
+                Simpan Presensi Kelas
+              </h3>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                Kelas <span className="text-emerald-700 font-black">{selectedGrade}</span> • Tanggal {targetDate}
+              </p>
+
+              {/* Ringkasan Presensi Siswa (4 Kolom Warna Menarik) */}
+              <div className="grid grid-cols-4 gap-2 my-5">
+                <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200/80">
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-emerald-700">Hadir</span>
+                  <span className="font-black text-xl text-emerald-800">{stats.hadir}</span>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200/80">
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-amber-700">Sakit</span>
+                  <span className="font-black text-xl text-amber-800">{stats.sakit}</span>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-blue-50 border border-blue-200/80">
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-blue-700">Izin</span>
+                  <span className="font-black text-xl text-blue-800">{stats.izin}</span>
+                </div>
+                <div className="p-2.5 rounded-2xl bg-rose-50 border border-rose-200/80">
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-rose-700">Alpha</span>
+                  <span className="font-black text-xl text-rose-800">{stats.alpha + stats.belumScan}</span>
+                </div>
+              </div>
+
+              {/* Peringatan jika ada siswa yang belum scan */}
+              {stats.belumScan > 0 ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 text-xs font-medium text-left flex items-start gap-2.5 mb-5">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <p className="font-black text-amber-900">Perhatian Belum Lengkap:</p>
+                    <p className="text-amber-800 mt-0.5">
+                      Terdapat <b>{stats.belumScan} santri</b> yang belum melakukan scan / belum tercatat. Santri tersebut akan otomatis ditandai sebagai <b>Alpha (Tidak Hadir)</b> saat data disimpan ke database.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 text-xs font-medium text-left flex items-center gap-2.5 mb-5">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  <span className="text-emerald-800">
+                    Seluruh <b>{stats.total} santri</b> telah lengkap tercatat presensinya. Data siap disimpan resmi ke database.
+                  </span>
+                </div>
+              )}
+
+              {/* Tombol Aksi */}
+              <div className="flex gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setSubmitConfirmOpen(false)}
+                  disabled={submitting}
+                  className="flex-1 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Periksa Lagi
+                </button>
+                <button
+                  type="button"
+                  onClick={doSubmitBatch}
+                  disabled={submitting}
+                  className="flex-1 py-3.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <>
+                      <RefreshCw className="animate-spin" size={16} /> Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} /> Ya, Simpan Sekarang
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

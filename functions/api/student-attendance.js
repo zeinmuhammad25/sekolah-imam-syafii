@@ -31,7 +31,7 @@ export async function onRequestGet(context) {
   const db = env.DB;
   const url = new URL(request.url);
   const action = url.searchParams.get('action') || 'today_class';
-  const kelas = url.searchParams.get('kelas') || 'SD 1';
+  const kelas = url.searchParams.get('kelas') || (action === 'recap' ? 'ALL' : 'SD 1');
   const studentId = url.searchParams.get('studentId');
   const dateParam = url.searchParams.get('date');
   const startDate = url.searchParams.get('startDate');
@@ -122,12 +122,27 @@ export async function onRequestGet(context) {
       query += ' ORDER BY date DESC, kelas ASC, student_name ASC';
       const records = await db.prepare(query).bind(...params).all();
 
+      // Ambil daftar seluruh siswa aktif (Semua kelas atau kelas spesifik)
+      let studentsQuery = `
+        SELECT id, nama_siswa, nisn, nis, jenis_kelamin, kelas
+        FROM students
+        WHERE (status IS NULL OR LOWER(TRIM(status)) != 'alumni')
+      `;
+      const studentsParams = [];
+      if (kelas && kelas !== 'ALL') {
+        studentsQuery += ' AND LOWER(TRIM(kelas)) = LOWER(TRIM(?))';
+        studentsParams.push(kelas);
+      }
+      studentsQuery += ' ORDER BY kelas ASC, nama_siswa ASC';
+      const studentsRes = await db.prepare(studentsQuery).bind(...studentsParams).all();
+
       return Response.json({
         success: true,
         startDate: startDate || targetDate,
         endDate: endDate || targetDate,
         kelas: kelas || 'ALL',
         attendances: records.results || [],
+        students: studentsRes.results || [],
       });
     }
 
