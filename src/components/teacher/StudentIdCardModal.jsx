@@ -205,11 +205,11 @@ export default function StudentIdCardModal({
                   </svg>
 
                   {/* Bagian Atas: Logo & Header Sekolah */}
-                  <div className="pt-6 px-3 flex flex-col items-center relative z-10 text-center">
+                  <div className="pt-7 px-3 flex flex-col items-center relative z-10 text-center">
                     <img
                       src={cfg.logo}
                       alt="Logo SD"
-                      className="w-10 h-10 object-contain drop-shadow-md mb-1.5"
+                      className="w-[46px] h-[46px] object-contain drop-shadow-md mb-1"
                     />
                     <h4 className="text-white font-black text-[12px] leading-tight tracking-wider drop-shadow-xs uppercase">
                       KARTU PELAJAR
@@ -316,11 +316,11 @@ export default function StudentIdCardModal({
                   <span className="absolute bottom-32 right-4 text-emerald-800 text-sm font-black">★</span>
 
                   {/* Bagian Atas: Logo & Header TK */}
-                  <div className="pt-6 px-3 flex flex-col items-center relative z-10 text-center">
+                  <div className="pt-7 px-3 flex flex-col items-center relative z-10 text-center">
                     <img
                       src={cfg.logo}
                       alt="Logo TK"
-                      className="w-11 h-11 object-contain drop-shadow-md mb-1.5"
+                      className="w-[48px] h-[48px] object-contain drop-shadow-md mb-1"
                     />
                     <h4 className="text-[#ca8a04] font-black text-[12px] leading-tight tracking-wider drop-shadow-xs uppercase">
                       KARTU PELAJAR

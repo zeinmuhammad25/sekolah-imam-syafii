@@ -470,11 +470,11 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     doc.roundedRect(ox, oy, CARD_WIDTH, CARD_HEIGHT, CARD_RADIUS, CARD_RADIUS, 'F');
   }
 
-  // 2. Logo Bulat Sekolah di Bagian Atas
+  // 2. Logo Bulat Sekolah di Bagian Atas (Diberi jarak aman dari lubang gantungan atas)
   const logoData = await fetchImageAsDataUrl(cfg.logo);
-  const logoSize = isTk ? 11 : 10;
+  const logoSize = isTk ? 12.2 : 11.6;
   const logoX = ox + (CARD_WIDTH - logoSize) / 2;
-  const logoY = oy + 6.2;
+  const logoY = oy + 7.2;
   if (logoData) {
     try {
       doc.addImage(logoData, 'PNG', logoX, logoY, logoSize, logoSize);
@@ -489,20 +489,20 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     // TK: KARTU PELAJAR Kuning Emas, TK QUR'AN Putih
     doc.setTextColor(202, 138, 4); // Golden Amber #ca8a04
     doc.setFontSize(7.6);
-    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 21, { align: 'center' });
+    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 22, { align: 'center' });
 
     doc.setTextColor(255, 255, 255); // Putih Bersih
     doc.setFontSize(7.2);
-    doc.text('TK QUR\'AN IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 25.2, { align: 'center' });
+    doc.text('TK QUR\'AN IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 26, { align: 'center' });
   } else {
     // SD: KARTU PELAJAR Putih, SD ISLAM Kuning Emas
     doc.setTextColor(255, 255, 255); // Putih Bersih
     doc.setFontSize(7.6);
-    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 21, { align: 'center' });
+    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 22, { align: 'center' });
 
     doc.setTextColor(251, 191, 36); // Emas Terang #fbbf24
     doc.setFontSize(7.2);
-    doc.text('SD ISLAM IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 25.2, { align: 'center' });
+    doc.text('SD ISLAM IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 26, { align: 'center' });
   }
 
   // 4. Pas Foto Siswa Bulat (Circular Photo Frame)
