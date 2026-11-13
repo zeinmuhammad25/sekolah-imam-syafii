@@ -4,17 +4,26 @@ import {
   ArrowLeft, Award, FileText, Calendar, User, BookOpen,
   Download, Loader2, AlertCircle, CheckCircle2, ChevronRight, MessageSquare,
   HelpCircle, RefreshCw, X, Sparkles, Lock, Users, ShieldCheck, Home, Phone, MapPin,
-  GraduationCap, Eye, Search, LayoutDashboard
+  GraduationCap, Eye, Search, LayoutDashboard, HeartPulse, XCircle, CalendarCheck, Clock,
 } from 'lucide-react';
-import { lookupParentStudent, fetchSchoolData } from './services/gsheet';
+import { lookupParentStudent, fetchSchoolData, getStudentAttendanceParentToday } from './services/gsheet';
 import { ToastNotification } from './components/teacher/ModalKit';
 import { AnimatePresence } from 'framer-motion';
 
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6'];
 
-// Avatar Ikhwan / Akhwat fallback
-const Avatar = ({ gender, className = 'w-16 h-16' }) => {
-  const isAkhwat = String(gender || '').toLowerCase() === 'akhwat' || String(gender || '').toLowerCase() === 'p';
+// Avatar Siswa (Pas foto resmi 3:4 jika ada, atau fallback Ikhwan / Akhwat)
+const Avatar = ({ gender, src, className = 'w-16 h-16' }) => {
+  const isAkhwat = String(gender || '').toLowerCase() === 'akhwat' || String(gender || '').toLowerCase() === 'p' || String(gender || '').toLowerCase() === 'perempuan';
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt="Foto Siswa"
+        className={`${className} rounded-2xl object-cover border border-secondary/30 bg-primary/5 shadow-sm`}
+      />
+    );
+  }
   return (
     <img
       src={isAkhwat ? '/avatars/akhwat.webp' : '/avatars/ikhwan.webp'}
@@ -48,6 +57,7 @@ export default function ParentPortal() {
   // A. Data Siswa (Profil Lengkap yang Terisi)
   const [studentProfile, setStudentProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
+  const [todayAttendance, setTodayAttendance] = useState(null);
 
   // B. Nilai Rapor & Ujian
   const [raportData, setRaportData] = useState(null);
@@ -136,6 +146,7 @@ export default function ParentPortal() {
   const handleOpenProfile = async (stu = targetStudent) => {
     setShowChoiceModal(false);
     setLoadingProfile(true);
+    setTodayAttendance(null);
     setGlobalError('');
     setViewMode('PROFILE_VIEW');
 
@@ -144,6 +155,12 @@ export default function ParentPortal() {
 
     if (res.success && res.profile) {
       setStudentProfile(res.profile);
+      // Muat status presensi hari ini
+      getStudentAttendanceParentToday(stu.id).then((attRes) => {
+        if (attRes && attRes.success) {
+          setTodayAttendance(attRes.attendance || null);
+        }
+      }).catch(console.warn);
     } else {
       setGlobalError(res.message || 'Gagal memuat data siswa.');
     }
@@ -476,7 +493,7 @@ export default function ParentPortal() {
               <div className="space-y-6">
                 {/* Header Profil */}
                 <div className="bg-white rounded-2xl sm:rounded-3xl border border-primary/10 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
-                  <Avatar gender={studentProfile.jenis_kelamin} className="w-20 h-20 shrink-0" />
+                  <Avatar gender={studentProfile.jenis_kelamin} src={studentProfile.foto_siswa} className="w-20 h-24 sm:w-20 sm:h-24 shrink-0" />
                   <div className="text-center sm:text-left space-y-1">
                     <span className="bg-secondary/15 text-secondary text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
                       Data Siswa Resmi
@@ -489,6 +506,66 @@ export default function ParentPortal() {
                       {studentProfile.status && ` • Status: ${studentProfile.status}`}
                     </p>
                   </div>
+                </div>
+
+                {/* Status Kehadiran Hari Ini (Live dari Presensi Sekolah) */}
+                <div className={`p-4 sm:p-5 rounded-3xl border shadow-sm flex items-center justify-between gap-4 ${
+                  todayAttendance?.status === 'hadir'
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : todayAttendance?.status === 'sakit'
+                    ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                    : todayAttendance?.status === 'izin'
+                    ? 'bg-blue-50/80 border-blue-200 text-blue-900'
+                    : todayAttendance?.status === 'alpha'
+                    ? 'bg-rose-50/80 border-rose-200 text-rose-900'
+                    : 'bg-white border-primary/10 text-primary'
+                }`}>
+                  <div className="flex items-center gap-3.5">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                      todayAttendance?.status === 'hadir'
+                        ? 'bg-emerald-600 text-white'
+                        : todayAttendance?.status === 'sakit'
+                        ? 'bg-amber-500 text-white'
+                        : todayAttendance?.status === 'izin'
+                        ? 'bg-blue-500 text-white'
+                        : todayAttendance?.status === 'alpha'
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {todayAttendance?.status === 'hadir' ? <CheckCircle2 size={22} /> :
+                       todayAttendance?.status === 'sakit' ? <HeartPulse size={22} /> :
+                       todayAttendance?.status === 'izin' ? <Clock size={22} /> :
+                       todayAttendance?.status === 'alpha' ? <XCircle size={22} /> :
+                       <CalendarCheck size={22} />}
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider block opacity-70">
+                        Kehadiran Hari Ini ({todayAttendance?.date || 'Hari Ini'})
+                      </span>
+                      <h4 className="font-display font-bold text-base sm:text-lg leading-tight">
+                        {todayAttendance?.status === 'hadir' ? 'HADIR DI SEKOLAH' :
+                         todayAttendance?.status === 'sakit' ? 'SAKIT (DENGAN KETERANGAN)' :
+                         todayAttendance?.status === 'izin' ? 'IZIN (DENGAN KETERANGAN)' :
+                         todayAttendance?.status === 'alpha' ? 'ALPHA (TANPA KETERANGAN)' :
+                         'BELUM ADA CATATAN PRESENSI HARI INI'}
+                      </h4>
+                      {todayAttendance?.scan_time && (
+                        <p className="text-xs font-semibold opacity-80 mt-0.5">
+                          Tercatat pukul {todayAttendance.scan_time} WIB via Scan Kartu Pelajar
+                        </p>
+                      )}
+                      {todayAttendance?.notes && (
+                        <p className="text-xs font-medium opacity-90 mt-0.5 italic">
+                          Keterangan: "{todayAttendance.notes}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {todayAttendance?.status === 'hadir' && (
+                    <span className="hidden sm:inline-block px-3 py-1 rounded-full text-xs font-black bg-emerald-200/60 text-emerald-900 shrink-0">
+                      Terverifikasi
+                    </span>
+                  )}
                 </div>
 
                 {/* Seksi Profil: Hanya yang ada isinya */}
@@ -702,7 +779,7 @@ export default function ParentPortal() {
             {/* Header Siswa */}
             <div className="bg-white rounded-3xl border border-primary/10 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-5">
               <div className="flex items-center gap-4 text-center sm:text-left">
-                <Avatar gender={raportData.student.jenis_kelamin} className="w-16 h-16 shrink-0" />
+                <Avatar gender={raportData.student.jenis_kelamin} src={raportData.student.foto_siswa} className="w-16 h-20 sm:w-16 sm:h-20 shrink-0" />
                 <div>
                   <h1 className="font-display text-xl font-bold text-primary">
                     {raportData.student.nama_siswa}

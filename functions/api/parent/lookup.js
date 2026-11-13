@@ -41,7 +41,7 @@ async function getStudentProfile(db, studentId) {
 async function getStudentFullData(db, studentId) {
   // 1. Data Siswa
   const student = await db.prepare(`
-    SELECT id, nama_siswa, jenis_kelamin, kelas, nisn, nis, status, tahun_ajaran_masuk
+    SELECT id, nama_siswa, jenis_kelamin, kelas, nisn, nis, status, tahun_ajaran_masuk, foto_siswa
     FROM students
     WHERE id = ?
   `).bind(studentId).first();

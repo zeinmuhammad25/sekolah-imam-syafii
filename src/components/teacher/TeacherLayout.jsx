@@ -26,7 +26,8 @@ import {
   SlidersHorizontal,
   KeyRound,
   ShieldAlert,
-  ArrowLeft
+  ArrowLeft,
+  QrCode
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -166,7 +167,7 @@ export default function TeacherLayout({ children }) {
     {
       type: 'group',
       id: 'akademik',
-      name: 'Akademik & Nilai',
+      name: 'Akademik & Siswa',
       icon: GraduationCap,
       items: [
         { name: 'Data Siswa (KK)', icon: Contact, path: '/dashboard-guru/siswa', perm: 'siswa' },
@@ -174,6 +175,16 @@ export default function TeacherLayout({ children }) {
         { name: 'Bank Soal', icon: BookOpen, path: '/dashboard-guru/soal', perm: 'soal' },
         { name: 'E-Raport', icon: FileBarChart2, path: '/dashboard-guru/eraport', perm: 'eraport' },
         { name: 'Publikasi Nilai', icon: Award, path: '/dashboard-guru/nilai', perm: 'nilai' },
+      ],
+    },
+    {
+      type: 'group',
+      id: 'presensi_siswa',
+      name: 'Presensi Siswa',
+      icon: QrCode,
+      items: [
+        { name: 'Scan QR Presensi', icon: QrCode, path: '/dashboard-guru/presensi-siswa', perm: 'presensi_siswa' },
+        { name: 'Rekap Presensi Siswa', icon: ClipboardCheck, path: '/dashboard-guru/presensi-siswa/rekap', perm: 'presensi_siswa_rekap' },
       ],
     },
     {

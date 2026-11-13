@@ -34,3 +34,25 @@ export async function onRequestPost({ request, env }) {
   const publicUrl = `${url.origin}/uploads/${key}`;
   return json({ success: true, url: publicUrl, fileId: key });
 }
+
+export async function onRequestDelete({ request, env }) {
+  const session = await requireSession(request, env);
+  if (!session) return json({ success: false, error: 'Belum login' }, { status: 401 });
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key');
+  if (!key) return json({ success: false, error: 'Key file wajib disertakan' }, { status: 400 });
+
+  // Cegah path traversal
+  const cleanKey = key.replace(/^.*[\\/]/, '');
+  if (!cleanKey.startsWith('img-')) {
+    return json({ success: false, error: 'Key file tidak valid' }, { status: 400 });
+  }
+
+  try {
+    await env.BUCKET.delete(cleanKey);
+    return json({ success: true, message: 'File berhasil dihapus dari R2' });
+  } catch (err) {
+    return json({ success: false, error: err.message }, { status: 500 });
+  }
+}

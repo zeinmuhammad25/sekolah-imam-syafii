@@ -22,6 +22,7 @@ import {
   Settings,
   ChevronRight,
   UserCheck,
+  QrCode,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthUsers, addAuthUser, updateAuthUser, deleteAuthUser } from '../../services/gsheet';
@@ -47,6 +48,15 @@ export const MODULE_PERMISSIONS = [
       { key: 'soal', label: 'Bank Soal', path: '/dashboard-guru/soal' },
       { key: 'eraport', label: 'E-Raport Kurikulum Merdeka', path: '/dashboard-guru/eraport' },
       { key: 'nilai', label: 'Publikasi Nilai', path: '/dashboard-guru/nilai' },
+    ],
+  },
+  {
+    groupId: 'presensi_siswa',
+    groupName: 'Presensi Siswa',
+    icon: QrCode,
+    modules: [
+      { key: 'presensi_siswa', label: 'Scan QR Presensi Siswa', path: '/dashboard-guru/presensi-siswa' },
+      { key: 'presensi_siswa_rekap', label: 'Rekap Presensi Siswa', path: '/dashboard-guru/presensi-siswa/rekap' },
     ],
   },
   {
@@ -99,14 +109,14 @@ export const ROLE_PRESETS = {
     desc: 'Akses ke Bank Soal, E-Raport, Data Siswa, Absen Harian & Ganti Password',
     color: 'from-emerald-600 to-emerald-800',
     badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-    permissions: ['dashboard', 'siswa', 'soal', 'eraport', 'absensi_harian', 'password'],
+    permissions: ['dashboard', 'siswa', 'presensi_siswa', 'presensi_siswa_rekap', 'soal', 'eraport', 'absensi_harian', 'password'],
   },
   tu: {
     label: 'Staf TU / Operator',
     desc: 'Akses ke Data Siswa, Mapel, Jadwal Guru, Rekap Presensi & Ganti Password',
     color: 'from-blue-600 to-blue-800',
     badge: 'bg-blue-50 text-blue-800 border-blue-200',
-    permissions: ['dashboard', 'siswa', 'mapel', 'nilai', 'absensi_guru', 'absensi_rekap', 'password'],
+    permissions: ['dashboard', 'siswa', 'presensi_siswa', 'presensi_siswa_rekap', 'mapel', 'nilai', 'absensi_guru', 'absensi_rekap', 'password'],
   },
   humas: {
     label: 'Tim Humas / Web',

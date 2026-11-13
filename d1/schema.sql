@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS students (
   tahun_ajaran_masuk       TEXT,
   status                   TEXT,              -- aktif / alumni dst.
   foto_kk                  TEXT,              -- link Drive, dipertahankan apa adanya
+  foto_siswa               TEXT,              -- URL foto resmi siswa di Cloudflare R2
   updated_at                INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_students_kelas ON students(kelas);
@@ -356,4 +357,25 @@ CREATE TABLE IF NOT EXISTS teacher_attendances (
 );
 CREATE INDEX IF NOT EXISTS idx_teacher_att_date ON teacher_attendances(date);
 CREATE INDEX IF NOT EXISTS idx_teacher_att_tid ON teacher_attendances(teacher_id);
+
+-- ---------- Presensi Siswa (Scan QR & Rekap Harian) ----------
+
+CREATE TABLE IF NOT EXISTS student_attendances (
+  id              TEXT PRIMARY KEY,              -- Format: "att-YYYY-MM-DD-student_id" (anti-duplikat unik)
+  date            TEXT NOT NULL,                 -- YYYY-MM-DD (WIB)
+  kelas           TEXT NOT NULL,                 -- TK, SD 1..SD 6
+  student_id      TEXT NOT NULL,                 -- Relasi ke students.id
+  student_name    TEXT NOT NULL,                 -- Snapshot nama siswa
+  status          TEXT NOT NULL,                 -- 'hadir', 'sakit', 'izin', 'alpha'
+  method          TEXT NOT NULL,                 -- 'qr_scan' | 'manual_wali_kelas'
+  scan_time       TEXT,                          -- '07:15:22'
+  notes           TEXT,                          -- Keterangan (cth: 'Ketinggalan kartu', 'Demam', dsb.)
+  submitted_by    TEXT,                          -- Nama guru/wali kelas yang submit
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_std_att_date_kelas ON student_attendances(date, kelas);
+CREATE INDEX IF NOT EXISTS idx_std_att_student ON student_attendances(student_id, date);
+CREATE INDEX IF NOT EXISTS idx_std_att_date ON student_attendances(date);
+
 

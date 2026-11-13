@@ -196,6 +196,105 @@ export const uploadImage = async (file) => {
   }
 };
 
+// Pas Foto Siswa (Rasio 3:4 Standar ID Card & Pas Foto, WebP Ultra-ringan ~30KB)
+export const cropAndCompressStudentPhoto = (file, targetWidth = 450, targetHeight = 600, quality = 0.82) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/')) {
+      return resolve(file);
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+
+        // Rasio 3:4 = 0.75
+        const targetRatio = targetWidth / targetHeight;
+        const imgRatio = img.width / img.height;
+        let sWidth, sHeight, sx, sy;
+
+        if (imgRatio > targetRatio) {
+          // Gambar lebih lebar: potong kiri-kanan secara simetris
+          sHeight = img.height;
+          sWidth = img.height * targetRatio;
+          sx = (img.width - sWidth) / 2;
+          sy = 0;
+        } else {
+          // Gambar lebih tinggi: potong atas-bawah (fokus 25% dari atas agar kepala/wajah pas di frame)
+          sWidth = img.width;
+          sHeight = img.width / targetRatio;
+          sx = 0;
+          sy = Math.max(0, (img.height - sHeight) * 0.25);
+        }
+
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve(file);
+          const baseName = file.name.replace(/\.[^/.]+$/, '');
+          const compressedFile = new File([blob], `${baseName}-3x4.webp`, {
+            type: 'image/webp',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        }, 'image/webp', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+};
+
+export const uploadStudentPhoto = async (file) => {
+  try {
+    let processedFile = file;
+    try {
+      processedFile = await cropAndCompressStudentPhoto(file);
+    } catch (e) {
+      console.warn('Pas foto crop fallback:', e);
+      processedFile = file;
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(processedFile);
+    });
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: dataUrl, filename: file.name }),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('uploadStudentPhoto error:', error);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const deleteUploadedImage = async (urlOrKey) => {
+  try {
+    if (!urlOrKey) return { success: true };
+    const key = String(urlOrKey).split('/').pop();
+    const res = await fetch(`/api/upload?key=${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('deleteUploadedImage error:', error);
+    return { success: false, error: String(error) };
+  }
+};
+
 // Admin: pindahkan file foto KK ke folder jenjang lain di Drive (dipakai saat siswa naik kelas).
 // Foto KK masih ditempel manual sebagai link Drive oleh TU (bukan lewat upload aplikasi),
 // jadi di luar cakupan migrasi D1/R2 -- tetap lewat Apps Script lama.
@@ -502,6 +601,62 @@ export const adminDeleteAttendanceRecords = async (items) => {
   } catch (err) {
     console.error('adminDeleteAttendanceRecords error:', err);
     return { success: false, error: err.message };
+  }
+};
+
+// ==================== PRESENSI SISWA (QR CODE & BATCH SUBMIT) ====================
+
+export const getStudentAttendanceTodayClass = async ({ kelas, date }) => {
+  try {
+    const params = new URLSearchParams({ action: 'today_class' });
+    if (kelas) params.set('kelas', kelas);
+    if (date) params.set('date', date);
+    const res = await fetch(`/api/student-attendance?${params.toString()}`);
+    return await res.json();
+  } catch (err) {
+    console.error('getStudentAttendanceTodayClass error:', err);
+    return { success: false, error: err.message, students: [], attendances: [] };
+  }
+};
+
+export const submitStudentAttendanceBatch = async ({ date, kelas, submitted_by, items }) => {
+  try {
+    const res = await fetch('/api/student-attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit_batch', date, kelas, submitted_by, items }),
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('submitStudentAttendanceBatch error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const getStudentAttendanceParentToday = async (studentId, date) => {
+  try {
+    const params = new URLSearchParams({ action: 'parent_today', studentId });
+    if (date) params.set('date', date);
+    const res = await fetch(`/api/student-attendance?${params.toString()}`);
+    return await res.json();
+  } catch (err) {
+    console.error('getStudentAttendanceParentToday error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const getStudentAttendanceRecap = async ({ kelas, startDate, endDate, studentId } = {}) => {
+  try {
+    const params = new URLSearchParams({ action: 'recap' });
+    if (kelas) params.set('kelas', kelas);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    if (studentId) params.set('studentId', studentId);
+    const res = await fetch(`/api/student-attendance?${params.toString()}`);
+    return await res.json();
+  } catch (err) {
+    console.error('getStudentAttendanceRecap error:', err);
+    return { success: false, error: err.message, attendances: [] };
   }
 };
 

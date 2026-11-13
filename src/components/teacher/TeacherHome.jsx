@@ -18,7 +18,8 @@ import {
   Printer,
   Calendar,
   Layers,
-  HeartHandshake
+  HeartHandshake,
+  QrCode
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { fetchSchoolData } from '../../services/gsheet';
@@ -136,6 +137,16 @@ export default function TeacherHome() {
 
   // Quick Action Power Hub
   const quickActions = [
+    {
+      title: 'Scan QR Presensi Siswa',
+      subtitle: 'Scan cepat kartu santri pakai kamera HP, audio beep & haptic feedback.',
+      path: '/dashboard-guru/presensi-siswa',
+      icon: QrCode,
+      accent: 'from-emerald-700 to-teal-800',
+      badge: 'QR Card Scan',
+      badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      shadow: 'shadow-emerald-900/10 hover:shadow-emerald-900/20',
+    },
     {
       title: 'E-Raport Kurikulum Merdeka',
       subtitle: 'Input CP, deskripsi nilai akhir & unduh PDF rapor resmi.',

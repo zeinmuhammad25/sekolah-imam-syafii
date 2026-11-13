@@ -3,10 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import {
   Plus, Pencil, Trash2, Eye, ArrowUpCircle, LogOut, Search, Download, Loader2, AlertTriangle, FolderOpen,
-  FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown, RefreshCw,
+  FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown, RefreshCw, Camera, User, Sparkles, Image as ImageIcon,
+  CreditCard, QrCode,
 } from 'lucide-react';
-import { fetchSchoolData, mutateRow, mutateBatch, moveKKFile, formatSheetDate, formatSheetDateDMY, describeMutationError } from '../../services/gsheet';
+import {
+  fetchSchoolData, mutateRow, mutateBatch, moveKKFile, formatSheetDate, formatSheetDateDMY,
+  describeMutationError, uploadStudentPhoto, deleteUploadedImage, getStudentAttendanceParentToday,
+} from '../../services/gsheet';
 import { Modal, ModalFooter, ConfirmDialog, Thumb, Field, ToastNotification } from './ModalKit';
+import StudentIdCardModal from './StudentIdCardModal';
 
 // Taksonomi kelas — "Tamat" mengikuti SD 6, dipakai sebagai tab tersendiri untuk siswa yang sudah lulus.
 const GRADES = ['TK', 'SD 1', 'SD 2', 'SD 3', 'SD 4', 'SD 5', 'SD 6', 'Tamat'];
@@ -151,8 +156,9 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Dokumen',
+    title: 'Dokumen & Foto',
     fields: [
+      { name: 'foto_siswa', label: 'Pas Foto Siswa (3:4)', type: 'student_photo' },
       { name: 'foto_kk', label: 'Link File Foto/Scan KK (opsional)', type: 'text', placeholder: 'Link file-nya, bukan link folder — ambil dari dalam folder di bawah' },
     ],
   },
@@ -180,8 +186,8 @@ const validateStudentForm = (form) => {
   return null;
 };
 
-// Kolom yang dipakai untuk import massal — semua field kecuali foto_kk (upload) & agama (dikunci ke Islam, bukan dari file).
-const IMPORT_FIELDS = ALL_FIELDS.filter((f) => f.name !== 'foto_kk' && f.name !== 'agama');
+// Kolom yang dipakai untuk import massal — semua field kecuali foto_kk/foto_siswa (upload) & agama (dikunci ke Islam).
+const IMPORT_FIELDS = ALL_FIELDS.filter((f) => f.name !== 'foto_kk' && f.name !== 'foto_siswa' && f.name !== 'agama');
 const IMPORT_REQUIRED = IMPORT_FIELDS.filter((f) => f.required);
 
 // Baris contoh di template — nama sengaja ditandai jelas biar tidak ke-import diam-diam kalau lupa dihapus/diganti.
@@ -227,6 +233,19 @@ export default function TeacherStudents() {
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [editing, setEditing] = useState(null); // {form, id|null}
   const [previewing, setPreviewing] = useState(null); // item yang di-preview (read-only)
+  const [previewAttendance, setPreviewAttendance] = useState(null);
+
+  useEffect(() => {
+    if (previewing?.id) {
+      getStudentAttendanceParentToday(previewing.id)
+        .then((res) => {
+          if (res && res.success) setPreviewAttendance(res.attendance || null);
+        })
+        .catch(() => setPreviewAttendance(null));
+    } else {
+      setPreviewAttendance(null);
+    }
+  }, [previewing]);
   const [expanded, setExpanded] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [confirmingPromote, setConfirmingPromote] = useState(false);
@@ -235,9 +254,57 @@ export default function TeacherStudents() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState({ show: false, message: '', type: 'success', title: '' });
 
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  const handleStudentPhotoUpload = async (file) => {
+    if (!file) return;
+    setPhotoUploading(true);
+    setPhotoError('');
+    try {
+      const res = await uploadStudentPhoto(file);
+      if (res.success && res.url) {
+        const oldUrl = editing?.form?.foto_siswa;
+        if (oldUrl && oldUrl.includes('/uploads/img-') && oldUrl !== res.url) {
+          deleteUploadedImage(oldUrl).catch(console.warn);
+        }
+        setEditing((prev) => ({
+          ...prev,
+          form: { ...prev.form, foto_siswa: res.url },
+        }));
+        showToast('Pas foto siswa berhasil diproses (WebP 3:4) & diunggah!', 'success', 'Pas Foto');
+      } else {
+        setPhotoError(res.error || 'Gagal mengunggah foto.');
+      }
+    } catch (err) {
+      setPhotoError(err.message || 'Gagal memproses foto.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handleStudentPhotoDelete = async () => {
+    const currentPhoto = editing?.form?.foto_siswa;
+    if (!currentPhoto) return;
+    if (window.confirm('Hapus pas foto siswa ini? File di penyimpanan R2 akan dibersihkan.')) {
+      if (currentPhoto.includes('/uploads/img-')) {
+        deleteUploadedImage(currentPhoto).catch(console.warn);
+      }
+      setEditing((prev) => ({
+        ...prev,
+        form: { ...prev.form, foto_siswa: '' },
+      }));
+      showToast('Pas foto siswa telah dihapus.', 'info', 'Foto Dihapus');
+    }
+  };
+
   const showToast = (message, type = 'success', title = '') => {
     setToast({ show: true, message, type, title });
   };
+
+  // ---- ID Card Generator State ----
+  const [idCardModalOpen, setIdCardModalOpen] = useState(false);
+  const [idCardStudent, setIdCardStudent] = useState(null);
 
   // ---- Mode edit di halaman list: Edit-field & Hapus ditahan sampai Simpan; Naik Kelas & Pindah langsung jalan ----
   const [listEditMode, setListEditMode] = useState(false);
@@ -726,6 +793,19 @@ export default function TeacherStudents() {
             <Download size={15} /> Export
           </button>
           <button
+            onClick={() => {
+              if (filtered.length > 0) {
+                setIdCardStudent(filtered[0]);
+                setIdCardModalOpen(true);
+              }
+            }}
+            disabled={!items || !filtered.length}
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-emerald-50 text-emerald-800 border-2 border-emerald-200 hover:border-emerald-600 hover:bg-emerald-100 active:scale-95 transition-all disabled:opacity-40"
+            title="Cetak Kartu Pelajar & QR Presensi Siswa"
+          >
+            <CreditCard size={15} /> Cetak ID Card
+          </button>
+          <button
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-wider bg-white text-slate-600 border-2 border-slate-200 hover:border-slate-900 hover:text-slate-900 active:scale-95 transition-all disabled:opacity-40"
@@ -801,7 +881,27 @@ export default function TeacherStudents() {
                     className="w-4 h-4 sm:w-5 sm:h-5 accent-secondary shrink-0"
                   />
                 )}
-                <Thumb src={driveThumbUrl(display.foto_kk)} />
+                {display.foto_siswa ? (
+                  <div className="relative shrink-0">
+                    <img
+                      src={display.foto_siswa}
+                      alt={display.nama_siswa}
+                      className="w-11 h-14 sm:w-12 sm:h-16 rounded-xl object-cover border border-emerald-500/40 bg-slate-100 shadow-xs shrink-0"
+                    />
+                    <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 shadow-xs" title="Pas foto 3:4 aktif">
+                      <CheckCircle2 size={10} />
+                    </span>
+                  </div>
+                ) : display.foto_kk ? (
+                  <Thumb src={driveThumbUrl(display.foto_kk)} />
+                ) : (
+                  <div className={`w-11 h-14 sm:w-12 sm:h-16 rounded-xl flex flex-col items-center justify-center shrink-0 border border-dashed ${
+                    display.jenis_kelamin === 'Perempuan' ? 'bg-pink-50/60 border-pink-200 text-pink-400' : 'bg-emerald-50/60 border-emerald-200 text-emerald-600'
+                  }`} title="Belum ada pas foto">
+                    <User size={16} />
+                    <span className="text-[8px] font-black uppercase mt-0.5">3:4</span>
+                  </div>
+                )}
                 <div className="min-w-0 flex-grow">
                   <p className={`font-black text-xs sm:text-sm text-slate-900 truncate flex items-center gap-1.5 ${isDeleted ? 'line-through text-slate-400' : ''}`}>
                     {display.nama_siswa || '(tanpa nama)'}
@@ -821,7 +921,19 @@ export default function TeacherStudents() {
                 )}
                 <div className="flex gap-1.5 sm:gap-2 shrink-0">
                   {!listEditMode && (
-                    <button onClick={() => setPreviewing(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-primary hover:text-white transition-all" title="Preview"><Eye size={15} /></button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setIdCardStudent(item);
+                          setIdCardModalOpen(true);
+                        }}
+                        className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white transition-all shadow-2xs"
+                        title="Kartu Pelajar (ID Card) & QR Presensi"
+                      >
+                        <CreditCard size={15} />
+                      </button>
+                      <button onClick={() => setPreviewing(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-primary hover:text-white transition-all" title="Preview"><Eye size={15} /></button>
+                    </>
                   )}
                   {listEditMode && isDeleted && (
                     <button onClick={() => undoStagedDelete(item.id)} className="text-[11px] sm:text-xs font-black text-secondary hover:underline px-1.5 sm:px-2">Urungkan</button>
@@ -863,6 +975,19 @@ export default function TeacherStudents() {
             >
               <LogOut size={14} /> Pindah
             </button>
+            <button
+              onClick={() => {
+                const selected = items.filter((s) => checkedIds.includes(s.id));
+                if (selected.length > 0) {
+                  setIdCardStudent(selected[0]);
+                  setIdCardModalOpen(true);
+                }
+              }}
+              disabled={checkedIds.length === 0}
+              className="inline-flex items-center gap-1.5 bg-teal-600 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider hover:bg-teal-500 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"
+            >
+              <CreditCard size={14} /> Cetak Kartu ({checkedIds.length})
+            </button>
             <button onClick={handleListCancelClick} disabled={listSaving} className="bg-white/10 text-white px-4 py-2.5 rounded-full font-black text-xs uppercase tracking-wider hover:bg-white/20 active:scale-95 transition-all disabled:opacity-50">
               Batal
             </button>
@@ -890,6 +1015,84 @@ export default function TeacherStudents() {
             closeOnBackdrop={false}
           >
             <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 space-y-4 sm:space-y-5">
+              {/* Pas Foto Siswa 3:4 (ID Card & Presensi) */}
+              <div className="bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-100/80 rounded-2xl p-3.5 sm:p-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Frame Pas Foto 3:4 */}
+                  <div className="relative w-24 h-32 rounded-xl overflow-hidden bg-slate-100 border-2 border-dashed border-emerald-300 shadow-sm shrink-0 flex items-center justify-center">
+                    {editing.form.foto_siswa ? (
+                      <img
+                        src={editing.form.foto_siswa}
+                        alt="Pas Foto"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center p-2 text-slate-400">
+                        <Camera size={26} className="mx-auto text-emerald-600/70 mb-1" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Pas Foto 3:4</span>
+                      </div>
+                    )}
+                    {photoUploading && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center text-white p-1">
+                        <Loader2 className="animate-spin mb-1" size={20} />
+                        <span className="text-[9px] font-bold text-center">Kompres...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Keterangan & Kontrol Upload */}
+                  <div className="min-w-0 flex-grow text-center sm:text-left">
+                    <div className="flex items-center justify-center sm:justify-start gap-1.5 mb-1">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        <Sparkles size={11} /> ID Card & Presensi
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">WebP ~30KB</span>
+                    </div>
+                    <h5 className="font-black text-sm text-slate-800 mb-1">Pas Foto Resmi Siswa</h5>
+                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                      Format pas foto otomatis di-crop rasio 3:4 dan dikompresi agar hemat kuota R2. Digunakan untuk kartu pelajar & foto profil presensi.
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <label className="cursor-pointer">
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 text-white font-black text-xs hover:bg-black transition-all shadow-sm active:scale-95">
+                          {photoUploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
+                          {editing.form.foto_siswa ? 'Ganti Foto' : 'Upload Foto'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={photoUploading || saving}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleStudentPhotoUpload(e.target.files[0]);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {editing.form.foto_siswa && (
+                        <button
+                          type="button"
+                          onClick={handleStudentPhotoDelete}
+                          disabled={photoUploading || saving}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-50 text-rose-600 font-black text-xs hover:bg-rose-100 transition-all active:scale-95"
+                        >
+                          <Trash2 size={13} /> Hapus Foto
+                        </button>
+                      )}
+                    </div>
+                    {photoError && (
+                      <p className="text-xs font-bold text-rose-600 mt-2 flex items-center justify-center sm:justify-start gap-1">
+                        <AlertTriangle size={13} /> {photoError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {SECTIONS.map((section) => (
                 <div key={section.title}>
                   <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em] mb-2">{section.title}</h4>
@@ -903,7 +1106,7 @@ export default function TeacherStudents() {
                       <ArrowUpCircle size={16} /> Pindahkan ke Alumni
                     </button>
                   )}
-                  {section.title === 'Dokumen' && kkFolderLinkFor(editing.form.kelas) && (
+                  {section.title === 'Dokumen & Foto' && kkFolderLinkFor(editing.form.kelas) && (
                     <div className="mb-3 bg-secondary/5 border border-secondary/20 rounded-xl p-3">
                       <p className="text-xs font-bold text-slate-600 mb-2">
                         1) Buka folder → upload/cari file KK siswa ini → salin link file-nya (bukan link folder) → tempel di kolom bawah.
@@ -920,7 +1123,7 @@ export default function TeacherStudents() {
                   )}
                   <div className={`grid sm:grid-cols-2 ${expanded ? 'lg:grid-cols-3' : ''} gap-3`}>
                     {section.fields.map((f) => {
-                      if (f.isCompanion) return null;
+                      if (f.isCompanion || f.name === 'foto_siswa') return null;
                       if (f.companion) {
                         const compField = section.fields.find((x) => x.name === f.companion);
                         return (
@@ -1080,12 +1283,79 @@ export default function TeacherStudents() {
         {previewing && (
           <Modal onClose={() => setPreviewing(null)} title={previewing.nama_siswa || '(tanpa nama)'} maxWidthClass="max-w-2xl">
             <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-5 space-y-4 sm:space-y-5">
+              {/* Banner Pas Foto Siswa */}
+              {previewing.foto_siswa ? (
+                <div className="flex items-center gap-4 p-3 sm:p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
+                  <img
+                    src={previewing.foto_siswa}
+                    alt={previewing.nama_siswa}
+                    className="w-16 h-20 sm:w-20 sm:h-26 rounded-xl object-cover border-2 border-white shadow-md shrink-0 bg-slate-100"
+                  />
+                  <div className="min-w-0 flex-grow">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 mb-1">
+                      <Sparkles size={11} /> Pas Foto Resmi (3:4)
+                    </span>
+                    <h5 className="font-black text-sm text-slate-800">Foto Profil & Kartu Pelajar Aktif</h5>
+                    <p className="text-xs text-slate-500 mt-0.5">Tersimpan di Cloudflare R2 (Format WebP ~30KB)</p>
+                    <a
+                      href={previewing.foto_siswa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-black text-secondary hover:underline mt-2"
+                    >
+                      <Eye size={13} /> Lihat Foto Asli
+                    </a>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Status Presensi Hari Ini (Live) */}
+              {previewAttendance && (
+                <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                  previewAttendance.status === 'hadir' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+                  previewAttendance.status === 'sakit' ? 'bg-amber-50 border-amber-200 text-amber-900' :
+                  previewAttendance.status === 'izin' ? 'bg-blue-50 border-blue-200 text-blue-900' :
+                  'bg-rose-50 border-rose-200 text-rose-900'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-3 h-3 rounded-full shrink-0 ${
+                      previewAttendance.status === 'hadir' ? 'bg-emerald-600' :
+                      previewAttendance.status === 'sakit' ? 'bg-amber-500' :
+                      previewAttendance.status === 'izin' ? 'bg-blue-500' : 'bg-rose-500'
+                    }`} />
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-wider opacity-70">
+                        Presensi Hari Ini ({previewAttendance.date || 'Hari Ini'})
+                      </p>
+                      <p className="font-black text-xs sm:text-sm uppercase">
+                        {previewAttendance.status === 'hadir' ? 'Hadir di Sekolah' :
+                         previewAttendance.status === 'sakit' ? 'Sakit' :
+                         previewAttendance.status === 'izin' ? 'Izin' : 'Alpha (Tanpa Keterangan)'}
+                        {previewAttendance.scan_time && (
+                          <span className="font-normal text-xs ml-1.5 opacity-80">
+                            • {previewAttendance.scan_time} WIB via Scan Kartu
+                          </span>
+                        )}
+                        {previewAttendance.notes && (
+                          <span className="font-semibold italic text-xs ml-1.5 opacity-90">
+                            • "{previewAttendance.notes}"
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/70 shadow-xs shrink-0">
+                    {previewAttendance.status}
+                  </span>
+                </div>
+              )}
+
               {SECTIONS.map((section) => (
                 <div key={section.title}>
                   <h4 className="text-[11px] font-black text-secondary uppercase tracking-[0.15em] mb-2">{section.title}</h4>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {section.fields.map((f) => {
-                      if (f.isCompanion) return null;
+                      if (f.isCompanion || f.name === 'foto_siswa') return null;
                       if (f.companion) {
                         const compField = section.fields.find((x) => x.name === f.companion);
                         return (
@@ -1123,6 +1393,12 @@ export default function TeacherStudents() {
             <ModalFooter>
               <div className="flex gap-3">
                 <button onClick={() => setPreviewing(null)} className="flex-1 py-4 rounded-2xl bg-slate-100 text-slate-600 font-black text-sm hover:bg-slate-200 transition-all">Tutup</button>
+                <button
+                  onClick={() => { const item = previewing; setPreviewing(null); setIdCardStudent(item); setIdCardModalOpen(true); }}
+                  className="flex-1 bg-emerald-700 text-white p-4 rounded-2xl font-black text-sm hover:bg-emerald-800 transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <CreditCard size={18} /> Cetak ID Card
+                </button>
                 <button
                   onClick={() => { const item = previewing; setPreviewing(null); if (!listEditMode) enterListEditMode(); openEdit(item); }}
                   className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-black text-sm hover:bg-black transition-all"
@@ -1425,6 +1701,16 @@ export default function TeacherStudents() {
           />
         )}
       </AnimatePresence>
+
+      {/* Modal Generator ID Card Siswa */}
+      <StudentIdCardModal
+        isOpen={idCardModalOpen}
+        onClose={() => setIdCardModalOpen(false)}
+        initialStudent={idCardStudent}
+        students={filtered}
+        activeGrade={activeGrade}
+        selectedStudents={(items || []).filter((s) => checkedIds.includes(s.id))}
+      />
     </div>
   );
 }

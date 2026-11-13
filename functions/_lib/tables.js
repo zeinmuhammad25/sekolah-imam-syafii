@@ -48,7 +48,7 @@ export const TABLES = {
       S('pendidikan_ibu', 'pendidikan_ibu'), S('nama_wali', 'nama_wali'), S('pekerjaan_wali', 'pekerjaan_wali'),
       S('alamat_wali', 'alamat_wali'), S('pendidikan_sebelumnya', 'pendidikan_sebelumnya'), S('no_hp_ortu', 'no_hp_ortu'),
       S('kelas', 'kelas'), S('tahun_ajaran_masuk', 'tahun_ajaran_masuk'), S('status', 'status'), S('foto_kk', 'foto_kk'),
-      S('updatedAt', 'updated_at'),
+      S('foto_siswa', 'foto_siswa'), S('updatedAt', 'updated_at'),
     ],
   },
   QuestionFolders: {
@@ -106,6 +106,17 @@ export const TABLES = {
       S('semester', 'semester'), S('isPublished', 'is_published'),
       S('publishedAt', 'published_at'), S('publishedBy', 'published_by'),
       S('notes', 'notes'), S('updatedAt', 'updated_at')
+    ],
+  },
+  StudentAttendances: {
+    table: 'student_attendances', orderCol: 'date',
+    fields: [
+      S('id', 'id'), S('date', 'date'), S('kelas', 'kelas'),
+      S('student_id', 'student_id'), S('student_name', 'student_name'),
+      S('status', 'status'), S('method', 'method'),
+      S('scan_time', 'scan_time'), S('notes', 'notes'),
+      S('submitted_by', 'submitted_by'),
+      S('created_at', 'created_at'), S('updated_at', 'updated_at')
     ],
   },
 };

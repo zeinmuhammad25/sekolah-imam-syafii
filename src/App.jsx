@@ -22,6 +22,8 @@ const TeacherAttendance = lazy(() => import('./components/teacher/TeacherAttenda
 const TeacherAttendanceMembers = lazy(() => import('./components/teacher/TeacherAttendanceMembers'));
 const TeacherAttendanceRecap = lazy(() => import('./components/teacher/TeacherAttendanceRecap'));
 const TeacherAttendanceSettings = lazy(() => import('./components/teacher/TeacherAttendanceSettings'));
+const TeacherStudentAttendance = lazy(() => import('./components/teacher/TeacherStudentAttendance'));
+const TeacherStudentAttendanceRecap = lazy(() => import('./components/teacher/TeacherStudentAttendanceRecap'));
 
 // Route Protection dengan Direct Login Gate & Sesi Persisten
 const ProtectedRoute = ({ children }) => {
@@ -107,6 +109,14 @@ export default function App() {
           <Route
             path="/dashboard-guru/siswa"
             element={<ProtectedRoute><TeacherLayout><TeacherStudents /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/presensi-siswa"
+            element={<ProtectedRoute><TeacherLayout><TeacherStudentAttendance /></TeacherLayout></ProtectedRoute>}
+          />
+          <Route
+            path="/dashboard-guru/presensi-siswa/rekap"
+            element={<ProtectedRoute><TeacherLayout><TeacherStudentAttendanceRecap /></TeacherLayout></ProtectedRoute>}
           />
           <Route
             path="/dashboard-guru/mapel"

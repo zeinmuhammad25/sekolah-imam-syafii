@@ -58,6 +58,26 @@ const studentsData = [
   { nis: '240012', nama: 'Nazran Azraqi', jk: 'Laki-laki', kelas: 'SD 3', tahun: '2024/2025', tgl: '2017-01-01' },
   { nis: '240013', nama: 'Rihannah Shihah', jk: 'Perempuan', kelas: 'SD 3', tahun: '2024/2025', tgl: '2017-01-01' },
   { nis: '240014', nama: 'Shidqiyah Ayu Nasyrah', jk: 'Perempuan', kelas: 'SD 3', tahun: '2024/2025', tgl: '2017-01-01' },
+
+  // Kelas TK (TK Qur'an Imam Syafi'i)
+  { nis: '260053', nama: 'ADZKIA FAIHA', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260054', nama: 'AIN FARHANNA HUMAIRAH', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260055', nama: 'AL AYUBI FAIZ', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260056', nama: 'ARUNIKA SALSABILA', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260057', nama: 'ANNAZA FATIH RAMADAN', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260058', nama: 'ASLAM KAFFAH', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260059', nama: 'DEAR AMMIRA', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260060', nama: 'DWI NOVI YANTO', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260061', nama: 'HILYA', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260062', nama: 'KAUREEN FAZLUNA SINAGA', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260063', nama: 'KHALEED SHARIM MUDZAFAR', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260064', nama: 'MIFTAHUL JANNAH', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260065', nama: 'M. IZZAN SYAFIQ', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260066', nama: 'MUHAMMAD IRWAN MAULANA', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260067', nama: 'MUHAMMAD JOVANKHA', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260068', nama: 'QONITAH HANIFAH', jk: 'Perempuan', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260069', nama: 'SHERAZ ABDURRAHMAN SARAGIH', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
+  { nis: '260070', nama: 'UMAR ILYAS LUBIS', jk: 'Laki-laki', kelas: 'TK', tahun: '2026/2027', tgl: '2021-01-01' },
 ];
 
 const now = Date.now();
