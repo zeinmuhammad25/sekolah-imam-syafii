@@ -6,7 +6,7 @@ import {
   FileSpreadsheet, Download, RefreshCw, XCircle, Search,
   Check, X, ChevronDown, Award, HeartPulse, UserCheck, UserX,
   Volume2, VolumeX, ShieldCheck, ArrowRight, Eye,
-  Copy, MessageSquare, Share2, CreditCard, Edit3
+  Copy, MessageSquare, Share2, CreditCard, Edit3, Upload
 } from 'lucide-react';
 import {
   getStudentAttendanceTodayClass,
@@ -115,6 +115,7 @@ export default function TeacherStudentAttendance() {
   const scannerRef = useRef(null);
   const scanCooldownRef = useRef(0);
   const handleDecodedQrRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Submitting State & Toast
   const [submitting, setSubmitting] = useState(false);
@@ -352,6 +353,30 @@ export default function TeacherStudentAttendance() {
       setTimeout(() => {
         startCamera(nextMode);
       }, 250);
+    }
+  };
+
+  // Handler Scan dari File Gambar / Foto Kartu
+  const handleScanFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      initAudio();
+      const { Html5Qrcode } = await import('html5-qrcode');
+      if (scannerRef.current && isCameraActive) {
+        await stopCamera();
+      }
+      const tempScanner = new Html5Qrcode('qr-reader-viewport', { verbose: false });
+      const decodedText = await tempScanner.scanFile(file, true);
+      tempScanner.clear();
+      if (handleDecodedQrRef.current) {
+        handleDecodedQrRef.current(decodedText);
+      }
+    } catch (err) {
+      console.error('Scan file error:', err);
+      showToast('QR Code tidak dapat dideteksi dari gambar tersebut. Pastikan pola QR code terlihat jelas dan tidak buram.', 'error', 'Scan Gagal');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -808,6 +833,23 @@ export default function TeacherStudentAttendance() {
               <Camera size={16} className="text-secondary" /> Kamera Scanner
             </h3>
             <div className="flex items-center gap-1.5">
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleScanFile}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-1.5 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all text-xs font-bold flex items-center gap-1"
+                title="Scan dari file gambar atau foto kartu siswa"
+              >
+                <Upload size={14} />
+                <span className="hidden sm:inline">File</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -847,16 +889,25 @@ export default function TeacherStudentAttendance() {
                 <div>
                   <h4 className="font-black text-base text-white">Scanner Belum Aktif</h4>
                   <p className="text-xs text-slate-400 mt-1 max-w-xs">
-                    Klik tombol di bawah untuk mengaktifkan kamera smartphone dan mulai scan kartu pelajar siswa.
+                    Klik tombol di bawah untuk mengaktifkan kamera atau pilih file foto kartu ID siswa.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => startCamera()}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs uppercase tracking-wider hover:bg-emerald-500 active:scale-95 transition-all shadow-lg flex items-center gap-2"
-                >
-                  <Camera size={16} /> Aktifkan Kamera
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => startCamera()}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs uppercase tracking-wider hover:bg-emerald-500 active:scale-95 transition-all shadow-lg flex items-center gap-1.5"
+                  >
+                    <Camera size={16} /> Aktifkan Kamera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 font-bold text-xs uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center gap-1.5 border border-slate-700"
+                  >
+                    <Upload size={15} /> Upload Gambar
+                  </button>
+                </div>
               </div>
             )}
 
