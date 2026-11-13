@@ -201,53 +201,56 @@ export default function TeacherStudentAttendance() {
     }
   }, [attendanceMap, draftKey]);
 
-  // 2. Parser Payload QR Code Siswa
+  // 2. Parser Payload QR Code Siswa (Mendukung Format Angka Langsung, JSON, dan Format Kustom)
   const handleDecodedQr = useCallback((decodedText) => {
     const now = Date.now();
     // Cooldown 2 detik agar kartu tidak ter-scan berulang kali seketika
     if (now - scanCooldownRef.current < 2000) return;
     scanCooldownRef.current = now;
 
-    if (!decodedText || typeof decodedText !== 'string') return;
+    if (!decodedText) return;
+    const cleanRaw = String(decodedText).trim();
+    if (!cleanRaw) return;
 
     let studentId = '';
     let studentNisn = '';
     let studentName = '';
 
-    // Coba parse JSON payload: {"app":"mias","id":"...","nisn":"...","name":"..."}
-    try {
-      const parsed = JSON.parse(decodedText);
-      if (parsed.id) {
-        studentId = String(parsed.id).trim();
-      }
-      if (parsed.nisn) {
-        studentNisn = String(parsed.nisn).trim();
-      }
-      studentName = parsed.name || '';
-    } catch {
-      // Fallback format string: "MIAS:123:..." atau plain ID
-      if (decodedText.startsWith('MIAS:')) {
-        const parts = decodedText.split(':');
-        studentId = parts[1] || '';
-      } else {
-        studentId = decodedText.trim();
-      }
+    // Cek apakah format JSON Object (hanya jika string diawali '{' dan diakhiri '}')
+    // PENTING: String angka murni '3200359913' jika di-JSON.parse akan menjadi tipe number tanpa properti .id/.nisn!
+    if (cleanRaw.startsWith('{') && cleanRaw.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(cleanRaw);
+        if (typeof parsed === 'object' && parsed !== null) {
+          studentId = String(parsed.id || '').trim();
+          studentNisn = String(parsed.nisn || '').trim();
+          studentName = parsed.name || '';
+        }
+      } catch {}
+    } else if (cleanRaw.startsWith('MIAS:')) {
+      // Format custom "MIAS:123"
+      const parts = cleanRaw.split(':');
+      studentId = parts[1] || cleanRaw;
+      studentNisn = parts[1] || cleanRaw;
+    } else {
+      // Format nomor langsung: NISN (mis. 3200359913) atau NIS/ID siswa (mis. 260032)
+      studentId = cleanRaw;
+      studentNisn = cleanRaw;
     }
 
-    if (!studentId && !studentNisn) return;
+    const searchTarget = (studentId || studentNisn || cleanRaw).toLowerCase();
 
     // Cari siswa di daftar kelas ini (cocokkan ID unik, NISN resmi, atau NIS)
     const matched = students.find((s) => {
-      const matchId = studentId && String(s.id).toLowerCase() === studentId.toLowerCase();
-      const matchNis = studentId && s.nis && String(s.nis).toLowerCase() === studentId.toLowerCase();
-      const matchNisnWithId = studentId && s.nisn && String(s.nisn).toLowerCase() === studentId.toLowerCase();
-      const matchNisnDirect = studentNisn && s.nisn && String(s.nisn).toLowerCase() === studentNisn.toLowerCase();
-      return matchId || matchNis || matchNisnWithId || matchNisnDirect;
+      const idMatch = s.id && String(s.id).toLowerCase() === searchTarget;
+      const nisMatch = s.nis && String(s.nis).toLowerCase() === searchTarget;
+      const nisnMatch = s.nisn && String(s.nisn).toLowerCase() === searchTarget;
+      return idMatch || nisMatch || nisnMatch;
     });
 
     if (!matched) {
-      // Siswa bukan dari kelas ini
-      showToast(`Kartu tidak terdaftar di kelas ${selectedGrade}. ID/Kode: ${studentId || studentNisn}. Pastikan dropdown kelas di atas sudah sesuai.`, 'warning', 'Siswa Tidak Ditemukan');
+      // Siswa bukan dari kelas ini atau kelas belum sesuai
+      showToast(`Kartu tidak terdaftar di kelas ${selectedGrade}. ID/Kode: ${cleanRaw}. Pastikan dropdown kelas di atas sudah sesuai dengan kelas siswa.`, 'warning', 'Siswa Tidak Ditemukan');
       return;
     }
 
