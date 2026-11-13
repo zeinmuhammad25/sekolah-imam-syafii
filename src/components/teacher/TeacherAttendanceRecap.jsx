@@ -624,7 +624,10 @@ export default function TeacherAttendanceRecap() {
         : selectedTeacherName;
 
       exportAttendancePdf({
-        attendances: displayAttendances,
+        attendances: displayAttendances.map((item) => ({
+          ...item,
+          isMissingOut: isNoCheckOut(item),
+        })),
         startDate,
         endDate,
         teacherName: guruTitle,

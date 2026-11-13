@@ -95,7 +95,7 @@ export function exportAttendancePdf({
   const tableData = attendances.map((item, idx) => {
     const isLate = item.check_in_status === 'terlambat';
     const isEarly = item.check_out_status === 'pulang_cepat' || (item.early_minutes && Number(item.early_minutes) > 0);
-    const isMissingOut = item.status === 'hadir' && Boolean(item.check_in_time) && !item.check_out_time;
+    const isMissingOut = Boolean(item.isMissingOut);
 
     const statusMasuk = item.check_in_time
       ? isLate
