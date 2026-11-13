@@ -204,8 +204,9 @@ export default function TeacherStudentAttendance() {
   // 2. Parser Payload QR Code Siswa
   const handleDecodedQr = useCallback((decodedText) => {
     const now = Date.now();
-    // Cooldown 1.5 detik agar kartu yang sama tidak ter-scan berulang kali seketika
-    if (now - scanCooldownRef.current < 1500) return;
+    // Cooldown 2 detik agar kartu tidak ter-scan berulang kali seketika
+    if (now - scanCooldownRef.current < 2000) return;
+    scanCooldownRef.current = now;
 
     if (!decodedText || typeof decodedText !== 'string') return;
 
@@ -246,11 +247,9 @@ export default function TeacherStudentAttendance() {
 
     if (!matched) {
       // Siswa bukan dari kelas ini
-      showToast(`Kartu tidak terdaftar di kelas ${selectedGrade}. ID: ${studentId}`, 'warning', 'Siswa Tidak Ditemukan');
+      showToast(`Kartu tidak terdaftar di kelas ${selectedGrade}. ID/Kode: ${studentId || studentNisn}. Pastikan dropdown kelas di atas sudah sesuai.`, 'warning', 'Siswa Tidak Ditemukan');
       return;
     }
-
-    scanCooldownRef.current = now;
 
     // Efek Beep Audio & Getar HP
     if (soundEnabled) playScanSound();
@@ -278,10 +277,10 @@ export default function TeacherStudentAttendance() {
       status: 'hadir',
     });
 
-    // Sembunyikan banner otomatis setelah 3 detik
+    // Sembunyikan banner otomatis setelah 3.5 detik
     setTimeout(() => {
       setLastScannedStudent((curr) => (curr?.id === matched.id ? null : curr));
-    }, 3200);
+    }, 3500);
   }, [students, selectedGrade, soundEnabled]);
 
   // Selalu perbarui ref agar scanner selalu mengeksekusi closure data siswa terbaru
@@ -910,6 +909,36 @@ export default function TeacherStudentAttendance() {
                 </div>
               </div>
             )}
+
+            {/* Overlay Notifikasi Langsung di Atas Kamera saat Scan Sukses */}
+            <AnimatePresence>
+              {lastScannedStudent && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, y: -25 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: -25 }}
+                  className="absolute inset-x-3 top-3 z-30 bg-emerald-800/95 text-white p-3 rounded-2xl shadow-2xl backdrop-blur-md border border-emerald-400 flex items-center gap-3 select-none"
+                >
+                  <img
+                    src={lastScannedStudent.foto_siswa || (String(lastScannedStudent.jenis_kelamin).toLowerCase().includes('p') ? '/avatars/akhwat.webp' : '/avatars/ikhwan.webp')}
+                    alt=""
+                    className="w-12 h-14 rounded-xl object-cover border-2 border-white bg-white shrink-0 shadow-md"
+                  />
+                  <div className="min-w-0 flex-grow text-left">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/20 text-emerald-100 flex items-center gap-1 w-fit">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
+                      BERHASIL SCAN • HADIR
+                    </span>
+                    <h4 className="font-black text-sm leading-tight mt-1 truncate text-white">
+                      {lastScannedStudent.nama_siswa}
+                    </h4>
+                    <p className="text-[11px] text-emerald-100 font-bold mt-0.5 font-mono">
+                      {lastScannedStudent.scan_time} WIB • {lastScannedStudent.nisn ? `NISN: ${lastScannedStudent.nisn}` : `ID: ${lastScannedStudent.id}`}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {isCameraActive && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
