@@ -106,13 +106,13 @@ const SECTIONS = [
   {
     title: 'Identitas Siswa',
     fields: [
-      { name: 'nama_siswa', label: 'Nama Lengkap Siswa', type: 'text', required: true },
+      { name: 'nama_siswa', label: 'Nama Lengkap Siswa', type: 'text', required: true, placeholder: 'Wajib diisi (minimal 1 karakter)' },
       { name: 'nik_siswa', label: 'NIK Siswa', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
-      { name: 'nisn', label: 'NISN', type: 'text', numeric: true, maxLength: 10, placeholder: '10 digit angka', companion: 'nis' },
-      { name: 'nis', label: 'Nomor Induk Sekolah (NIS)', type: 'text', numeric: true, placeholder: 'NIS (boleh kosong)', isCompanion: true },
-      { name: 'jenis_kelamin', label: 'Jenis Kelamin', type: 'select', required: true, options: ['Laki-laki', 'Perempuan'] },
-      { name: 'tempat_lahir', label: 'Tempat Lahir', type: 'text', required: true },
-      { name: 'tanggal_lahir', label: 'Tanggal Lahir', type: 'date', required: true },
+      { name: 'nisn', label: 'NISN', type: 'text', numeric: true, maxLength: 10, placeholder: '10 digit angka (boleh kosong)', companion: 'nis' },
+      { name: 'nis', label: 'Nomor Induk Sekolah (NIS)', type: 'text', numeric: true, maxLength: 6, placeholder: '6 digit angka (boleh kosong)', isCompanion: true },
+      { name: 'jenis_kelamin', label: 'Jenis Kelamin', type: 'select', options: ['Laki-laki', 'Perempuan'] },
+      { name: 'tempat_lahir', label: 'Tempat Lahir', type: 'text' },
+      { name: 'tanggal_lahir', label: 'Tanggal Lahir', type: 'date' },
       { name: 'agama', label: 'Agama', type: 'text', locked: true, lockedValue: 'Islam' },
       { name: 'anak_ke', label: 'Anak ke-', type: 'text' },
     ],
@@ -140,7 +140,7 @@ const SECTIONS = [
       { name: 'nik_ibu', label: 'NIK Ibu', type: 'text', numeric: true, maxLength: 16, placeholder: '16 digit angka (boleh kosong)' },
       { name: 'pekerjaan_ibu', label: 'Pekerjaan Ibu', type: 'text' },
       { name: 'pendidikan_ibu', label: 'Pendidikan Ibu', type: 'select', allowCustom: true, options: PENDIDIKAN_OPTIONS },
-      { name: 'no_hp_ortu', label: 'No. HP/WA Orang Tua', type: 'text', required: true },
+      { name: 'no_hp_ortu', label: 'No. HP/WA Orang Tua', type: 'text', placeholder: 'No. HP/WA (boleh kosong)' },
       { name: 'nama_wali', label: 'Nama Wali (opsional)', type: 'text' },
       { name: 'pekerjaan_wali', label: 'Pekerjaan Wali (opsional)', type: 'text' },
       { name: 'alamat_wali', label: 'Alamat Wali (opsional)', type: 'text' },
@@ -149,10 +149,10 @@ const SECTIONS = [
   {
     title: 'Data Sekolah',
     fields: [
-      { name: 'kelas', label: 'Kelas/Jenjang', type: 'select', required: true, allowCustom: true, options: GRADES },
+      { name: 'kelas', label: 'Kelas/Jenjang', type: 'select', allowCustom: true, options: GRADES },
       { name: 'tahun_ajaran_masuk', label: 'Tahun Ajaran Masuk', type: 'text', placeholder: 'mis. 2026/2027' },
       { name: 'pendidikan_sebelumnya', label: 'Pendidikan Sebelumnya (opsional)', type: 'text', placeholder: 'mis. TK Qur\'an Imam Syafi\'i' },
-      { name: 'status', label: 'Status', type: 'select', required: true, options: STATUS_OPTIONS },
+      { name: 'status', label: 'Status', type: 'select', options: STATUS_OPTIONS },
     ],
   },
   {
@@ -164,25 +164,45 @@ const SECTIONS = [
   },
 ];
 const ALL_FIELDS = SECTIONS.flatMap((s) => s.fields);
-const emptyForm = () => ({ ...Object.fromEntries(ALL_FIELDS.map((f) => [f.name, ''])), agama: 'Islam' });
+const emptyForm = () => ({
+  ...Object.fromEntries(ALL_FIELDS.map((f) => [f.name, ''])),
+  agama: 'Islam',
+  status: 'Aktif',
+});
 
-// Validasi format nomor identitas — TIDAK wajib diisi, tapi kalau diisi harus sesuai (cuma angka):
-// NIK Siswa/Ayah/Ibu & No. KK = 16 digit, NISN = 10 digit. Kosong = lolos.
+// Validasi format nomor identitas — TIDAK wajib diisi, tapi kalau diisi harus sesuai:
+// NIS = 6 digit, NISN = 10 digit, NIK & No. KK = 16 digit. Kosong = lolos.
 const FORMAT_RULES = {
-  nik_siswa: { regex: /^\d{16}$/, message: 'NIK Siswa harus tepat 16 angka (atau kosongkan)' },
   nisn: { regex: /^\d{10}$/, message: 'NISN harus tepat 10 angka (atau kosongkan)' },
+  nis: { regex: /^\d{6}$/, message: 'NIS harus tepat 6 angka (atau kosongkan)' },
+  nik_siswa: { regex: /^\d{16}$/, message: 'NIK Siswa harus tepat 16 angka (atau kosongkan)' },
   no_kk: { regex: /^\d{16}$/, message: 'No. Kartu Keluarga harus tepat 16 angka (atau kosongkan)' },
   nik_ayah: { regex: /^\d{16}$/, message: 'NIK Ayah harus tepat 16 angka (atau kosongkan)' },
   nik_ibu: { regex: /^\d{16}$/, message: 'NIK Ibu harus tepat 16 angka (atau kosongkan)' },
+  no_hp_ortu: { regex: /^[0-9+() -]{9,18}$/, message: 'No. HP/WA Orang Tua tidak valid (9–15 angka, atau kosongkan)' },
 };
+
 const validateStudentForm = (form) => {
-  for (const f of ALL_FIELDS) {
-    if (f.required && !String(form[f.name] || '').trim()) return `"${f.label}" wajib diisi`;
+  // 1. Hanya nama_siswa yang wajib minimal 1 karakter
+  const nama = String(form?.nama_siswa || '').trim();
+  if (!nama) {
+    return 'Nama Lengkap Siswa wajib diisi (minimal 1 karakter)';
   }
+
+  // 2. Validasi format nomor identitas / NISN / NIS (hanya diuji jika terisi)
   for (const [name, rule] of Object.entries(FORMAT_RULES)) {
-    const v = String(form[name] || '').trim();
+    const v = String(form?.[name] || '').trim();
     if (v && !rule.regex.test(v)) return rule.message;
   }
+
+  // 3. Validasi tanggal lahir jika diisi
+  if (form?.tanggal_lahir) {
+    const dStr = String(form.tanggal_lahir).trim();
+    if (dStr && isNaN(Date.parse(dStr))) {
+      return 'Format Tanggal Lahir tidak valid';
+    }
+  }
+
   return null;
 };
 
@@ -458,9 +478,17 @@ export default function TeacherStudents() {
 
   const handleSave = async () => {
     setError('');
-    const err = validateStudentForm(editing.form);
+    const ensuredGrade = String(editing.form?.kelas || '').trim() || activeGrade || 'SD 1';
+    const ensuredStatus = String(editing.form?.status || '').trim() || 'Aktif';
+    const formWithDefaults = {
+      ...editing.form,
+      kelas: ensuredGrade,
+      status: ensuredStatus,
+      agama: 'Islam',
+    };
+    const err = validateStudentForm(formWithDefaults);
     if (err) { setError(err); return; }
-    const formToSave = { ...editing.form, agama: 'Islam' }; // dikunci, apa pun yang terjadi di form
+    const formToSave = formWithDefaults; // dikunci, apa pun yang terjadi di form
     // Tambah siswa baru: tetap langsung tersimpan (di luar sesi mode edit list).
     if (!editing.id) {
       const dup = (items || []).find((s) => normName(s.nama_siswa) === normName(formToSave.nama_siswa));
@@ -871,8 +899,9 @@ export default function TeacherStudents() {
             return (
               <div
                 key={item.id}
-                className={`flex items-center gap-2 sm:gap-3 bg-white rounded-2xl p-2.5 sm:p-3 border shadow-sm transition-colors ${isDeleted ? 'border-rose-200 opacity-60' : 'border-slate-100'}`}
+                className={`w-full flex items-center justify-between gap-2.5 sm:gap-3.5 bg-white rounded-2xl p-2.5 sm:p-3 border shadow-sm transition-colors ${isDeleted ? 'border-rose-200 opacity-60' : 'border-slate-100 hover:border-slate-200'}`}
               >
+                {/* Checkbox (Mode Edit Massal) */}
                 {listEditMode && !isDeleted && display.kelas !== 'Tamat' && (
                   <input
                     type="checkbox"
@@ -881,69 +910,86 @@ export default function TeacherStudents() {
                     className="w-4 h-4 sm:w-5 sm:h-5 accent-secondary shrink-0"
                   />
                 )}
+
+                {/* Pas Foto Santri (Rata Kiri) */}
                 {display.foto_siswa ? (
                   <div className="relative shrink-0">
                     <img
                       src={display.foto_siswa}
                       alt={display.nama_siswa}
-                      className="w-11 h-14 sm:w-12 sm:h-16 rounded-xl object-cover border border-emerald-500/40 bg-slate-100 shadow-xs shrink-0"
+                      className="w-10 h-13 sm:w-12 sm:h-16 rounded-xl object-cover border border-emerald-500/40 bg-slate-100 shadow-xs shrink-0"
                     />
                     <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 shadow-xs" title="Pas foto 3:4 aktif">
                       <CheckCircle2 size={10} />
                     </span>
                   </div>
                 ) : display.foto_kk ? (
-                  <Thumb src={driveThumbUrl(display.foto_kk)} />
+                  <div className="shrink-0">
+                    <Thumb src={driveThumbUrl(display.foto_kk)} />
+                  </div>
                 ) : (
-                  <div className={`w-11 h-14 sm:w-12 sm:h-16 rounded-xl flex flex-col items-center justify-center shrink-0 border border-dashed ${
+                  <div className={`w-10 h-13 sm:w-12 sm:h-16 rounded-xl flex flex-col items-center justify-center shrink-0 border border-dashed ${
                     display.jenis_kelamin === 'Perempuan' ? 'bg-pink-50/60 border-pink-200 text-pink-400' : 'bg-emerald-50/60 border-emerald-200 text-emerald-600'
                   }`} title="Belum ada pas foto">
-                    <User size={16} />
-                    <span className="text-[8px] font-black uppercase mt-0.5">3:4</span>
+                    <User size={15} />
+                    <span className="text-[7.5px] font-black uppercase mt-0.5">3:4</span>
                   </div>
                 )}
-                <div className="min-w-0 flex-grow">
+
+                {/* Info Utama: Nama & Detail Identitas (Fleksibel Rata Kiri-Kanan) */}
+                <div className="min-w-0 flex-1">
                   <p className={`font-black text-xs sm:text-sm text-slate-900 truncate flex items-center gap-1.5 ${isDeleted ? 'line-through text-slate-400' : ''}`}>
                     {display.nama_siswa || '(tanpa nama)'}
                     {hasPendingEdit && !isDeleted && <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Ada perubahan belum disimpan" />}
                   </p>
-                  <p className="text-slate-400 font-bold text-[11px] sm:text-xs truncate">
+                  <p className="text-slate-400 font-bold text-[10.5px] sm:text-xs truncate mt-0.5">
                     {[display.kelas, display.nis && `NIS ${display.nis}`, display.nisn && `NISN ${display.nisn}`, display.no_kk && `KK ${display.no_kk}`].filter(Boolean).join(' • ') || '—'}
                     {isDeleted && <span className="text-rose-500 font-black"> (akan dihapus)</span>}
                   </p>
                 </div>
-                {!isDeleted && (
-                  <span className={`shrink-0 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${
-                    (display.status || 'Aktif') === 'Aktif' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {display.status || 'Aktif'}
-                  </span>
-                )}
-                <div className="flex gap-1.5 sm:gap-2 shrink-0">
-                  {!listEditMode && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setIdCardStudent(item);
-                          setIdCardModalOpen(true);
-                        }}
-                        className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white transition-all shadow-2xs"
-                        title="Kartu Pelajar (ID Card) & QR Presensi"
-                      >
-                        <CreditCard size={15} />
-                      </button>
-                      <button onClick={() => setPreviewing(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-primary hover:text-white transition-all" title="Preview"><Eye size={15} /></button>
-                    </>
+
+                {/* Kolom Kanan: Status & Tombol Aksi (Tersusun Rapi Vertikal di HP, Horizontal di PC) */}
+                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-2 shrink-0">
+                  {!isDeleted && (
+                    <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[8.5px] sm:text-[10px] font-black uppercase tracking-wider ${
+                      (display.status || 'Aktif') === 'Aktif' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    }`}>
+                      {display.status || 'Aktif'}
+                    </span>
                   )}
-                  {listEditMode && isDeleted && (
-                    <button onClick={() => undoStagedDelete(item.id)} className="text-[11px] sm:text-xs font-black text-secondary hover:underline px-1.5 sm:px-2">Urungkan</button>
-                  )}
-                  {listEditMode && !isDeleted && (
-                    <>
-                      <button onClick={() => openEdit(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-secondary hover:text-white transition-all" title="Edit"><Pencil size={15} /></button>
-                      <button onClick={() => stageDelete(item)} className="p-2 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-rose-500 hover:text-white transition-all" title="Hapus"><Trash2 size={15} /></button>
-                    </>
-                  )}
+
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {!listEditMode && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setIdCardStudent(item);
+                            setIdCardModalOpen(true);
+                          }}
+                          className="p-1.5 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white active:scale-95 transition-all shadow-2xs"
+                          title="Kartu Pelajar (ID Card) & QR Presensi"
+                        >
+                          <CreditCard size={14} className="sm:w-[15px] sm:h-[15px]" />
+                        </button>
+                        <button
+                          onClick={() => setPreviewing(item)}
+                          className="p-1.5 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-primary hover:text-white active:scale-95 transition-all"
+                          title="Preview Detail"
+                        >
+                          <Eye size={14} className="sm:w-[15px] sm:h-[15px]" />
+                        </button>
+                      </>
+                    )}
+                    {listEditMode && isDeleted && (
+                      <button onClick={() => undoStagedDelete(item.id)} className="text-[11px] sm:text-xs font-black text-secondary hover:underline px-1.5 sm:px-2">Urungkan</button>
+                    )}
+                    {listEditMode && !isDeleted && (
+                      <>
+                        <button onClick={() => openEdit(item)} className="p-1.5 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-secondary hover:text-white active:scale-95 transition-all" title="Edit Data"><Pencil size={14} className="sm:w-[15px] sm:h-[15px]" /></button>
+                        <button onClick={() => stageDelete(item)} className="p-1.5 sm:p-2.5 rounded-xl bg-slate-100 text-slate-500 hover:bg-rose-500 hover:text-white active:scale-95 transition-all" title="Hapus Siswa"><Trash2 size={14} className="sm:w-[15px] sm:h-[15px]" /></button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             );
