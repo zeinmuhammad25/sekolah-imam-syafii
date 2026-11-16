@@ -521,7 +521,7 @@ export default function TeacherStudents() {
     const err = validateStudentForm(formWithDefaults);
     if (err) { setError(err); return; }
     const formToSave = formWithDefaults; // dikunci, apa pun yang terjadi di form
-    // Tambah siswa baru: tetap langsung tersimpan (di luar sesi mode edit list).
+    // Tambah siswa baru: langsung tersimpan ke D1
     if (!editing.id) {
       const dup = (items || []).find((s) => normName(s.nama_siswa) === normName(formToSave.nama_siswa));
       if (dup) { setError(`Nama siswa sudah terdaftar di data siswa (kelas ${dup.kelas || '-'})`); return; }
@@ -531,16 +531,48 @@ export default function TeacherStudents() {
       if (!res.success) { setError('Gagal menyimpan: ' + describeMutationError(res)); return; }
       addItemLocal({ ...formToSave, id: res.id, updatedAt: res.updatedAt });
       setEditing(null);
+      showToast(`Data siswa "${formToSave.nama_siswa}" berhasil ditambahkan!`, 'success', 'Berhasil');
       return;
     }
-    // Edit siswa lama: ditahan dulu (staged) — baru benar-benar tersimpan saat klik "Simpan" di mode edit list.
-    // _v = versi data saat guru PERTAMA kali mulai mengedit -> kalau guru lain menyimpan siswa ini
-    // sebelum "Simpan" diklik, simpan ditolak (tidak menimpa diam-diam).
-    setStagedEdits((prev) => ({
-      ...prev,
-      [editing.id]: { ...(prev[editing.id] || {}), ...formToSave, _v: prev[editing.id] ? prev[editing.id]._v : versionOf(editing.id) },
-    }));
+
+    // Edit siswa lama: LANGSUNG simpan permanen ke Cloudflare D1 (bukan cuma staged di memori)
+    setSaving(true);
+    const res = await mutateRow({
+      action: 'update',
+      sheetName: 'Students',
+      id: editing.id,
+      expectedUpdatedAt: versionOf(editing.id),
+      row: formToSave,
+    });
+    setSaving(false);
+
+    if (!res.success) {
+      if (res.conflict || res.notFound) {
+        setEditing(null);
+        await load();
+        showToast(describeMutationError(res), 'warning', 'Pemberitahuan');
+        return;
+      }
+      setError('Gagal menyimpan: ' + describeMutationError(res));
+      return;
+    }
+
+    // Pindahkan foto KK otomatis jika jenjang kelas berubah
+    const oldItem = (items || []).find((s) => String(s.id) === String(editing.id));
+    if (oldItem && oldItem.kelas !== formToSave.kelas && (formToSave.foto_kk || '').trim()) {
+      moveKKFile({ fotoKkUrl: formToSave.foto_kk.trim(), targetKelas: formToSave.kelas }).catch(console.warn);
+    }
+
+    patchItemLocal(editing.id, { ...formToSave, updatedAt: res.updatedAt });
+    // Hapus dari stagedEdits jika sempat ada draf lama
+    setStagedEdits((prev) => {
+      if (!prev[editing.id]) return prev;
+      const copy = { ...prev };
+      delete copy[editing.id];
+      return copy;
+    });
     setEditing(null);
+    showToast(`Data & pas foto "${formToSave.nama_siswa}" berhasil disimpan ke server!`, 'success', 'Tersimpan');
   };
 
   // ---- Checkbox + aksi massal (langsung jalan, tidak nunggu Simpan) ----
@@ -1526,10 +1558,10 @@ export default function TeacherStudents() {
                   <CreditCard size={18} /> Cetak ID Card
                 </button>
                 <button
-                  onClick={() => { const item = previewing; setPreviewing(null); if (!listEditMode) enterListEditMode(); openEdit(item); }}
+                  onClick={() => { const item = previewing; setPreviewing(null); openEdit(item); }}
                   className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-black text-sm hover:bg-black transition-all"
                 >
-                  Edit
+                  Edit Data
                 </button>
               </div>
             </ModalFooter>
