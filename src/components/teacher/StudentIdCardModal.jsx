@@ -251,29 +251,28 @@ export default function StudentIdCardModal({
                   </div>
 
                   {/* Bagian Bawah: QR Code Box + Menara Masjid Emas Sudut */}
-                  <div className="relative z-10 pb-2 px-3 flex flex-col items-center">
-                    {/* Kotak Putih QR Code (Dapat diklik untuk memperbesar saat scan tes) */}
+                  <div className="relative z-10 pb-2 px-3 flex flex-col items-center mt-1">
+                    {/* Kotak Putih QR Code Persegi 23x23mm (Dapat diklik untuk memperbesar saat scan tes) */}
                     <div
                       onClick={(e) => { e.stopPropagation(); setIsZoomQr(true); }}
                       title="Klik untuk memperbesar QR Code agar mudah di-scan dari HP lain"
-                      className="bg-white rounded-xl p-1.5 shadow-lg flex flex-col items-center justify-center w-26 cursor-pointer hover:scale-105 active:scale-95 transition-all group/qr"
+                      className="bg-white rounded-xl p-2 shadow-lg flex items-center justify-center w-[98px] h-[98px] cursor-pointer hover:scale-105 active:scale-95 transition-all group/qr"
                     >
                       {qrDataUrl ? (
-                        <img src={qrDataUrl} alt="QR" className="w-[74px] h-[74px] object-contain" />
+                        <img src={qrDataUrl} alt="QR" className="w-[86px] h-[86px] object-contain" />
                       ) : (
-                        <div className="w-[74px] h-[74px] flex items-center justify-center">
-                          <Loader2 className="animate-spin text-slate-400" size={18} />
+                        <div className="w-[86px] h-[86px] flex items-center justify-center">
+                          <Loader2 className="animate-spin text-slate-400" size={20} />
                         </div>
                       )}
-                      <span className="text-[9.5px] font-black text-black font-mono leading-none mt-0.5 mb-0.5">
-                        {currentStudent.nisn || currentStudent.nis || currentStudent.id || '20240987'}
-                      </span>
                     </div>
 
-                    {/* Teks Scan Untuk Absensi */}
-                    <p className="text-[#fbbf24] font-black text-[9px] tracking-widest uppercase mt-1 drop-shadow-xs">
-                      SCAN UNTUK ABSENSI
-                    </p>
+                    {/* Teks Scan Untuk Absensi dalam Pita Emas */}
+                    <div className="w-full mt-2 py-0.5 px-2 rounded bg-gradient-to-r from-[#b45309] via-[#fbbf24] to-[#b45309] text-center shadow-xs">
+                      <p className="text-[#022c22] font-black text-[9px] tracking-widest uppercase leading-tight">
+                        SCAN UNTUK ABSENSI
+                      </p>
+                    </div>
 
                     {/* Siluet Menara Masjid Emas di Sudut Kiri & Kanan */}
                     <svg className="absolute bottom-0 left-0 w-16 h-20 pointer-events-none text-amber-500" viewBox="0 0 70 90" fill="none">
@@ -362,26 +361,23 @@ export default function StudentIdCardModal({
                       />
                     </svg>
 
-                    {/* Kotak Putih QR Code (Dapat diklik untuk memperbesar saat scan tes) */}
+                    {/* Kotak Putih QR Code Persegi 23x23mm (Dapat diklik untuk memperbesar saat scan tes) */}
                     <div
                       onClick={(e) => { e.stopPropagation(); setIsZoomQr(true); }}
                       title="Klik untuk memperbesar QR Code agar mudah di-scan dari HP lain"
-                      className="bg-white rounded-xl p-1.5 shadow-lg flex flex-col items-center justify-center w-26 relative z-10 cursor-pointer hover:scale-105 active:scale-95 transition-all group/qr"
+                      className="bg-white rounded-xl p-2 shadow-lg flex items-center justify-center w-[98px] h-[98px] relative z-10 cursor-pointer hover:scale-105 active:scale-95 transition-all group/qr"
                     >
                       {qrDataUrl ? (
-                        <img src={qrDataUrl} alt="QR" className="w-[74px] h-[74px] object-contain" />
+                        <img src={qrDataUrl} alt="QR" className="w-[86px] h-[86px] object-contain" />
                       ) : (
-                        <div className="w-[74px] h-[74px] flex items-center justify-center">
-                          <Loader2 className="animate-spin text-slate-400" size={18} />
+                        <div className="w-[86px] h-[86px] flex items-center justify-center">
+                          <Loader2 className="animate-spin text-slate-400" size={20} />
                         </div>
                       )}
-                      <span className="text-[9.5px] font-black text-black font-mono leading-none mt-0.5 mb-0.5">
-                        {currentStudent.nis || currentStudent.id || '242501001'}
-                      </span>
                     </div>
 
                     {/* Teks Scan Untuk Absensi */}
-                    <p className="text-white font-black text-[9px] tracking-widest uppercase mt-1 relative z-10 drop-shadow-xs">
+                    <p className="text-white font-black text-[9px] tracking-widest uppercase mt-2.5 relative z-10 drop-shadow-xs">
                       SCAN UNTUK ABSENSI
                     </p>
                   </div>

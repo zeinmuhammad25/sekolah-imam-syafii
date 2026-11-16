@@ -399,20 +399,21 @@ export function getSdCardBackgroundDataUrl() {
   drawMosqueMinaret(0, false);   // Menara Kiri
   drawMosqueMinaret(w, true);    // Menara Kanan
 
-  // 5. Pita Emas Melengkung di Bawah (Pemisah / Dasar Kubah)
+  // 5. Bar Pita Emas Mendatar di Bawah (Plek Ketiplek Sesuai Preview Modal)
   ctx.save();
-  const ribbonGrad = ctx.createLinearGradient(0, 0, w, 0);
-  ribbonGrad.addColorStop(0, '#b45309');
-  ribbonGrad.addColorStop(0.5, '#fbbf24');
-  ribbonGrad.addColorStop(1, '#b45309');
-  ctx.fillStyle = ribbonGrad;
+  const pillGrad = ctx.createLinearGradient(30, 0, w - 30, 0);
+  pillGrad.addColorStop(0, '#b45309');
+  pillGrad.addColorStop(0.5, '#fbbf24');
+  pillGrad.addColorStop(1, '#b45309');
+  ctx.fillStyle = pillGrad;
   ctx.beginPath();
-  ctx.moveTo(0, h - 32);
-  ctx.quadraticCurveTo(w / 2, h - 75, w, h - 32);
-  ctx.lineTo(w, h);
-  ctx.lineTo(0, h);
-  ctx.closePath();
+  ctx.roundRect(30, 846, w - 60, 42, 8);
   ctx.fill();
+
+  // Outline tipis aksen kilau emas
+  ctx.strokeStyle = 'rgba(254, 240, 138, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
   ctx.restore();
 
   // 6. Indikator Lubang Tali ID Card di Tengah Atas (Lanyard Punch Hole)
@@ -617,10 +618,10 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
   }
 
   // 4. Pas Foto Siswa Bulat (Circular Photo Frame)
-  const photoSize = 23.5; // Diameter 23.5 mm (Proporsional untuk 60x90 mm)
+  const photoSize = 23.0; // Diameter 23.0 mm (Proporsional untuk 60x90 mm)
   const photoRadius = photoSize / 2;
   const photoCenterX = ox + CARD_WIDTH / 2;
-  const photoCenterY = oy + 42;
+  const photoCenterY = oy + 40.5; // Sedikit dinaikkan agar ruang bawah lapang
   const photoX = photoCenterX - photoRadius;
   const photoY = photoCenterY - photoRadius;
 
@@ -668,7 +669,7 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     doc.setFontSize(nameSize);
 
     // Diletakkan rapi di tengah / sedikit indent
-    doc.text(`NAMA  :  ${studentName}`, ox + CARD_WIDTH / 2, oy + 58.5, {
+    doc.text(`NAMA  :  ${studentName}`, ox + CARD_WIDTH / 2, oy + 56.5, {
       align: 'center',
       maxWidth: CARD_WIDTH - 8,
     });
@@ -683,33 +684,33 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
 
     const dataLeftX = ox + 9.5;
     doc.setFontSize(nameSize);
-    doc.text('NAMA', dataLeftX, oy + 57.5);
-    doc.text(':', dataLeftX + 10.5, oy + 57.5);
-    doc.text(studentName, dataLeftX + 12.5, oy + 57.5, { maxWidth: 36 });
+    doc.text('NAMA', dataLeftX, oy + 55.5);
+    doc.text(':', dataLeftX + 10.5, oy + 55.5);
+    doc.text(studentName, dataLeftX + 12.5, oy + 55.5, { maxWidth: 36 });
 
     const nisnVal = student.nisn || student.nis || student.id || '-';
     doc.setFontSize(6.8);
-    doc.text('NISN', dataLeftX, oy + 61.8);
-    doc.text(':', dataLeftX + 10.5, oy + 61.8);
-    doc.text(String(nisnVal), dataLeftX + 12.5, oy + 61.8);
+    doc.text('NISN', dataLeftX, oy + 59.5);
+    doc.text(':', dataLeftX + 10.5, oy + 59.5);
+    doc.text(String(nisnVal), dataLeftX + 12.5, oy + 59.5);
   }
 
-  // 6. Kotak Putih Rounded Berisi QR Code Presensi (Tahan Gores Level H)
-  const qrBoxW = 23;
-  const qrBoxH = 19.5;
-  const qrBoxX = ox + (CARD_WIDTH - qrBoxW) / 2;
-  const qrBoxY = oy + 64.8;
+  // 6. Kotak Putih Rounded Berisi QR Code Presensi (Tahan Gores Level H, Ukuran 19.5 mm)
+  const qrBoxSize = 22.0; // mm (Persegi Simetris 22 x 22 mm)
+  const qrBoxX = ox + (CARD_WIDTH - qrBoxSize) / 2;
+  // SD di oy + 62.0 (jarak 2.5 mm dari NISN); TK di oy + 60.5
+  const qrBoxY = isTk ? (oy + 60.5) : (oy + 62.0); // mm
 
-  // Kotak Putih Bersih
+  // Kotak Putih Bersih Simetris dengan sudut rounded halus
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(255, 255, 255);
-  doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 2.2, 2.2, 'F');
+  doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 2.5, 2.5, 'F');
 
-  // Gambar QR Code (Ukuran 14.5 mm, titik tebal Level H)
+  // Gambar QR Code (Ukuran 19.5 mm, titik tebal Level H, Quiet Zone lega di ke-4 sisi)
   const qrDataUrl = await generateStudentQrCode(student);
-  const qrSize = 14.5;
+  const qrSize = 19.2; // mm (Ultra-Durable & Anti-Gores)
   const qrX = ox + (CARD_WIDTH - qrSize) / 2;
-  const qrY = qrBoxY + 1.2;
+  const qrY = qrBoxY + (qrBoxSize - qrSize) / 2;
   if (qrDataUrl) {
     try {
       doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
@@ -718,24 +719,18 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     }
   }
 
-  // Nomor di Bawah QR Code (Dalam Kotak Putih)
-  const idOrNisn = isTk
-    ? String(student.nis || student.id || '242501001')
-    : String(student.nisn || student.nis || student.id || '20240987');
-  doc.setTextColor(0, 0, 0); // Hitam Pekat
+  // 7. Teks SCAN UNTUK ABSENSI di Paling Bawah (Plek Ketiplek Tampilan Preview Modal)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.text(idOrNisn, ox + CARD_WIDTH / 2, qrBoxY + 18, { align: 'center' });
-
-  // 7. Teks SCAN UNTUK ABSENSI di Paling Bawah
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.2);
   if (isTk) {
-    doc.setTextColor(255, 255, 255); // Putih Bersih di atas gelombang hijau
+    doc.setTextColor(255, 255, 255); // Putih Bersih di atas gelombang hijau rumput TK
+    doc.setFontSize(5.2);
+    doc.text('SCAN UNTUK ABSENSI', ox + CARD_WIDTH / 2, oy + 87.2, { align: 'center' });
   } else {
-    doc.setTextColor(251, 191, 36); // Emas Kuning Cerah di atas pita kubah
+    // SD: Teks Hijau Tua Pekat tepat di dalam bar pita emas mendatar (Plek ketiplek preview modal)
+    doc.setTextColor(2, 44, 34); // Forest Dark Green #022c22
+    doc.setFontSize(5.2);
+    doc.text('SCAN UNTUK ABSENSI', ox + CARD_WIDTH / 2, oy + 87.2, { align: 'center' });
   }
-  doc.text('SCAN UNTUK ABSENSI', ox + CARD_WIDTH / 2, oy + 87.2, { align: 'center' });
 }
 
 // ==================== CETAK SATUAN (SINGLE CARD PDF 1 HALAMAN 9x6 CM) ====================
