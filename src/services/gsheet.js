@@ -187,7 +187,7 @@ export const uploadImage = async (file) => {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: dataUrl, filename: file.name }),
+      body: JSON.stringify({ imageBase64: dataUrl, filename: file.name || 'foto-siswa.png' }),
     });
     return await res.json();
   } catch (error) {
@@ -234,7 +234,7 @@ export const cropAndCompressStudentPhoto = (file, targetWidth = 450, targetHeigh
 
         canvas.toBlob((blob) => {
           if (!blob) return resolve(file);
-          const baseName = file.name.replace(/\.[^/.]+$/, '');
+          const baseName = (file.name || 'foto-siswa').replace(/\.[^/.]+$/, '');
           const compressedFile = new File([blob], `${baseName}-3x4.webp`, {
             type: 'image/webp',
             lastModified: Date.now(),
@@ -271,7 +271,7 @@ export const uploadStudentPhoto = async (file) => {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: dataUrl, filename: file.name }),
+      body: JSON.stringify({ imageBase64: dataUrl, filename: file.name || 'foto-siswa.png' }),
     });
     return await res.json();
   } catch (error) {

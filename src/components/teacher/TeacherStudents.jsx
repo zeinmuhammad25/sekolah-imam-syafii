@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import {
   Plus, Pencil, Trash2, Eye, ArrowUpCircle, LogOut, Search, Download, Loader2, AlertTriangle, FolderOpen,
   FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, FileDown, RefreshCw, Camera, User, Sparkles, Image as ImageIcon,
-  CreditCard, QrCode,
+  CreditCard, QrCode, Clipboard,
 } from 'lucide-react';
 import {
   fetchSchoolData, mutateRow, mutateBatch, moveKKFile, formatSheetDate, formatSheetDateDMY,
@@ -276,22 +276,30 @@ export default function TeacherStudents() {
 
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState('');
+  const [isPhotoDragOver, setIsPhotoDragOver] = useState(false);
 
-  const handleStudentPhotoUpload = async (file) => {
+  const showToast = useCallback((message, type = 'success', title = '') => {
+    setToast({ show: true, message, type, title });
+  }, []);
+
+  const handleStudentPhotoUpload = useCallback(async (file) => {
     if (!file) return;
     setPhotoUploading(true);
     setPhotoError('');
     try {
       const res = await uploadStudentPhoto(file);
       if (res.success && res.url) {
-        const oldUrl = editing?.form?.foto_siswa;
-        if (oldUrl && oldUrl.includes('/uploads/img-') && oldUrl !== res.url) {
-          deleteUploadedImage(oldUrl).catch(console.warn);
-        }
-        setEditing((prev) => ({
-          ...prev,
-          form: { ...prev.form, foto_siswa: res.url },
-        }));
+        setEditing((prev) => {
+          if (!prev) return prev;
+          const oldUrl = prev.form?.foto_siswa;
+          if (oldUrl && oldUrl.includes('/uploads/img-') && oldUrl !== res.url) {
+            deleteUploadedImage(oldUrl).catch(console.warn);
+          }
+          return {
+            ...prev,
+            form: { ...prev.form, foto_siswa: res.url },
+          };
+        });
         showToast('Pas foto siswa berhasil diproses (WebP 3:4) & diunggah!', 'success', 'Pas Foto');
       } else {
         setPhotoError(res.error || 'Gagal mengunggah foto.');
@@ -301,7 +309,35 @@ export default function TeacherStudents() {
     } finally {
       setPhotoUploading(false);
     }
-  };
+  }, [showToast]);
+
+  // Listener Paste Global Keyboard (Ctrl + V) saat modal Tambah/Edit Siswa terbuka
+  useEffect(() => {
+    if (!editing) return;
+
+    const handleWindowPaste = (e) => {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData || !clipboardData.items) return;
+
+      const items = Array.from(clipboardData.items);
+      const imageItem = items.find((item) => item.type && item.type.startsWith('image/'));
+
+      if (imageItem) {
+        // Cegah teks/string binary masuk ke input yang sedang aktif
+        e.preventDefault();
+        const file = imageItem.getAsFile();
+        if (file) {
+          showToast('Gambar screenshot terdeteksi dari clipboard, memproses pas foto 3:4...', 'info', 'Paste Gambar (Ctrl+V)');
+          handleStudentPhotoUpload(file);
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => {
+      window.removeEventListener('paste', handleWindowPaste);
+    };
+  }, [editing, handleStudentPhotoUpload, showToast]);
 
   const handleStudentPhotoDelete = async () => {
     const currentPhoto = editing?.form?.foto_siswa;
@@ -316,10 +352,6 @@ export default function TeacherStudents() {
       }));
       showToast('Pas foto siswa telah dihapus.', 'info', 'Foto Dihapus');
     }
-  };
-
-  const showToast = (message, type = 'success', title = '') => {
-    setToast({ show: true, message, type, title });
   };
 
   // ---- ID Card Generator State ----
@@ -1064,8 +1096,21 @@ export default function TeacherStudents() {
               {/* Pas Foto Siswa 3:4 (ID Card & Presensi) */}
               <div className="bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-slate-50 border border-emerald-100/80 rounded-2xl p-3.5 sm:p-4">
                 <div className="flex flex-col sm:flex-row items-center gap-4">
-                  {/* Frame Pas Foto 3:4 */}
-                  <div className="relative w-24 h-32 rounded-xl overflow-hidden bg-slate-100 border-2 border-dashed border-emerald-300 shadow-sm shrink-0 flex items-center justify-center">
+                  {/* Frame Pas Foto 3:4 (Mendukung Drop & Klik) */}
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsPhotoDragOver(true); }}
+                    onDragLeave={() => setIsPhotoDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsPhotoDragOver(false);
+                      if (e.dataTransfer?.files && e.dataTransfer.files[0]) {
+                        handleStudentPhotoUpload(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    className={`relative w-24 h-32 rounded-xl overflow-hidden bg-slate-100 border-2 border-dashed shadow-sm shrink-0 flex items-center justify-center transition-all ${
+                      isPhotoDragOver ? 'border-emerald-600 bg-emerald-50 scale-105 ring-4 ring-emerald-500/20' : 'border-emerald-300'
+                    }`}
+                  >
                     {editing.form.foto_siswa ? (
                       <img
                         src={editing.form.foto_siswa}
@@ -1088,22 +1133,25 @@ export default function TeacherStudents() {
 
                   {/* Keterangan & Kontrol Upload */}
                   <div className="min-w-0 flex-grow text-center sm:text-left">
-                    <div className="flex items-center justify-center sm:justify-start gap-1.5 mb-1">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 mb-1">
                       <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                         <Sparkles size={11} /> ID Card & Presensi
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
+                        <Clipboard size={10} /> Keyboard Ctrl + V
                       </span>
                       <span className="text-[10px] font-bold text-slate-400">WebP ~30KB</span>
                     </div>
                     <h5 className="font-black text-sm text-slate-800 mb-1">Pas Foto Resmi Siswa</h5>
                     <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                      Format pas foto otomatis di-crop rasio 3:4 dan dikompresi agar hemat kuota R2. Digunakan untuk kartu pelajar & foto profil presensi.
+                      Format pas foto otomatis di-crop rasio 3:4 dan dikompresi agar hemat kuota R2. Cukup tangkap layar (screenshot / <i>Win+Shift+S</i>), lalu tekan <b>Ctrl + V</b> di mana saja pada layar ini.
                     </p>
 
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                       <label className="cursor-pointer">
                         <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 text-white font-black text-xs hover:bg-black transition-all shadow-sm active:scale-95">
                           {photoUploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />}
-                          {editing.form.foto_siswa ? 'Ganti Foto' : 'Upload Foto'}
+                          {editing.form.foto_siswa ? 'Ganti File' : 'Upload File'}
                         </span>
                         <input
                           type="file"
@@ -1118,6 +1166,38 @@ export default function TeacherStudents() {
                           }}
                         />
                       </label>
+
+                      {/* Tombol Cepat Paste Clipboard (Ctrl + V) */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            if (navigator.clipboard && navigator.clipboard.read) {
+                              const clipItems = await navigator.clipboard.read();
+                              for (const item of clipItems) {
+                                const imageType = item.types.find((t) => t.startsWith('image/'));
+                                if (imageType) {
+                                  const blob = await item.getType(imageType);
+                                  handleStudentPhotoUpload(blob);
+                                  showToast('Foto hasil screenshot clipboard berhasil ditempel & diunggah!', 'success', 'Paste Screenshot');
+                                  return;
+                                }
+                              }
+                              showToast('Tidak ada gambar di clipboard. Silakan jepret/screenshot layar dulu (Win+Shift+S), lalu tekan tombol ini atau Ctrl+V.', 'warning', 'Clipboard Kosong');
+                            } else {
+                              showToast('Silakan langsung tekan tombol Ctrl + V pada keyboard Anda.', 'info', 'Shortcut Keyboard');
+                            }
+                          } catch (err) {
+                            showToast('Silakan langsung tekan tombol Ctrl + V pada keyboard Anda.', 'info', 'Tekan Ctrl + V');
+                          }
+                        }}
+                        disabled={photoUploading || saving}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-black text-xs border border-emerald-300 transition-all active:scale-95 shadow-2xs"
+                        title="Tempel foto langsung dari tangkapan layar (Clipboard) atau tekan Ctrl + V"
+                      >
+                        <Clipboard size={14} className="text-emerald-700" />
+                        <span>Paste (Ctrl + V)</span>
+                      </button>
 
                       {editing.form.foto_siswa && (
                         <button
