@@ -87,11 +87,11 @@ export default function StudentIdCardModal({
     }
   };
 
-  // Handler Download Batch Class A4 PDF (10 Kartu per Lembar A4)
+  // Handler Download Batch Class A4 PDF (9 Kartu per Lembar A4 Portrait)
   const handleDownloadBatch = async (batchList, label) => {
     try {
       setGeneratingPdf(true);
-      setPdfProgress(`Memproses ${batchList.length} kartu siswa ke format A4 (10 kartu/lembar)...`);
+      setPdfProgress(`Memproses ${batchList.length} kartu siswa ke format A4 (9 kartu/lembar)...`);
       await generateBatchA4Pdf(batchList, label, isTk);
     } catch (err) {
       alert('Gagal membuat PDF Massal: ' + err.message);
@@ -115,7 +115,7 @@ export default function StudentIdCardModal({
                 Kartu Pelajar & Presensi Digital (ID Card)
               </h3>
               <p className="text-slate-400 font-bold text-xs">
-                Desain Fisik Resmi Standar ISO CR-80 (54 x 85.6 mm) • Single-Sided dengan QR Presensi
+                Desain Fisik Resmi Standar 9 x 6 cm (60 x 90 mm) • Single-Sided dengan QR Presensi Tahan Gores Level H
               </p>
             </div>
           </div>
@@ -163,8 +163,8 @@ export default function StudentIdCardModal({
               <div className="w-4 h-5 border-2 border-slate-500 rounded-b-md bg-gradient-to-b from-slate-300 to-slate-400 shadow-sm" />
             </div>
 
-            {/* CONTAINER KARTU FISIK (Rasio 54 x 85.6 mm -> 260px x 412px) */}
-            <div className="relative w-[260px] h-[412px] rounded-[18px] overflow-hidden shadow-2xl border border-slate-300/60 select-none -mt-1 flex flex-col justify-between">
+            {/* CONTAINER KARTU FISIK (Rasio 60 x 90 mm -> 270px x 405px) */}
+            <div className="relative w-[270px] h-[405px] rounded-[18px] overflow-hidden shadow-2xl border border-slate-300/60 select-none -mt-1 flex flex-col justify-between">
               {/* LUBANG TALI KARTU (Lanyard Slot Punch) */}
               <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-2 rounded-full bg-black/40 border border-white/20 z-20 pointer-events-none" />
 
@@ -465,7 +465,7 @@ export default function StudentIdCardModal({
                 Aksi Ekspor & Cetak Siap Pakai
               </h4>
 
-              {/* Tombol 1: Cetak Satuan Siswa Ini (1 Halaman ISO CR-80) */}
+              {/* Tombol 1: Cetak Satuan Siswa Ini (1 Halaman 9 x 6 cm) */}
               <button
                 type="button"
                 onClick={handleDownloadSingle}
@@ -477,14 +477,14 @@ export default function StudentIdCardModal({
                     <Download size={18} />
                   </div>
                   <div>
-                    <p className="font-black">Download PDF Kartu Ini (CR-80)</p>
-                    <p className="text-xs text-slate-400 font-normal">Ukuran 54 x 85.6 mm • 1 Sisi Siap Cetak</p>
+                    <p className="font-black">Download PDF Kartu Ini (9 x 6 cm)</p>
+                    <p className="text-xs text-slate-400 font-normal">Ukuran 60 x 90 mm • 1 Sisi Siap Cetak</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold text-emerald-400 shrink-0">Satuan</span>
               </button>
 
-              {/* Tombol 2: Cetak Lembar Massal A4 (10 Kartu per Lembar) */}
+              {/* Tombol 2: Cetak Lembar Massal A4 (9 Kartu per Lembar) */}
               <button
                 type="button"
                 onClick={() => handleDownloadBatch(students, activeGrade)}
@@ -496,9 +496,9 @@ export default function StudentIdCardModal({
                     <Printer size={18} />
                   </div>
                   <div>
-                    <p className="font-black">Cetak Massal 1 Kelas (A4 • 10 Kartu / Lembar)</p>
+                    <p className="font-black">Cetak Massal 1 Kelas (A4 • 9 Kartu / Lembar)</p>
                     <p className="text-xs text-emerald-200 font-normal">
-                      {students.length} siswa kelas {activeGrade} • Grid 5x2 + Garis Potong Presisi
+                      {students.length} siswa kelas {activeGrade} • Grid 3x3 Portrait + Jarak Potong 5 mm
                     </p>
                   </div>
                 </div>
@@ -519,7 +519,7 @@ export default function StudentIdCardModal({
                     </div>
                     <div>
                       <p className="font-black">Cetak {selectedStudents.length} Siswa Terpilih (A4)</p>
-                      <p className="text-xs text-amber-200 font-normal">10 kartu per lembar A4 landscape</p>
+                      <p className="text-xs text-amber-200 font-normal">9 kartu per lembar A4 portrait dengan jarak potong</p>
                     </div>
                   </div>
                   <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-full shrink-0">Terpilih</span>
@@ -541,7 +541,7 @@ export default function StudentIdCardModal({
                 <ShieldCheck size={14} className="text-emerald-600" /> Tips Cetak & Penggunaan:
               </p>
               <p>
-                Gunakan <b>kertas foto tebal (210–260 gsm)</b> atau <b>kartu PVC inkjet</b>. Desain ini dibuat 1 sisi (single-sided). Untuk lembar A4, 10 kartu langsung dapat dipotong menggunakan gunting atau paper cutter, lalu dimasukkan ke dalam <i>casing card holder lanyard (54 x 85.6 mm)</i>.
+                Gunakan <b>kertas foto tebal (210–260 gsm)</b> atau <b>kartu PVC inkjet</b>. Desain ini dibuat 1 sisi (single-sided). Untuk lembar A4, 9 kartu langsung dapat dipotong rapi mengikuti garis panduan putus-putus dengan jarak aman 5 mm antar kartu, lalu dimasukkan ke dalam <i>casing card holder lanyard (9 x 6 cm)</i>.
               </p>
             </div>
           </div>

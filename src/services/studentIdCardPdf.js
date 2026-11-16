@@ -1,9 +1,9 @@
 // Generator PDF & Desain Kartu Pelajar (ID Card) Siswa 1 Sisi (TK & SD)
-// Ukuran Standar ISO CR-80 (54 mm x 85.6 mm) dengan QR Code Presensi & Pas Foto Melingkar
+// Ukuran Standar 9 cm x 6 cm (60 mm x 90 mm) dengan QR Code Presensi Level H & Pas Foto Melingkar
 // Plek ketiplek sesuai desain fisik resmi (SD: Kubah Emas & Menara, TK: Ceria Gradasi & Awan)
 
-export const CARD_WIDTH = 54; // mm
-export const CARD_HEIGHT = 85.6; // mm
+export const CARD_WIDTH = 60; // mm (6 cm)
+export const CARD_HEIGHT = 90; // mm (9 cm)
 export const CARD_RADIUS = 3.5; // mm
 
 // Konfigurasi Resmi Sekolah Imam Syafi'i
@@ -24,55 +24,122 @@ export const SCHOOL_INFO = {
   alamat: 'Jl. Lembaga Dusun II, Tanjung Rejo, Percut Sei Tuan, Deli Serdang',
 };
 
+// Cache in-memory untuk mempercepat render PDF massal (mencegah fetch berulang file yang sama)
+const imageBase64Cache = new Map();
+
+// Helper: Normalisasi URL gambar (agar URL absolut /uploads/ dialihkan lewat proxy same-origin di dev/prod)
+export function normalizeImageUrl(url) {
+  if (!url) return '';
+  const s = String(url).trim();
+  if (typeof window !== 'undefined' && s.includes('/uploads/')) {
+    return s.replace(/^https?:\/\/[^/]+\/uploads\//, '/uploads/');
+  }
+  return s;
+}
+
 // Helper: Fetch gambar ke Base64 Data URL (CORS safe)
 async function fetchImageAsDataUrl(url, fallbackUrl = '') {
-  if (!url && !fallbackUrl) return null;
-  const target = url || fallbackUrl;
-  try {
-    const res = await fetch(target);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
+  const normUrl = normalizeImageUrl(url);
+  const normFallback = normalizeImageUrl(fallbackUrl);
+  if (!normUrl && !normFallback) return null;
+  const target = normUrl || normFallback;
 
-    if (typeof document !== 'undefined') {
-      return new Promise((resolve) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth || img.width || 300;
-            canvas.height = img.naturalHeight || img.height || 400;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-            const pngDataUrl = canvas.toDataURL('image/png');
-            URL.revokeObjectURL(objectUrl);
-            resolve(pngDataUrl);
-          } catch (e) {
-            URL.revokeObjectURL(objectUrl);
+  if (imageBase64Cache.has(target)) {
+    return imageBase64Cache.get(target);
+  }
+
+  if (typeof document !== 'undefined') {
+    const dataUrl = await new Promise((resolve) => {
+      const processImg = (img) => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width || 300;
+          canvas.height = img.naturalHeight || img.height || 400;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (e) {
+          if (normFallback && target !== normFallback) {
+            fetchImageAsDataUrl(normFallback).then(resolve);
+          } else {
             resolve(null);
           }
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          if (fallbackUrl && target !== fallbackUrl) {
-            fetchImageAsDataUrl(fallbackUrl).then(resolve);
+        }
+      };
+
+      // 1. Coba fetch blob terlebih dahulu
+      fetch(target)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.blob();
+        })
+        .then((blob) => {
+          const objectUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            try {
+              processImg(img);
+            } finally {
+              URL.revokeObjectURL(objectUrl);
+            }
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            fallbackDirect();
+          };
+          img.src = objectUrl;
+        })
+        .catch(fallbackDirect);
+
+      function fallbackDirect() {
+        const directImg = new Image();
+        directImg.crossOrigin = 'anonymous';
+        directImg.onload = () => processImg(directImg);
+        directImg.onerror = () => {
+          // Jika target relatif gagal, coba URL absolut asli
+          if (target === normUrl && url && url !== target) {
+            const absImg = new Image();
+            absImg.crossOrigin = 'anonymous';
+            absImg.onload = () => processImg(absImg);
+            absImg.onerror = () => {
+              if (normFallback && target !== normFallback) {
+                fetchImageAsDataUrl(normFallback).then(resolve);
+              } else {
+                resolve(null);
+              }
+            };
+            absImg.src = url;
+            return;
+          }
+          if (normFallback && target !== normFallback) {
+            fetchImageAsDataUrl(normFallback).then(resolve);
           } else {
             resolve(null);
           }
         };
-        img.src = objectUrl;
-      });
-    }
+        directImg.src = target;
+      }
+    });
 
+    if (dataUrl) imageBase64Cache.set(target, dataUrl);
+    return dataUrl;
+  }
+
+  try {
+    const res = await fetch(target);
+    const blob = await res.blob();
     return new Promise((resolve) => {
       const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
+      fr.onload = () => {
+        imageBase64Cache.set(target, fr.result);
+        resolve(fr.result);
+      };
       fr.onerror = () => resolve(null);
       fr.readAsDataURL(blob);
     });
   } catch (err) {
-    if (fallbackUrl && target !== fallbackUrl) {
-      return fetchImageAsDataUrl(fallbackUrl);
+    if (normFallback && target !== normFallback) {
+      return fetchImageAsDataUrl(normFallback);
     }
     return null;
   }
@@ -80,70 +147,114 @@ async function fetchImageAsDataUrl(url, fallbackUrl = '') {
 
 // Helper: Potong foto siswa menjadi lingkaran sempurna (Circular Crop PNG) dengan anti-aliasing
 export async function fetchCircularImageAsDataUrl(url, fallbackUrl = '') {
-  if (!url && !fallbackUrl) return null;
-  const target = url || fallbackUrl;
-  try {
-    const res = await fetch(target);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
+  const normUrl = normalizeImageUrl(url);
+  const normFallback = normalizeImageUrl(fallbackUrl);
+  if (!normUrl && !normFallback) return null;
+  const target = normUrl || normFallback;
+  const cacheKey = `circular_${target}`;
 
-    if (typeof document !== 'undefined') {
-      return new Promise((resolve) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const size = Math.min(img.naturalWidth || img.width, img.naturalHeight || img.height) || 400;
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d');
+  if (imageBase64Cache.has(cacheKey)) {
+    return imageBase64Cache.get(cacheKey);
+  }
 
-            // Lingkaran clipping
-            ctx.beginPath();
-            ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-            ctx.closePath();
-            ctx.clip();
+  if (typeof document !== 'undefined') {
+    const dataUrl = await new Promise((resolve) => {
+      const processCircular = (img) => {
+        try {
+          const sw = img.naturalWidth || img.width || 400;
+          const sh = img.naturalHeight || img.height || 400;
+          const size = Math.min(sw, sh) || 400;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
 
-            // Cover crop di tengah
-            const sw = img.naturalWidth || img.width;
-            const sh = img.naturalHeight || img.height;
-            const sx = (sw - size) / 2;
-            const sy = (sh - size) / 2;
-            ctx.drawImage(img, Math.max(0, sx), Math.max(0, sy), size, size, 0, 0, size, size);
+          // Lingkaran clipping
+          ctx.beginPath();
+          ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
 
-            const pngDataUrl = canvas.toDataURL('image/png');
-            URL.revokeObjectURL(objectUrl);
-            resolve(pngDataUrl);
-          } catch (e) {
-            URL.revokeObjectURL(objectUrl);
+          // Cover crop di tengah horizontal; untuk vertikal jika foto portrait, fokuskan ke area wajah atas (~20% dari atas)
+          const sx = Math.max(0, (sw - size) / 2);
+          const sy = sh > sw ? Math.max(0, (sh - size) * 0.22) : Math.max(0, (sh - size) / 2);
+          ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+
+          resolve(canvas.toDataURL('image/png'));
+        } catch (e) {
+          if (normFallback && target !== normFallback) {
+            fetchCircularImageAsDataUrl(normFallback).then(resolve);
+          } else {
             resolve(null);
           }
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          if (fallbackUrl && target !== fallbackUrl) {
-            fetchCircularImageAsDataUrl(fallbackUrl).then(resolve);
+        }
+      };
+
+      // 1. Coba fetch blob terlebih dahulu (efektif untuk proxy same-origin)
+      fetch(target)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.blob();
+        })
+        .then((blob) => {
+          const objectUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            try {
+              processCircular(img);
+            } finally {
+              URL.revokeObjectURL(objectUrl);
+            }
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            fallbackDirectImg();
+          };
+          img.src = objectUrl;
+        })
+        .catch(fallbackDirectImg);
+
+      // 2. Fallback direct image element dengan anonymous crossOrigin
+      function fallbackDirectImg() {
+        const directImg = new Image();
+        directImg.crossOrigin = 'anonymous';
+        directImg.onload = () => processCircular(directImg);
+        directImg.onerror = () => {
+          // Jika target relatif gagal, coba URL absolut asli
+          if (target === normUrl && url && url !== target) {
+            const absImg = new Image();
+            absImg.crossOrigin = 'anonymous';
+            absImg.onload = () => processCircular(absImg);
+            absImg.onerror = () => {
+              if (normFallback && target !== normFallback) {
+                fetchCircularImageAsDataUrl(normFallback).then(resolve);
+              } else {
+                resolve(null);
+              }
+            };
+            absImg.src = url;
+            return;
+          }
+          if (normFallback && target !== normFallback) {
+            fetchCircularImageAsDataUrl(normFallback).then(resolve);
           } else {
             resolve(null);
           }
         };
-        img.src = objectUrl;
-      });
-    }
+        directImg.src = target;
+      }
+    });
 
-    return await fetchImageAsDataUrl(url, fallbackUrl);
-  } catch (err) {
-    if (fallbackUrl && target !== fallbackUrl) {
-      return fetchCircularImageAsDataUrl(fallbackUrl);
-    }
-    return null;
+    if (dataUrl) imageBase64Cache.set(cacheKey, dataUrl);
+    return dataUrl;
   }
+
+  return await fetchImageAsDataUrl(url, fallbackUrl);
 }
 
 // Generate QR Code presensi berbasis QR data URL
-// Menggunakan payload ringkas (NISN / ID siswa) agar modul QR berukuran besar (Version 1, 21x21)
-// Hasilnya: 10x lebih cepat terdeteksi kamera, tahan blur, dan sangat mudah di-scan dari layar HP lain
+// Menggunakan payload ringkas (NISN / ID siswa) dengan Error Correction Level H (High: tahan goresan hingga ~30%)
+// Hasilnya: 10x lebih cepat terdeteksi kamera, sangat tahan goresan fisik/lipatan/noda anak SD
 export async function generateStudentQrCode(student) {
   try {
     const QRCode = (await import('qrcode')).default;
@@ -151,9 +262,9 @@ export async function generateStudentQrCode(student) {
     const payload = String(student.nisn || student.nis || student.id || '').trim();
 
     return await QRCode.toDataURL(payload, {
-      errorCorrectionLevel: 'M',
+      errorCorrectionLevel: 'H', // HIGH: Tahan goresan & kerusakan fisik hingga ~30%
       margin: 1,
-      width: 320,
+      width: 360,
       color: {
         dark: '#000000',
         light: '#ffffff',
@@ -175,8 +286,8 @@ export function getSdCardBackgroundDataUrl() {
   if (cachedSdBg) return cachedSdBg;
   if (typeof document === 'undefined') return null;
 
-  const w = 540;
-  const h = 856;
+  const w = 600;
+  const h = 900;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -194,9 +305,9 @@ export function getSdCardBackgroundDataUrl() {
   ctx.save();
   ctx.strokeStyle = 'rgba(251, 191, 36, 0.16)'; // Aksen emas lembut
   ctx.lineWidth = 1.2;
-  const grid = 36;
+  const grid = 38;
   for (let x = -grid; x < w + grid; x += grid) {
-    for (let y = -grid; y < 460; y += grid) {
+    for (let y = -grid; y < 490; y += grid) {
       ctx.beginPath();
       ctx.moveTo(x + grid / 2, y);
       ctx.lineTo(x + grid, y + grid / 2);
@@ -216,7 +327,7 @@ export function getSdCardBackgroundDataUrl() {
 
   // 3. Mihrab Arch Emas (Kubah Islami Lancip di Atas)
   ctx.save();
-  const archGrad = ctx.createLinearGradient(0, 40, 0, 430);
+  const archGrad = ctx.createLinearGradient(0, 45, 0, 450);
   archGrad.addColorStop(0, '#fef08a'); // Emas Terang
   archGrad.addColorStop(0.3, '#f59e0b'); // Emas Hangat
   archGrad.addColorStop(0.7, '#d97706'); // Emas Kuningan
@@ -227,21 +338,21 @@ export function getSdCardBackgroundDataUrl() {
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(28, 430);
-  ctx.lineTo(28, 260);
-  ctx.bezierCurveTo(28, 140, 150, 70, 270, 45); // Sisi kiri melengkung ke puncak
-  ctx.bezierCurveTo(390, 70, 512, 140, 512, 260); // Puncak ke sisi kanan
-  ctx.lineTo(512, 430);
+  ctx.moveTo(32, 450);
+  ctx.lineTo(32, 270);
+  ctx.bezierCurveTo(32, 150, 165, 75, 300, 50); // Sisi kiri melengkung ke puncak
+  ctx.bezierCurveTo(435, 75, 568, 150, 568, 270); // Puncak ke sisi kanan
+  ctx.lineTo(568, 450);
   ctx.stroke();
 
   // Outline Dalam Arch (Double line tipis)
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(38, 430);
-  ctx.lineTo(38, 265);
-  ctx.bezierCurveTo(38, 155, 155, 85, 270, 62);
-  ctx.bezierCurveTo(385, 85, 502, 155, 502, 265);
-  ctx.lineTo(502, 430);
+  ctx.moveTo(44, 450);
+  ctx.lineTo(44, 275);
+  ctx.bezierCurveTo(44, 165, 170, 90, 300, 68);
+  ctx.bezierCurveTo(430, 90, 556, 165, 556, 275);
+  ctx.lineTo(556, 450);
   ctx.stroke();
   ctx.restore();
 
@@ -251,7 +362,7 @@ export function getSdCardBackgroundDataUrl() {
     ctx.translate(bx, h);
     if (isRight) ctx.scale(-1, 1);
 
-    const gold = ctx.createLinearGradient(0, -150, 0, 0);
+    const gold = ctx.createLinearGradient(0, -160, 0, 0);
     gold.addColorStop(0, '#fef08a');
     gold.addColorStop(0.4, '#f59e0b');
     gold.addColorStop(0.9, '#b45309');
@@ -260,25 +371,25 @@ export function getSdCardBackgroundDataUrl() {
     // Kubah Utama
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(0, -65);
-    ctx.bezierCurveTo(15, -75, 45, -110, 55, -135); // Puncak kubah lancip
-    ctx.bezierCurveTo(65, -110, 95, -75, 110, -65);
-    ctx.lineTo(110, 0);
+    ctx.lineTo(0, -70);
+    ctx.bezierCurveTo(16, -82, 48, -120, 60, -145); // Puncak kubah lancip
+    ctx.bezierCurveTo(72, -120, 104, -82, 120, -70);
+    ctx.lineTo(120, 0);
     ctx.closePath();
     ctx.fill();
 
     // Ujung Bulan Sabit / Kubah Tip
     ctx.beginPath();
-    ctx.arc(55, -145, 6, 0, Math.PI * 2);
+    ctx.arc(60, -155, 6.5, 0, Math.PI * 2);
     ctx.fillStyle = '#fef08a';
     ctx.fill();
 
     // Jendela Melengkung Kubah
     ctx.fillStyle = '#064e3b';
     ctx.beginPath();
-    ctx.arc(55, -45, 10, Math.PI, 0, false);
-    ctx.lineTo(65, -15);
-    ctx.lineTo(45, -15);
+    ctx.arc(60, -48, 11, Math.PI, 0, false);
+    ctx.lineTo(71, -16);
+    ctx.lineTo(49, -16);
     ctx.closePath();
     ctx.fill();
 
@@ -296,8 +407,8 @@ export function getSdCardBackgroundDataUrl() {
   ribbonGrad.addColorStop(1, '#b45309');
   ctx.fillStyle = ribbonGrad;
   ctx.beginPath();
-  ctx.moveTo(0, h - 30);
-  ctx.quadraticCurveTo(w / 2, h - 70, w, h - 30);
+  ctx.moveTo(0, h - 32);
+  ctx.quadraticCurveTo(w / 2, h - 75, w, h - 32);
   ctx.lineTo(w, h);
   ctx.lineTo(0, h);
   ctx.closePath();
@@ -309,7 +420,7 @@ export function getSdCardBackgroundDataUrl() {
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(w / 2 - 38, 14, 76, 22, 11);
+  ctx.roundRect(w / 2 - 40, 15, 80, 24, 12);
   ctx.stroke();
   ctx.restore();
 
@@ -323,8 +434,8 @@ export function getTkCardBackgroundDataUrl() {
   if (cachedTkBg) return cachedTkBg;
   if (typeof document === 'undefined') return null;
 
-  const w = 540;
-  const h = 856;
+  const w = 600;
+  const h = 900;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -355,9 +466,9 @@ export function getTkCardBackgroundDataUrl() {
   };
 
   // 2. Awan-Awan Dekoratif
-  drawCloud(85, 125, 0.9);   // Awan Kiri Atas
-  drawCloud(490, 380, 0.95); // Awan Kanan Tengah
-  drawCloud(60, 520, 1.0);   // Awan Kiri Tengah
+  drawCloud(95, 130, 0.95);  // Awan Kiri Atas
+  drawCloud(545, 400, 1.0);  // Awan Kanan Tengah
+  drawCloud(70, 550, 1.05);  // Awan Kiri Tengah
 
   // Helper Gambar Bintang 4 Titik
   const drawStar = (cx, cy, r, color = '#facc15') => {
@@ -375,10 +486,10 @@ export function getTkCardBackgroundDataUrl() {
   };
 
   // 3. Bintang-Bintang Ceria
-  drawStar(470, 150, 24, '#fde047'); // Bintang Kanan Atas Besar
-  drawStar(55, 385, 16, '#ffffff');  // Bintang Putih Kiri
-  drawStar(490, 630, 20, '#15803d'); // Bintang Aksen Bawah
-  drawStar(65, 625, 16, '#ca8a04');  // Bintang Aksen Kiri Bawah
+  drawStar(520, 160, 26, '#fde047'); // Bintang Kanan Atas Besar
+  drawStar(60, 405, 17, '#ffffff');   // Bintang Putih Kiri
+  drawStar(540, 660, 22, '#15803d');  // Bintang Aksen Bawah
+  drawStar(75, 655, 17, '#ca8a04');   // Bintang Aksen Kiri Bawah
 
   // Helper Gambar Daun Kartun
   const drawLeaf = (cx, cy, angle, scale = 1) => {
@@ -396,18 +507,18 @@ export function getTkCardBackgroundDataUrl() {
   };
 
   // Daun-daun kecil melayang
-  drawLeaf(480, 70, -25, 1.1);
-  drawLeaf(430, 105, 45, 0.9);
-  drawLeaf(500, 230, -60, 1.0);
-  drawLeaf(480, 280, 30, 0.8);
-  drawLeaf(48, 470, -40, 0.9);
+  drawLeaf(530, 75, -25, 1.15);
+  drawLeaf(475, 115, 45, 0.95);
+  drawLeaf(555, 245, -60, 1.05);
+  drawLeaf(535, 300, 30, 0.85);
+  drawLeaf(55, 495, -40, 0.95);
 
   // 4. Gelombang Rumput Hijau Tua di Bagian Bawah
   ctx.save();
   ctx.fillStyle = '#16a34a'; // Gelombang hijau tengah
   ctx.beginPath();
-  ctx.moveTo(0, h - 85);
-  ctx.bezierCurveTo(140, h - 130, 360, h - 60, w, h - 110);
+  ctx.moveTo(0, h - 90);
+  ctx.bezierCurveTo(155, h - 140, 400, h - 65, w, h - 118);
   ctx.lineTo(w, h);
   ctx.lineTo(0, h);
   ctx.closePath();
@@ -415,8 +526,8 @@ export function getTkCardBackgroundDataUrl() {
 
   ctx.fillStyle = '#15803d'; // Gelombang hijau tua depan
   ctx.beginPath();
-  ctx.moveTo(0, h - 70);
-  ctx.bezierCurveTo(180, h - 50, 340, h - 120, w, h - 75);
+  ctx.moveTo(0, h - 75);
+  ctx.bezierCurveTo(200, h - 55, 380, h - 130, w, h - 82);
   ctx.lineTo(w, h);
   ctx.lineTo(0, h);
   ctx.closePath();
@@ -424,16 +535,16 @@ export function getTkCardBackgroundDataUrl() {
   ctx.restore();
 
   // Daun hias di pojok bawah gelombang rumput
-  drawLeaf(45, h - 45, 40, 1.2);
-  drawLeaf(500, h - 50, -40, 1.2);
-  drawLeaf(470, h - 80, -20, 0.9);
+  drawLeaf(50, h - 48, 40, 1.25);
+  drawLeaf(555, h - 52, -40, 1.25);
+  drawLeaf(520, h - 85, -20, 0.95);
 
   // 5. Indikator Lubang Tali ID Card di Tengah Atas
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.roundRect(w / 2 - 38, 14, 76, 22, 11);
+  ctx.roundRect(w / 2 - 40, 15, 80, 24, 12);
   ctx.stroke();
   ctx.restore();
 
@@ -472,9 +583,9 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
 
   // 2. Logo Bulat Sekolah di Bagian Atas (Diberi jarak aman dari lubang gantungan atas)
   const logoData = await fetchImageAsDataUrl(cfg.logo);
-  const logoSize = isTk ? 12.2 : 11.6;
+  const logoSize = isTk ? 13.5 : 12.8;
   const logoX = ox + (CARD_WIDTH - logoSize) / 2;
-  const logoY = oy + 7.2;
+  const logoY = oy + 7.5;
   if (logoData) {
     try {
       doc.addImage(logoData, 'PNG', logoX, logoY, logoSize, logoSize);
@@ -488,28 +599,28 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
   if (isTk) {
     // TK: KARTU PELAJAR Kuning Emas, TK QUR'AN Putih
     doc.setTextColor(202, 138, 4); // Golden Amber #ca8a04
-    doc.setFontSize(7.6);
-    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 22, { align: 'center' });
+    doc.setFontSize(8.2);
+    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 23.5, { align: 'center' });
 
     doc.setTextColor(255, 255, 255); // Putih Bersih
-    doc.setFontSize(7.2);
-    doc.text('TK QUR\'AN IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 26, { align: 'center' });
+    doc.setFontSize(7.6);
+    doc.text('TK QUR\'AN IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 27.8, { align: 'center' });
   } else {
     // SD: KARTU PELAJAR Putih, SD ISLAM Kuning Emas
     doc.setTextColor(255, 255, 255); // Putih Bersih
-    doc.setFontSize(7.6);
-    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 22, { align: 'center' });
+    doc.setFontSize(8.2);
+    doc.text('KARTU PELAJAR', ox + CARD_WIDTH / 2, oy + 23.5, { align: 'center' });
 
     doc.setTextColor(251, 191, 36); // Emas Terang #fbbf24
-    doc.setFontSize(7.2);
-    doc.text('SD ISLAM IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 26, { align: 'center' });
+    doc.setFontSize(7.6);
+    doc.text('SD ISLAM IMAM SYAFI\'I', ox + CARD_WIDTH / 2, oy + 27.8, { align: 'center' });
   }
 
   // 4. Pas Foto Siswa Bulat (Circular Photo Frame)
-  const photoSize = 22; // Diameter 22 mm
+  const photoSize = 23.5; // Diameter 23.5 mm (Proporsional untuk 60x90 mm)
   const photoRadius = photoSize / 2;
   const photoCenterX = ox + CARD_WIDTH / 2;
-  const photoCenterY = oy + 39.5;
+  const photoCenterY = oy + 42;
   const photoX = photoCenterX - photoRadius;
   const photoY = photoCenterY - photoRadius;
 
@@ -528,7 +639,7 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     // TK: Ring Hijau Tua & Aksen Putih
     doc.setDrawColor(21, 128, 61); // Grass Dark Green
     doc.setLineWidth(1.1);
-    doc.circle(photoCenterX, photoCenterY, photoRadius + 0.4, 'S');
+    doc.circle(photoCenterX, photoCenterY, photoRadius + 0.5, 'S');
 
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.4);
@@ -551,13 +662,13 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
   if (isTk) {
     // TK di foto asli: NAMA : [NAMA SISWA]
     doc.setTextColor(6, 78, 59); // Forest Dark Green
-    let nameSize = 6.8;
-    if (studentName.length > 24) nameSize = 5.6;
-    else if (studentName.length > 18) nameSize = 6.2;
+    let nameSize = 7.2;
+    if (studentName.length > 24) nameSize = 5.8;
+    else if (studentName.length > 18) nameSize = 6.4;
     doc.setFontSize(nameSize);
 
     // Diletakkan rapi di tengah / sedikit indent
-    doc.text(`NAMA  :  ${studentName}`, ox + CARD_WIDTH / 2, oy + 55, {
+    doc.text(`NAMA  :  ${studentName}`, ox + CARD_WIDTH / 2, oy + 58.5, {
       align: 'center',
       maxWidth: CARD_WIDTH - 8,
     });
@@ -566,37 +677,37 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     // NAMA : [NAMA SISWA]
     // NISN : [NISN SISWA]
     doc.setTextColor(255, 255, 255); // Putih Bersih
-    let nameSize = 6.4;
-    if (studentName.length > 24) nameSize = 5.2;
-    else if (studentName.length > 18) nameSize = 5.8;
+    let nameSize = 6.8;
+    if (studentName.length > 24) nameSize = 5.5;
+    else if (studentName.length > 18) nameSize = 6.2;
 
-    const dataLeftX = ox + 8.5;
+    const dataLeftX = ox + 9.5;
     doc.setFontSize(nameSize);
-    doc.text('NAMA', dataLeftX, oy + 54.5);
-    doc.text(':', dataLeftX + 9.5, oy + 54.5);
-    doc.text(studentName, dataLeftX + 11.5, oy + 54.5, { maxWidth: 32 });
+    doc.text('NAMA', dataLeftX, oy + 57.5);
+    doc.text(':', dataLeftX + 10.5, oy + 57.5);
+    doc.text(studentName, dataLeftX + 12.5, oy + 57.5, { maxWidth: 36 });
 
     const nisnVal = student.nisn || student.nis || student.id || '-';
-    doc.setFontSize(6.4);
-    doc.text('NISN', dataLeftX, oy + 58.5);
-    doc.text(':', dataLeftX + 9.5, oy + 58.5);
-    doc.text(String(nisnVal), dataLeftX + 11.5, oy + 58.5);
+    doc.setFontSize(6.8);
+    doc.text('NISN', dataLeftX, oy + 61.8);
+    doc.text(':', dataLeftX + 10.5, oy + 61.8);
+    doc.text(String(nisnVal), dataLeftX + 12.5, oy + 61.8);
   }
 
-  // 6. Kotak Putih Rounded Berisi QR Code Presensi
-  const qrBoxW = 20.5;
-  const qrBoxH = 17.5;
+  // 6. Kotak Putih Rounded Berisi QR Code Presensi (Tahan Gores Level H)
+  const qrBoxW = 23;
+  const qrBoxH = 19.5;
   const qrBoxX = ox + (CARD_WIDTH - qrBoxW) / 2;
-  const qrBoxY = oy + 61.2;
+  const qrBoxY = oy + 64.8;
 
   // Kotak Putih Bersih
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(255, 255, 255);
   doc.roundedRect(qrBoxX, qrBoxY, qrBoxW, qrBoxH, 2.2, 2.2, 'F');
 
-  // Gambar QR Code
+  // Gambar QR Code (Ukuran 14.5 mm, titik tebal Level H)
   const qrDataUrl = await generateStudentQrCode(student);
-  const qrSize = 13;
+  const qrSize = 14.5;
   const qrX = ox + (CARD_WIDTH - qrSize) / 2;
   const qrY = qrBoxY + 1.2;
   if (qrDataUrl) {
@@ -613,27 +724,27 @@ export async function drawCardFront(doc, student, ox, oy, isTk = false) {
     : String(student.nisn || student.nis || student.id || '20240987');
   doc.setTextColor(0, 0, 0); // Hitam Pekat
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.2);
-  doc.text(idOrNisn, ox + CARD_WIDTH / 2, qrBoxY + 16, { align: 'center' });
+  doc.setFontSize(5.5);
+  doc.text(idOrNisn, ox + CARD_WIDTH / 2, qrBoxY + 18, { align: 'center' });
 
   // 7. Teks SCAN UNTUK ABSENSI di Paling Bawah
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.8);
+  doc.setFontSize(5.2);
   if (isTk) {
     doc.setTextColor(255, 255, 255); // Putih Bersih di atas gelombang hijau
   } else {
     doc.setTextColor(251, 191, 36); // Emas Kuning Cerah di atas pita kubah
   }
-  doc.text('SCAN UNTUK ABSENSI', ox + CARD_WIDTH / 2, oy + 82.8, { align: 'center' });
+  doc.text('SCAN UNTUK ABSENSI', ox + CARD_WIDTH / 2, oy + 87.2, { align: 'center' });
 }
 
-// ==================== CETAK SATUAN (SINGLE CARD PDF 1 HALAMAN) ====================
-// Sesuai instruksi: Halaman belakang tidak perlu ada karena akan polos saja.
+// ==================== CETAK SATUAN (SINGLE CARD PDF 1 HALAMAN 9x6 CM) ====================
+// Ukuran Standar Resmi: 60 mm x 90 mm (6 cm x 9 cm)
 export async function generateSingleCardPdf(student, isTkOverride = null) {
   const { jsPDF } = await import('jspdf');
   const isTk = isTkOverride !== null ? isTkOverride : String(student.kelas || '').toUpperCase().includes('TK');
 
-  // Halaman 1 Saja (Single Sided ISO CR-80: 54 x 85.6 mm)
+  // Halaman 1 Saja (Single Sided: 60 x 90 mm)
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -643,35 +754,37 @@ export async function generateSingleCardPdf(student, isTkOverride = null) {
   await drawCardFront(doc, student, 0, 0, isTk);
 
   const cleanName = String(student.nama_siswa || 'siswa').replace(/[^a-zA-Z0-9]/g, '_');
-  doc.save(`ID_Card_${cleanName}_${student.kelas || 'SD'}.pdf`);
+  doc.save(`ID_Card_9x6_${cleanName}_${student.kelas || 'SD'}.pdf`);
   return doc;
 }
 
-// ==================== CETAK MASSAL A4 (10 KARTU PER LEMBAR A4) ====================
-// A4 Landscape: 297 mm x 210 mm
-// Grid 5 Kolom x 2 Baris = Tepat 10 Kartu per Halaman!
-// Dilengkapi garis potong putus-putus untuk memudahkan pemotongan lurus dengan gunting / paper cutter.
+// ==================== CETAK MASSAL A4 (9 KARTU PER LEMBAR A4 PORTRAIT) ====================
+// A4 Portrait: 210 mm x 297 mm
+// Grid 3 Kolom x 3 Baris = Tepat 9 Kartu per Halaman!
+// Dilengkapi jarak potong (padding) 5 mm antar kartu di semua sisi + garis putus-putus aman
 export async function generateBatchA4Pdf(students, targetKelas = 'Semua', isTkOverride = null) {
   const { jsPDF } = await import('jspdf');
   if (!Array.isArray(students) || students.length === 0) {
     throw new Error('Daftar siswa kosong.');
   }
 
+  // Format A4 Portrait: 210 mm x 297 mm
   const doc = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
   });
 
-  const cardsPerPage = 10; // 5 kolom x 2 baris
-  const cols = 5;
-  const rows = 2;
+  const cardsPerPage = 9; // 3 kolom x 3 baris
+  const cols = 3;
+  const rows = 3;
+  const gapX = 5; // mm jarak celah potong horizontal antar kartu
+  const gapY = 5; // mm jarak celah potong vertikal antar kartu
 
-  // Perhitungan Presisi Margin Lembar A4 Landscape (297 x 210 mm)
-  const totalGridW = cols * CARD_WIDTH;  // 5 * 54 = 270 mm
-  const totalGridH = rows * CARD_HEIGHT; // 2 * 85.6 = 171.2 mm
-  const marginX = (297 - totalGridW) / 2; // 13.5 mm (Kiri & Kanan seimbang)
-  const marginY = (210 - totalGridH) / 2; // 19.4 mm (Atas & Bawah seimbang)
+  // Lebar 3 kartu + 2 celah = 3 * 60 + 2 * 5 = 190 mm. Margin kiri/kanan = (210 - 190) / 2 = 10 mm
+  // Tinggi 3 kartu + 2 celah = 3 * 90 + 2 * 5 = 280 mm. Margin atas/bawah = (297 - 280) / 2 = 8.5 mm
+  const marginX = (210 - (cols * CARD_WIDTH + (cols - 1) * gapX)) / 2;
+  const marginY = (297 - (rows * CARD_HEIGHT + (rows - 1) * gapY)) / 2;
 
   for (let idx = 0; idx < students.length; idx++) {
     const student = students[idx];
@@ -679,16 +792,16 @@ export async function generateBatchA4Pdf(students, targetKelas = 'Semua', isTkOv
     const posInPage = idx % cardsPerPage;
 
     if (idx > 0 && posInPage === 0) {
-      doc.addPage('a4', 'landscape');
+      doc.addPage('a4', 'portrait');
     }
 
     const col = posInPage % cols;
     const row = Math.floor(posInPage / cols);
 
-    const x = marginX + col * CARD_WIDTH;
-    const y = marginY + row * CARD_HEIGHT;
+    const x = marginX + col * (CARD_WIDTH + gapX);
+    const y = marginY + row * (CARD_HEIGHT + gapY);
 
-    // 1. Gambar Garis Potong (Cutting Line) di sekeliling kartu
+    // 1. Gambar Garis Potong (Cutting Line) di sekeliling kartu dengan garis putus-putus
     drawCutGuidelines(doc, x, y, CARD_WIDTH, CARD_HEIGHT);
 
     // 2. Gambar Sisi Depan Kartu
@@ -696,7 +809,7 @@ export async function generateBatchA4Pdf(students, targetKelas = 'Semua', isTkOv
   }
 
   const cleanGrade = String(targetKelas || 'Kelas').replace(/[^a-zA-Z0-9]/g, '_');
-  doc.save(`ID_Cards_A4_10_Kartu_${cleanGrade}_${students.length}_Siswa.pdf`);
+  doc.save(`ID_Cards_A4_9x6_Grid9_${cleanGrade}_${students.length}_Siswa.pdf`);
   return doc;
 }
 
